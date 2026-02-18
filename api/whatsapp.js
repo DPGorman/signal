@@ -1,12 +1,6 @@
 // ============================================
 // SIGNAL: WhatsApp Webhook
 // api/whatsapp.js
-//
-// This runs on Vercel as a serverless function.
-// Twilio calls this URL every time you send a
-// WhatsApp message to the sandbox number.
-// It saves the message to Supabase and runs
-// it through the AI analyzer.
 // ============================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -18,13 +12,26 @@ const supabase = createClient(
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
+// Tell Vercel to parse form-encoded bodies (how Twilio sends data)
+export const config = {
+  api: {
+    bodyParser: {
+      type: "application/x-www-form-urlencoded",
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { Body, From } = req.body;
+    // Twilio sends form-encoded data — read both cases
+    const Body = req.body?.Body || req.body?.body || "";
+    const From = req.body?.From || req.body?.from || "";
+
+    console.log("Incoming WhatsApp:", { Body, From });
 
     if (!Body || !From) {
       return res.status(400).json({ error: "Missing body or from" });
@@ -47,9 +54,9 @@ export default async function handler(req, res) {
       .eq("whatsapp_number", phoneNumber)
       .single();
 
-    // If no user found, get the most recent user as fallback
-    // (works for single-user setup during development)
+    // Fallback to most recent user for single-user dev setup
     let userId;
+    let projectName = "Film Series";
     if (!user) {
       const { data: latestUser } = await supabase
         .from("users")
@@ -58,8 +65,10 @@ export default async function handler(req, res) {
         .limit(1)
         .single();
       userId = latestUser?.id;
+      projectName = latestUser?.project_name || "Film Series";
     } else {
       userId = user.id;
+      projectName = user.project_name || "Film Series";
     }
 
     if (!userId) {
@@ -67,7 +76,8 @@ export default async function handler(req, res) {
     }
 
     // Run the idea through the AI analyzer
-    const analysis = await analyzeWithAI(messageText, user?.project_name || "Film Series");
+    const analysis = await analyzeWithAI(messageText, projectName);
+    console.log("AI Analysis:", analysis);
 
     // Save the idea to Supabase
     const { data: savedIdea, error: ideaError } = await supabase
@@ -86,14 +96,12 @@ export default async function handler(req, res) {
 
     if (ideaError) throw ideaError;
 
-    // Save dimensions
     if (analysis.dimensions?.length) {
       await supabase.from("dimensions").insert(
         analysis.dimensions.map(label => ({ idea_id: savedIdea.id, label }))
       );
     }
 
-    // Save deliverables
     if (analysis.deliverables?.length) {
       await supabase.from("deliverables").insert(
         analysis.deliverables.map(text => ({
@@ -104,14 +112,12 @@ export default async function handler(req, res) {
       );
     }
 
-    // Mark raw message as processed
     await supabase
       .from("whatsapp_messages")
       .update({ processed: true, idea_id: savedIdea.id })
       .eq("from_number", phoneNumber)
       .eq("processed", false);
 
-    // Send confirmation back to WhatsApp
     const categoryEmoji = {
       premise: "◈", character: "◉", scene: "◫", dialogue: "◌",
       arc: "◎", production: "◧", research: "◐", business: "◑"
@@ -121,21 +127,20 @@ export default async function handler(req, res) {
 
 ${analysis.aiNote}
 
-${analysis.dimensions?.length ? `Operating on: ${analysis.dimensions.join(", ")}` : ""}
+Operating on: ${analysis.dimensions?.join(", ") || "story"}
 
-${analysis.deliverables?.length ? `\nNext: ${analysis.deliverables[0]}` : ""}
+Next: ${analysis.deliverables?.[0] || "Sit with this idea"}
 
-View at signal-navy-five.vercel.app`;
+signal-navy-five.vercel.app`;
 
     return sendTwilioResponse(res, replyMessage);
 
   } catch (error) {
     console.error("Webhook error:", error);
-    return sendTwilioResponse(res, "Signal received your idea. Processing error — check your library.");
+    return sendTwilioResponse(res, "Signal received your idea. Check your library.");
   }
 }
 
-// ── AI Analysis ──────────────────────────────
 async function analyzeWithAI(text, projectName) {
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -149,23 +154,28 @@ async function analyzeWithAI(text, projectName) {
         model: "claude-sonnet-4-20250514",
         max_tokens: 1000,
         system: `You are a brilliant script editor and dramaturg. Analyze ideas across MULTIPLE dimensions simultaneously.
-Respond ONLY with JSON (no markdown):
-- category: one of [premise,character,scene,dialogue,arc,production,research,business]
-- dimensions: array of 2-4 strings (multiple levels this idea operates on)
-- aiNote: 1-2 sentences of genuine dramaturgical insight
-- deliverables: array of 2-3 next steps as invitations not tasks
-- inspirationQuestion: one question to capture why this felt important
-- signalStrength: integer 1-5`,
+Respond ONLY with a raw JSON object — no markdown, no backticks, no explanation:
+{
+  "category": one of [premise,character,scene,dialogue,arc,production,research,business],
+  "dimensions": array of 2-4 strings,
+  "aiNote": "1-2 sentences of genuine dramaturgical insight",
+  "deliverables": array of 2-3 next steps as invitations,
+  "inspirationQuestion": "one question",
+  "signalStrength": integer 1-5
+}`,
         messages: [{
           role: "user",
-          content: `Project: ${projectName}\n\nIdea captured via WhatsApp: "${text}"`
+          content: `Project: ${projectName}\n\nIdea: "${text}"`
         }],
       }),
     });
 
     const data = await response.json();
-    return JSON.parse(data.content[0].text.replace(/```json|```/g, "").trim());
-  } catch {
+    console.log("Anthropic raw response:", JSON.stringify(data));
+    const raw = data.content[0].text.replace(/```json|```/g, "").trim();
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error("AI analysis error:", e);
     return {
       category: "premise",
       dimensions: ["story", "character"],
@@ -177,7 +187,6 @@ Respond ONLY with JSON (no markdown):
   }
 }
 
-// ── Twilio Response ───────────────────────────
 function sendTwilioResponse(res, message) {
   res.setHeader("Content-Type", "text/xml");
   return res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
