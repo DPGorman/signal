@@ -75,6 +75,9 @@ export default function SignalDashboard() {
   const [showUpload,   setShowUpload]   = useState(false);
   const [canonUpload,  setCanonUpload]  = useState({ title: "", type: "reference", content: "" });
   const [isUploading,  setIsUploading]  = useState(false);
+  const [studio,       setStudio]       = useState(null);   // AI insight panel
+  const [studioLoading,setStudioLoading] = useState(false);
+  const [studioView,   setStudioView]   = useState("insight"); // "insight" | "patterns" | "question"
   const fileInputRef = useRef(null);
   const textareaRef  = useRef(null);
 
@@ -93,11 +96,59 @@ export default function SignalDashboard() {
         supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
       ]);
       if (u) setUser(u);
-      if (i) setIdeas(i);
+      if (i) { setIdeas(i); if (i.length > 0) generateStudio(i, u); }
       if (d) setDeliverables(d);
       if (c) setCanonDocs(c);
     } catch (e) { console.error(e); }
     finally { setIsLoading(false); }
+  };
+
+  const generateStudio = async (ideasList, userObj) => {
+    if (!ideasList || ideasList.length < 2) return;
+    setStudioLoading(true);
+    try {
+      // Detect clusters — same/similar ideas captured multiple times
+      const textMap = {};
+      ideasList.forEach(idea => {
+        const key = idea.text.slice(0, 40).toLowerCase();
+        textMap[key] = (textMap[key] || 0) + 1;
+      });
+      const clusters = Object.entries(textMap).filter(([,v]) => v > 1).map(([k]) => k);
+      const recentSample = ideasList.slice(0, 8).map(i => `[${i.category}] "${i.text.slice(0, 120)}"`).join("\n");
+      const highSignal = ideasList.filter(i => i.signal_strength >= 4).slice(0, 3).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 800,
+          system: `You are a razor-sharp creative collaborator and dramaturg working on a film series. You have access to the creator's captured ideas. Your job is NOT to be encouraging — your job is to be useful. Notice what's not being said. Find the unresolved tension. Ask the question the creator is avoiding.
+
+Respond ONLY with raw JSON:
+{
+  "provocation": "one sharp, specific question or observation that the creator hasn't addressed yet — 2-3 sentences max, specific to these ideas",
+  "pattern": "if you notice a repeated idea or theme (the creator is circling something), name it explicitly and say what that repetition usually means",
+  "urgentIdea": "the single idea from the recent captures that most deserves immediate attention and why — 1-2 sentences",
+  "blind_spot": "what is conspicuously absent from these captures? what is the creator NOT capturing that they should be?"
+}`,
+          messages: [{ role: "user", content: `Project: ${userObj?.project_name || "Film Series"}
+
+Recent captures:
+${recentSample}
+
+${highSignal ? `High signal ideas:\n${highSignal}` : ""}
+
+${clusters.length > 0 ? `Repeated/clustered ideas (possible obsession):\n${clusters.join("\n")}` : ""}
+
+Total captured: ${ideasList.length}` }]
+        })
+      });
+      const data = await res.json();
+      const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g, "").trim());
+      setStudio(parsed);
+    } catch (e) { console.error("Studio error:", e); }
+    finally { setStudioLoading(false); }
   };
 
   const notify = (msg, type = "info") => {
@@ -177,6 +228,8 @@ Respond ONLY with raw JSON, no markdown:
     setActiveIdea({ ...saved, dimensions: (analysis.dimensions || []).map(l => ({ label: l })) });
     setActiveView("library");
     notify("Signal captured.", "success");
+    // Refresh studio with updated ideas
+    setTimeout(() => generateStudio([...ideas, saved], user), 500);
   };
 
   const uploadCanon = async () => {
@@ -264,7 +317,7 @@ Respond ONLY with raw JSON, no markdown:
   // ─────────────────────────────────────────────────────────────────────────
 
   const DashboardView = () => (
-    <div style={{ padding: "44px 52px", maxWidth: 960, overflowY: "auto", flex: 1 }}>
+    <div style={{ padding: "44px 52px", overflowY: "auto", overflowX: "hidden", flex: 1 }}>
 
       <div style={{ marginBottom: 44 }}>
         <div style={{ fontSize: 30, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em", marginBottom: 6 }}>
@@ -307,15 +360,15 @@ Respond ONLY with raw JSON, no markdown:
                 const daysAgo = Math.floor((Date.now() - new Date(idea.created_at).getTime()) / 86400000);
                 return (
                   <div key={idea.id} onClick={() => { setActiveIdea(idea); navGo("library"); }}
-                    style={{ padding: "14px 18px", borderBottom: idx < 6 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12, alignItems: "flex-start", transition: "background 0.1s" }}
+                    style={{ padding: "13px 18px", borderBottom: idx < 6 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12, alignItems: "flex-start", transition: "background 0.1s", minWidth: 0 }}
                     onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <span style={{ fontSize: 12, color: cat.color, marginTop: 2, flexShrink: 0 }}>{cat.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.55, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{idea.text}</div>
-                      <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, marginTop: 4 }}>
+                    <span style={{ fontSize: 12, color: cat.color, marginTop: 3, flexShrink: 0 }}>{cat.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                      <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.6, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>{idea.text}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, marginTop: 3 }}>
                         {cat.label} · {daysAgo === 0 ? "today" : `${daysAgo}d ago`}
-                        {idea.signal_strength >= 4 && <span style={{ color: C.gold, marginLeft: 8 }}>◈ high signal</span>}
+                        {idea.signal_strength >= 4 && <span style={{ color: C.gold, marginLeft: 8 }}>◈</span>}
                       </div>
                     </div>
                   </div>
@@ -338,13 +391,13 @@ Respond ONLY with raw JSON, no markdown:
                 const cat = getCat(task.idea?.category);
                 return (
                   <div key={task.id} onClick={() => toggleDeliverable(task.id, task.is_complete)}
-                    style={{ padding: "14px 18px", borderBottom: idx < arr.length - 1 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12, alignItems: "flex-start", transition: "background 0.1s" }}
+                    style={{ padding: "13px 18px", borderBottom: idx < arr.length - 1 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12, alignItems: "flex-start", transition: "background 0.1s", minWidth: 0 }}
                     onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <div style={{ width: 17, height: 17, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 3 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.55 }}>{task.text}</div>
-                      <div style={{ fontSize: 11, color: cat.color, fontFamily: mono, marginTop: 4 }}>{cat.icon} {cat.label}</div>
+                    <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 3 }} />
+                    <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                      <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>{task.text}</div>
+                      <div style={{ fontSize: 11, color: cat.color, fontFamily: mono, marginTop: 3 }}>{cat.icon} {cat.label}</div>
                     </div>
                   </div>
                 );
@@ -833,57 +886,170 @@ Respond ONLY with raw JSON, no markdown:
         </div>
       </div>
 
-      {/* ── RIGHT COLUMN ── */}
-      <div style={{ width: 252, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>SIGNAL STATUS</div>
+      {/* ── RIGHT COLUMN — STUDIO ── */}
+      <div style={{ width: 268, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-
-          {/* Stats */}
-          <div style={{ marginBottom: 30 }}>
+        {/* Studio header with tabs */}
+        <div style={{ padding: "14px 16px 0", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 12 }}>STUDIO</div>
+          <div style={{ display: "flex", gap: 0 }}>
             {[
-              { label: "Total Ideas",  value: ideas.length,   color: C.gold   },
-              { label: "This Week",    value: ideas.filter(i => Date.now() - new Date(i.created_at).getTime() < 7*86400000).length, color: C.blue   },
-              { label: "High Signal",  value: ideas.filter(i => i.signal_strength >= 4).length, color: C.green  },
-              { label: "Via WhatsApp", value: ideas.filter(i => i.source === "whatsapp").length, color: C.purple },
-            ].map(s => (
-              <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${C.borderSubtle}` }}>
-                <span style={{ fontSize: 14, color: C.textSecondary }}>{s.label}</span>
-                <span style={{ fontSize: 24, color: s.color, fontStyle: "italic" }}>{s.value}</span>
-              </div>
+              { id: "insight",  label: "Insight"  },
+              { id: "patterns", label: "Patterns" },
+              { id: "stats",    label: "Stats"    },
+            ].map(t => (
+              <button key={t.id} onClick={() => setStudioView(t.id)}
+                style={{ background: "transparent", border: "none", borderBottom: studioView === t.id ? `2px solid ${C.gold}` : "2px solid transparent", color: studioView === t.id ? C.textPrimary : C.textMuted, padding: "6px 12px 10px", fontFamily: mono, fontSize: 10, letterSpacing: "0.08em", cursor: "pointer" }}>
+                {t.label}
+              </button>
             ))}
           </div>
+        </div>
 
-          {/* Category bars */}
-          {ideas.length > 0 && (
-            <div style={{ marginBottom: 30 }}>
-              <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 14 }}>BY CATEGORY</div>
-              {CATEGORIES.map(cat => {
-                const count = ideas.filter(i => i.category === cat.id).length;
-                if (!count) return null;
-                return (
-                  <div key={cat.id} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, color: C.textSecondary }}>{cat.label}</span>
-                      <span style={{ fontSize: 13, color: cat.color, fontFamily: mono }}>{count}</span>
-                    </div>
-                    <div style={{ height: 3, background: C.border, borderRadius: 2 }}>
-                      <div style={{ height: "100%", background: cat.color, width: `${(count / ideas.length) * 100}%`, borderRadius: 2, opacity: 0.75 }} />
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 16px" }}>
+
+          {/* ── INSIGHT TAB ── */}
+          {studioView === "insight" && (
+            studioLoading ? (
+              <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 13, lineHeight: 1.7 }}>Reading your captures...</div>
+            ) : studio ? (
+              <div>
+                {/* Live provocation */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>TODAY'S PROVOCATION</div>
+                  <div style={{ fontSize: 14, color: C.textPrimary, lineHeight: 1.85, borderLeft: `3px solid ${C.gold}`, paddingLeft: 14 }}>
+                    {studio.provocation}
+                  </div>
+                </div>
+
+                {/* Blind spot */}
+                {studio.blind_spot && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 10, color: C.red, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>BLIND SPOT</div>
+                    <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.8 }}>
+                      {studio.blind_spot}
                     </div>
                   </div>
+                )}
+
+                {/* Urgent idea */}
+                {studio.urgentIdea && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 10, color: C.green, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>ACT ON THIS NOW</div>
+                    <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.8, fontStyle: "italic" }}>
+                      {studio.urgentIdea}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={() => generateStudio(ideas, user)}
+                  style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "8px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", cursor: "pointer", marginTop: 8 }}>
+                  REFRESH ANALYSIS ↻
+                </button>
+              </div>
+            ) : ideas.length < 2 ? (
+              <div style={{ fontSize: 13, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.8 }}>
+                Capture a few ideas and the Studio will start reading your project.
+              </div>
+            ) : (
+              <button onClick={() => generateStudio(ideas, user)}
+                style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
+                GENERATE INSIGHT →
+              </button>
+            )
+          )}
+
+          {/* ── PATTERNS TAB ── */}
+          {studioView === "patterns" && (
+            <div>
+              {studio?.pattern && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 10, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>WHAT YOU KEEP CIRCLING</div>
+                  <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.85, borderLeft: `3px solid ${C.purple}`, paddingLeft: 14 }}>
+                    {studio.pattern}
+                  </div>
+                </div>
+              )}
+
+              {/* Signal distribution */}
+              {ideas.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 14 }}>BY CATEGORY</div>
+                  {CATEGORIES.map(cat => {
+                    const count = ideas.filter(i => i.category === cat.id).length;
+                    if (!count) return null;
+                    return (
+                      <div key={cat.id} style={{ marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, color: C.textSecondary }}>{cat.icon} {cat.label}</span>
+                          <span style={{ fontSize: 12, color: cat.color, fontFamily: mono }}>{count}</span>
+                        </div>
+                        <div style={{ height: 3, background: C.border, borderRadius: 2 }}>
+                          <div style={{ height: "100%", background: cat.color, width: `${(count / ideas.length) * 100}%`, borderRadius: 2, opacity: 0.8 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Repeated ideas detector */}
+              {(() => {
+                const seen = {};
+                ideas.forEach(i => {
+                  const k = i.text.slice(0, 50).toLowerCase();
+                  seen[k] = (seen[k] || []);
+                  seen[k].push(i);
+                });
+                const dupes = Object.values(seen).filter(arr => arr.length > 1);
+                if (!dupes.length) return null;
+                return (
+                  <div>
+                    <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>REPEATED SIGNALS ({dupes.length})</div>
+                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 10 }}>You've captured these ideas multiple times. That repetition usually means they haven't found their right form yet.</div>
+                    {dupes.map((arr, i) => (
+                      <div key={i} onClick={() => { setActiveIdea(arr[0]); navGo("library"); }}
+                        style={{ fontSize: 12, color: C.textSecondary, padding: "8px 12px", background: C.surfaceHigh, marginBottom: 6, cursor: "pointer", borderLeft: `2px solid ${C.gold}` }}>
+                        "{arr[0].text.slice(0, 60)}..." <span style={{ color: C.gold, fontFamily: mono }}>×{arr.length}</span>
+                      </div>
+                    ))}
+                  </div>
                 );
-              })}
+              })()}
             </div>
           )}
 
-          {/* Canon status */}
-          <div>
-            <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 10 }}>CANON LAYER</div>
-            {activeCanon.length === 0
-              ? <div style={{ fontSize: 13, color: C.textDisabled, lineHeight: 1.75, fontStyle: "italic" }}>No documents active. AI analyzing without Canon context.</div>
-              : <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.75 }}>{activeCanon.length} document{activeCanon.length !== 1 ? "s" : ""} conditioning all analysis.</div>
-            }
-          </div>
+          {/* ── STATS TAB ── */}
+          {studioView === "stats" && (
+            <div>
+              {[
+                { label: "Total Ideas",   value: ideas.length,   color: C.gold   },
+                { label: "This Week",     value: ideas.filter(i => Date.now() - new Date(i.created_at).getTime() < 7*86400000).length, color: C.blue  },
+                { label: "High Signal",   value: ideas.filter(i => i.signal_strength >= 4).length, color: C.green  },
+                { label: "Via WhatsApp",  value: ideas.filter(i => i.source === "whatsapp").length, color: C.purple },
+                { label: "Open Actions",  value: pending.length, color: C.red    },
+                { label: "Canon Docs",    value: activeCanon.length, color: C.green  },
+              ].map(s => (
+                <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: `1px solid ${C.borderSubtle}` }}>
+                  <span style={{ fontSize: 13, color: C.textSecondary }}>{s.label}</span>
+                  <span style={{ fontSize: 22, color: s.color, fontStyle: "italic" }}>{s.value}</span>
+                </div>
+              ))}
+
+              {activeCanon.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON ACTIVE</div>
+                  {activeCanon.map(d => (
+                    <div key={d.id} style={{ fontSize: 12, color: C.green, marginBottom: 6, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ flexShrink: 0, marginTop: 2 }}>◈</span>
+                      <span style={{ lineHeight: 1.5 }}>{d.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 
