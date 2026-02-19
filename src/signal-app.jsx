@@ -415,86 +415,96 @@ export default function SignalDashboard() {
 
           {/* CANON */}
           {activeView === "canon" && (
-            <div style={{ padding: "40px 48px", maxWidth: 760 }}>
-              {showUploadForm && (
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, padding: 36, marginBottom: 36 }}>
-                  <div style={{ fontSize: 11, color: C.accentGold, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 24 }}>NEW CANON DOCUMENT</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-                    <div>
-                      <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 8 }}>TITLE</div>
+            <div style={{ display: "flex", height: "100%" }}>
+
+              {/* Left — document list */}
+              <div style={{ width: 320, borderRight: `1px solid ${C.border}`, overflowY: "auto", flexShrink: 0 }}>
+                {showUploadForm && (
+                  <div style={{ padding: 24, borderBottom: `1px solid ${C.border}`, background: C.surfaceHigh }}>
+                    <div style={{ fontSize: 11, color: C.accentGold, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 18 }}>NEW CANON DOCUMENT</div>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 6 }}>TITLE</div>
                       <input value={canonUpload.title} onChange={e => setCanonUpload(p => ({ ...p, title: e.target.value }))} placeholder="e.g. CRISPR Series Bible"
                         style={inputStyle} onFocus={e => e.target.style.borderColor = C.accentGold} onBlur={e => e.target.style.borderColor = C.border} />
                     </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 8 }}>DOCUMENT TYPE</div>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 6 }}>TYPE</div>
                       <select value={canonUpload.type} onChange={e => setCanonUpload(p => ({ ...p, type: e.target.value }))}
                         style={{ ...inputStyle, fontFamily: "'Courier New', monospace", fontSize: 12 }}>
                         {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                       </select>
                     </div>
-                  </div>
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em" }}>CONTENT</div>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.12em" }}>CONTENT</div>
                         <button onClick={() => fileInputRef.current?.click()}
-                          style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "5px 14px", fontFamily: "'Courier New', monospace", fontSize: 10, cursor: "pointer" }}>
-                          UPLOAD FILE (.txt, .md)
+                          style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "3px 10px", fontFamily: "'Courier New', monospace", fontSize: 9, cursor: "pointer" }}>
+                          UPLOAD FILE
                         </button>
                         <input ref={fileInputRef} type="file" accept=".txt,.md" onChange={handleFileUpload} style={{ display: "none" }} />
-                        {canonUpload.content && <span style={{ fontSize: 11, color: C.success, fontFamily: "'Courier New', monospace" }}>✓ {canonUpload.content.length.toLocaleString()} chars</span>}
                       </div>
+                      {canonUpload.content && <div style={{ fontSize: 11, color: C.success, fontFamily: "'Courier New', monospace", marginBottom: 6 }}>✓ {canonUpload.content.length.toLocaleString()} chars loaded</div>}
+                      <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
+                        placeholder="Paste content or upload file..." rows={5}
+                        style={{ ...inputStyle, fontSize: 12, lineHeight: 1.6, resize: "vertical" }}
+                        onFocus={e => e.target.style.borderColor = C.accentGold} onBlur={e => e.target.style.borderColor = C.border} />
                     </div>
-                    <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
-                      placeholder="Paste document content here, or upload a file above..." rows={8}
-                      style={{ ...inputStyle, fontSize: 14, lineHeight: 1.75, resize: "vertical" }}
-                      onFocus={e => e.target.style.borderColor = C.accentGold} onBlur={e => e.target.style.borderColor = C.border} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button onClick={uploadCanon} disabled={isUploading || !canonUpload.title || !canonUpload.content}
-                      style={{ background: isUploading || !canonUpload.title || !canonUpload.content ? C.surfaceHigh : C.accentGold, color: isUploading || !canonUpload.title || !canonUpload.content ? C.textMuted : C.bg, border: "none", padding: "12px 28px", fontFamily: "'Courier New', monospace", fontSize: 11, letterSpacing: "0.1em", cursor: "pointer" }}>
+                      style={{ width: "100%", background: isUploading || !canonUpload.title || !canonUpload.content ? C.surfaceHigh : C.accentGold, color: isUploading || !canonUpload.title || !canonUpload.content ? C.textMuted : C.bg, border: "none", padding: "11px", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
                       {isUploading ? "SAVING..." : "SAVE TO CANON →"}
                     </button>
                   </div>
-                </div>
-              )}
+                )}
 
-              {canonDocs.length === 0 && !showUploadForm && (
-                <div style={{ textAlign: "center", padding: "100px 0" }}>
-                  <div style={{ fontSize: 56, color: C.border, marginBottom: 24 }}>◈</div>
-                  <div style={{ fontSize: 18, color: C.textMuted, fontStyle: "italic", marginBottom: 12 }}>No Canon documents yet.</div>
-                  <div style={{ fontSize: 14, color: C.textDisabled, lineHeight: 1.9 }}>Upload your series bible, character documents, and premise statements.<br />The AI will push every new idea against them.</div>
-                </div>
-              )}
+                {canonDocs.length === 0 && !showUploadForm && (
+                  <div style={{ padding: 32, color: C.textDisabled, fontStyle: "italic", fontSize: 14, lineHeight: 1.8 }}>
+                    No documents yet.<br />Add your series bible, character docs, premise statements.
+                  </div>
+                )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {canonDocs.map(doc => (
                   <div key={doc.id} onClick={() => setActiveDoc(activeDoc?.id === doc.id ? null : doc)}
-                    style={{ background: C.surface, border: `1px solid ${C.border}`, padding: "20px 24px", cursor: "pointer", transition: "border-color 0.15s" }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = C.borderLight}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                        <span style={{ fontSize: 22, color: doc.is_active ? C.success : C.textDisabled }}>◈</span>
-                        <div>
-                          <div style={{ fontSize: 16, color: C.textPrimary, marginBottom: 4 }}>{doc.title}</div>
-                          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Courier New', monospace" }}>
-                            {DOC_TYPES.find(t => t.id === doc.doc_type)?.label} · {doc.content?.length?.toLocaleString()} characters
-                          </div>
+                    style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, borderLeft: activeDoc?.id === doc.id ? `3px solid ${C.success}` : "3px solid transparent", background: activeDoc?.id === doc.id ? C.surfaceHigh : "transparent", cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, color: C.textPrimary, marginBottom: 4, lineHeight: 1.4 }}>{doc.title}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Courier New', monospace" }}>
+                          {DOC_TYPES.find(t => t.id === doc.doc_type)?.label} · {doc.content?.length?.toLocaleString()} chars
                         </div>
                       </div>
                       <button onClick={e => { e.stopPropagation(); toggleCanonDoc(doc.id, doc.is_active); }}
-                        style={{ background: "transparent", color: doc.is_active ? C.success : C.textMuted, border: `1px solid ${doc.is_active ? C.success : C.border}`, padding: "5px 14px", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.08em", cursor: "pointer" }}>
-                        {doc.is_active ? "ACTIVE" : "INACTIVE"}
+                        style={{ background: "transparent", color: doc.is_active ? C.success : C.textMuted, border: `1px solid ${doc.is_active ? C.success : C.border}`, padding: "3px 10px", fontFamily: "'Courier New', monospace", fontSize: 9, letterSpacing: "0.08em", cursor: "pointer", flexShrink: 0 }}>
+                        {doc.is_active ? "ACTIVE" : "OFF"}
                       </button>
                     </div>
-                    {activeDoc?.id === doc.id && (
-                      <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${C.border}`, fontSize: 14, color: C.textSecondary, lineHeight: 1.85, maxHeight: 240, overflowY: "auto" }}>
-                        {doc.content?.slice(0, 1200)}{doc.content?.length > 1200 ? "..." : ""}
-                      </div>
-                    )}
                   </div>
                 ))}
+              </div>
+
+              {/* Right — full document reader */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "44px 52px" }}>
+                {activeDoc ? (
+                  <div style={{ maxWidth: 680 }}>
+                    <div style={{ marginBottom: 32 }}>
+                      <div style={{ fontSize: 22, color: C.textPrimary, marginBottom: 8 }}>{activeDoc.title}</div>
+                      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Courier New', monospace" }}>{DOC_TYPES.find(t => t.id === activeDoc.doc_type)?.label}</span>
+                        <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Courier New', monospace" }}>{activeDoc.content?.length?.toLocaleString()} characters</span>
+                        <span style={{ fontSize: 11, color: activeDoc.is_active ? C.success : C.textDisabled, fontFamily: "'Courier New', monospace" }}>
+                          {activeDoc.is_active ? "◈ Active in Canon" : "○ Inactive"}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ height: 1, background: C.border, marginBottom: 32 }} />
+                    <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.9, whiteSpace: "pre-wrap", fontFamily: "Georgia, serif" }}>
+                      {activeDoc.content}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: C.textDisabled, fontStyle: "italic", fontSize: 17 }}>
+                    Select a document to read it
+                  </div>
+                )}
               </div>
             </div>
           )}
