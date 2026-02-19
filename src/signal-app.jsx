@@ -83,8 +83,21 @@ export default function SignalDashboard() {
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
-    if (uid) loadAll(uid);
-    else setIsLoading(false);
+    if (uid) {
+      loadAll(uid);
+    } else {
+      supabase
+        .from("users").select("id").order("created_at", { ascending: false }).limit(1).single()
+        .then(({ data }) => {
+          if (data?.id) {
+            localStorage.setItem("signal_user_id", data.id);
+            loadAll(data.id);  // loadAll sets isLoading false when done
+          } else {
+            setIsLoading(false);  // genuinely no user — show nothing
+          }
+        })
+        .catch(() => setIsLoading(false));
+    }
   }, []);
 
   const loadAll = async (uid) => {
@@ -96,9 +109,11 @@ export default function SignalDashboard() {
         supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
       ]);
       if (u) setUser(u);
-      if (i) { setIdeas(i); if (i.length > 0) generateStudio(i, u); }
+      if (i) setIdeas(i);
       if (d) setDeliverables(d);
       if (c) setCanonDocs(c);
+      // Pass the actual user data object, not the destructured response variable
+      if (i && i.length > 0) generateStudio(i, u);
     } catch (e) { console.error(e); }
     finally { setIsLoading(false); }
   };
@@ -146,6 +161,59 @@ ${allIdeas}` }]
       setStudio(parsed);
     } catch (e) { console.error("Studio error:", e); }
     finally { setStudioLoading(false); }
+  };
+
+  const auditAndClean = async () => {
+    if (!ideas.length || !user) return;
+    notify("Auditing your library...", "processing");
+    try {
+      const allIdeas = ideas.map(i =>
+        `ID:${i.id} [${i.category}] "${i.text}"`
+      ).join("\n");
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: `You are auditing a creative database. Your job is ruthless clarity.
+
+Read every idea. Identify:
+1. EXACT or near-exact duplicates — same thought, same or nearly same words. Keep the best-worded one, mark the rest for removal.
+2. IDEAS that are clearly test entries (e.g. "test", "hello", nonsense text).
+
+Return ONLY raw JSON:
+{
+  "toArchive": ["id1", "id2"],
+  "kept": {"id": "the id you kept", "reason": "why this one"},
+  "summary": "one sentence describing what you cleaned and why"
+}
+
+If nothing needs cleaning, return { "toArchive": [], "kept": null, "summary": "No duplicates or test entries found." }`,
+          messages: [{ role: "user", content: `ALL IDEAS:\n${allIdeas}` }]
+        })
+      });
+      const data = await res.json();
+      const result = JSON.parse(data.content[0].text.replace(/```json|```/g, "").trim());
+
+      if (result.toArchive?.length > 0) {
+        // Archive the duplicates in Supabase
+        await supabase.from("ideas").update({ is_archived: true })
+          .in("id", result.toArchive);
+        // Remove their deliverables too — no point keeping invitations for archived ideas
+        await supabase.from("deliverables").update({ is_complete: true })
+          .in("idea_id", result.toArchive);
+        // Reload everything fresh
+        await loadAll(user.id);
+        notify(`Cleaned: ${result.summary}`, "success");
+      } else {
+        notify(result.summary, "info");
+      }
+    } catch (e) {
+      console.error("Audit error:", e);
+      notify("Audit failed — check console.", "error");
+    }
   };
 
   const notify = (msg, type = "info") => {
@@ -321,8 +389,20 @@ Respond ONLY with raw JSON, no markdown:
     </div>
   );
   if (!user) return (
-    <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: C.textSecondary, fontFamily: serif, fontSize: 15 }}>Complete onboarding first.</div>
+    <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20 }}>
+      <div style={{ color: C.textPrimary, fontFamily: serif, fontSize: 22, fontStyle: "italic" }}>Signal</div>
+      <div style={{ color: C.textMuted, fontFamily: mono, fontSize: 11, letterSpacing: "0.15em" }}>
+        No session found. Open <a href="https://signal-navy-five.vercel.app" style={{ color: C.gold }}>signal-navy-five.vercel.app</a> and complete onboarding, or check console for errors.
+      </div>
+      <button onClick={() => {
+        supabase.from("users").select("id").order("created_at", { ascending: false }).limit(1).single()
+          .then(({ data }) => {
+            if (data?.id) { localStorage.setItem("signal_user_id", data.id); window.location.reload(); }
+            else alert("No user found in database.");
+          });
+      }} style={{ background: C.gold, border: "none", color: C.bg, padding: "10px 24px", fontFamily: mono, fontSize: 11, cursor: "pointer", letterSpacing: "0.1em" }}>
+        RECOVER SESSION →
+      </button>
     </div>
   );
 
@@ -966,16 +1046,27 @@ Respond ONLY with raw JSON, no markdown:
                 Capture a few ideas and the Studio will start reading your project.
               </div>
             ) : (
-              <button onClick={() => generateStudio(ideas, user)}
-                style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
-                GENERATE INSIGHT →
-              </button>
+              // Auto-trigger — don't make user click
+              <div style={{ fontSize: 13, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.8 }}>
+                {(() => { setTimeout(() => generateStudio(ideas, user), 100); return "Reading your project..."; })()}
+              </div>
             )
           )}
 
           {/* ── PATTERNS TAB ── */}
           {studioView === "patterns" && (
             <div>
+              {/* Audit button — AI reads everything and cleans */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>LIBRARY AUDIT</div>
+                <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 10 }}>
+                  AI reads every idea and removes exact duplicates and test entries. Keeps the best version of each.
+                </div>
+                <button onClick={auditAndClean}
+                  style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}`, color: C.red, padding: "9px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
+                  AUDIT + CLEAN LIBRARY
+                </button>
+              </div>
               {studio?.pattern && (
                 <div style={{ marginBottom: 24 }}>
                   <div style={{ fontSize: 10, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>WHAT YOU KEEP CIRCLING</div>
