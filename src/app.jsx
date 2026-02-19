@@ -91,6 +91,17 @@ export default function Signal() {
 
   const studioFired  = useRef(false);
 
+  // Prevent Chrome from opening files when dropped outside the drop zone
+  useEffect(() => {
+    const prevent = (e) => e.preventDefault();
+    document.addEventListener("dragover", prevent);
+    document.addEventListener("drop", prevent);
+    return () => {
+      document.removeEventListener("dragover", prevent);
+      document.removeEventListener("drop", prevent);
+    };
+  }, []);
+
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
     if (uid) {
@@ -284,10 +295,16 @@ Raw JSON only:
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      const res = await fetch("/api/parse-file", {
+
+      // Send to AI proxy — Claude reads the file natively, no parsing libraries needed
+      const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: base64, filename: file.name }),
+        body: JSON.stringify({
+          file: { base64, mediaType: file.type || "application/pdf", filename: file.name },
+          message: "Extract all the text from this document. Return only the extracted text, preserving paragraph breaks. No commentary.",
+          maxTokens: 4000,
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -702,33 +719,19 @@ Raw JSON only:
               {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
 
-            {/* Drag and drop zone */}
-            <div
-              onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={async e => {
-                e.preventDefault();
-                setIsDragOver(false);
-                const file = e.dataTransfer.files[0];
-                if (file) await processFile(file);
+            <button
+              onClick={() => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.onchange = async (e) => {
+                  const file = e.target.files[0];
+                  if (file) await processFile(file);
+                };
+                input.click();
               }}
-              style={{
-                width: "100%",
-                border: `2px dashed ${isDragOver ? C.gold : C.border}`,
-                background: isDragOver ? C.gold + "10" : "transparent",
-                color: isDragOver ? C.gold : C.textSecondary,
-                padding: "20px 8px",
-                fontFamily: mono,
-                fontSize: 10,
-                cursor: "default",
-                marginBottom: 8,
-                textAlign: "center",
-                boxSizing: "border-box",
-                transition: "all 0.15s",
-                letterSpacing: "0.08em",
-              }}>
-              {canonUpload.content ? "✓ FILE LOADED — DROP TO REPLACE" : "DROP FILE HERE\n.pdf  .docx  .txt  .md"}
-            </div>
+              style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "10px 8px", fontFamily: mono, fontSize: 10, cursor: "pointer", marginBottom: 8, letterSpacing: "0.08em" }}>
+              {canonUpload.content ? "✓ FILE LOADED — UPLOAD AGAIN" : "UPLOAD FILE (.pdf .docx .txt .md)"}
+            </button>
 
             <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
               placeholder="Or paste text directly here..."
