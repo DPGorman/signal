@@ -705,7 +705,7 @@ Raw JSON only:
               style={{ ...inputBase, marginBottom: 10, fontSize: 13 }}>
               {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
-            <input type="file" accept=".txt,.md,.doc,.docx,.pdf,.rtf" ref={fileInputRef} onChange={handleFile} style={{ display: "none" }} />
+            <input type="file" accept="*/*" ref={fileInputRef} onChange={handleFile} style={{ display: "none" }} />
             <button onClick={() => fileInputRef.current?.click()}
               style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "8px", fontFamily: mono, fontSize: 10, cursor: "pointer", marginBottom: 8 }}>
               {canonUpload.content ? "✓ FILE LOADED — REPLACE" : "UPLOAD FILE (.txt .md .docx .pdf)"}
