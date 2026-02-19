@@ -198,15 +198,15 @@ If nothing needs cleaning, return { "toArchive": [], "kept": null, "summary": "N
       const result = JSON.parse(data.content[0].text.replace(/```json|```/g, "").trim());
 
       if (result.toArchive?.length > 0) {
-        // Archive the duplicates in Supabase
-        await supabase.from("ideas").update({ is_archived: true })
-          .in("id", result.toArchive);
-        // Remove their deliverables too — no point keeping invitations for archived ideas
-        await supabase.from("deliverables").update({ is_complete: true })
-          .in("idea_id", result.toArchive);
+        // Delete duplicates outright rather than archiving — simpler, no column dependency
+        for (const id of result.toArchive) {
+          await supabase.from("deliverables").delete().eq("idea_id", id);
+          await supabase.from("dimensions").delete().eq("idea_id", id);
+          await supabase.from("ideas").delete().eq("id", id);
+        }
         // Reload everything fresh
         await loadAll(user.id);
-        notify(`Cleaned: ${result.summary}`, "success");
+        notify(`Done: ${result.summary}`, "success");
       } else {
         notify(result.summary, "info");
       }
