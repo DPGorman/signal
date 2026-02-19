@@ -173,6 +173,13 @@ export default function SignalDashboard() {
     setCanonDocs(prev => prev.map(d => d.id === id ? { ...d, is_active: !current } : d));
   };
 
+  const deleteCanonDoc = async (id) => {
+    await supabase.from("canon_documents").delete().eq("id", id);
+    setCanonDocs(prev => prev.filter(d => d.id !== id));
+    if (activeDoc?.id === id) setActiveDoc(null);
+    showNotif("Document removed.", "info");
+  };
+
   const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
   const filteredIdeas = filterCat ? ideas.filter(i => i.category === filterCat) : ideas;
   const pendingCount = deliverables.filter(d => !d.is_complete).length;
@@ -472,10 +479,16 @@ export default function SignalDashboard() {
                           {DOC_TYPES.find(t => t.id === doc.doc_type)?.label} · {doc.content?.length?.toLocaleString()} chars
                         </div>
                       </div>
-                      <button onClick={e => { e.stopPropagation(); toggleCanonDoc(doc.id, doc.is_active); }}
-                        style={{ background: "transparent", color: doc.is_active ? C.success : C.textMuted, border: `1px solid ${doc.is_active ? C.success : C.border}`, padding: "3px 10px", fontFamily: "'Courier New', monospace", fontSize: 9, letterSpacing: "0.08em", cursor: "pointer", flexShrink: 0 }}>
-                        {doc.is_active ? "ACTIVE" : "OFF"}
-                      </button>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                        <button onClick={e => { e.stopPropagation(); toggleCanonDoc(doc.id, doc.is_active); }}
+                          style={{ background: "transparent", color: doc.is_active ? C.success : C.textMuted, border: `1px solid ${doc.is_active ? C.success : C.border}`, padding: "3px 10px", fontFamily: "'Courier New', monospace", fontSize: 9, letterSpacing: "0.08em", cursor: "pointer" }}>
+                          {doc.is_active ? "ACTIVE" : "OFF"}
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); if (window.confirm(`Delete "${doc.title}"?`)) deleteCanonDoc(doc.id); }}
+                          style={{ background: "transparent", color: "#FF8A80", border: "1px solid #FF8A8040", padding: "3px 10px", fontFamily: "'Courier New', monospace", fontSize: 9, letterSpacing: "0.08em", cursor: "pointer" }}>
+                          DELETE
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
