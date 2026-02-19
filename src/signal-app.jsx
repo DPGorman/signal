@@ -56,21 +56,15 @@ const DAILY_INVITATIONS = [
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
 const todayInvitation = DAILY_INVITATIONS[new Date().getDay() % DAILY_INVITATIONS.length];
 
-// ─── AI call helper ────────────────────────────────────────────────────────
+// ─── AI call helper — routes through serverless proxy ─────────────────────
 async function callAI(system, userMsg, maxTokens = 1000) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: userMsg }],
-    }),
+    body: JSON.stringify({ system, message: userMsg, maxTokens }),
   });
-  const data = await res.json();
-  const text = data.content?.[0]?.text || "";
-  return JSON.parse(text.replace(/```json|```/g, "").trim());
+  if (!res.ok) throw new Error(`AI proxy error: ${res.status}`);
+  return res.json();
 }
 
 // ──────────────────────────────────────────────────────────────────────────
