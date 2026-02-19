@@ -44,6 +44,7 @@ const DOC_TYPES = [
 ];
 
 const NAV = [
+  { id: "dashboard",    label: "Dashboard" },
   { id: "capture",      label: "Capture" },
   { id: "library",      label: "Library" },
   { id: "canon",        label: "Canon" },
@@ -55,7 +56,7 @@ export default function SignalDashboard() {
   const [ideas, setIdeas] = useState([]);
   const [deliverables, setDeliverables] = useState([]);
   const [canonDocs, setCanonDocs] = useState([]);
-  const [activeView, setActiveView] = useState("capture");
+  const [activeView, setActiveView] = useState("dashboard");
   const [activeIdea, setActiveIdea] = useState(null);
   const [activeDoc, setActiveDoc] = useState(null);
   const [input, setInput] = useState("");
@@ -276,6 +277,7 @@ export default function SignalDashboard() {
         {/* Top bar */}
         <div style={{ padding: "14px 36px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: C.surface, flexShrink: 0, minHeight: 52 }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>
+            {activeView === "dashboard" && "DASHBOARD"}
             {activeView === "capture" && "CAPTURE"}
             {activeView === "library" && `LIBRARY — ${filteredIdeas.length} IDEAS`}
             {activeView === "canon" && "CANON MANAGER"}
@@ -304,6 +306,135 @@ export default function SignalDashboard() {
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto" }}>
+
+          {/* DASHBOARD */}
+          {activeView === "dashboard" && (
+            <div style={{ padding: "44px 52px", maxWidth: 900 }}>
+
+              {/* Header */}
+              <div style={{ marginBottom: 48 }}>
+                <div style={{ fontSize: 28, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em", marginBottom: 6 }}>{user.project_name}</div>
+                <div style={{ fontSize: 13, color: C.textMuted }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
+              </div>
+
+              {/* 4 stat tiles */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 44 }}>
+                {[
+                  { label: "Ideas Captured", value: ideas.length, color: C.accentGold, sub: `${ideas.filter(i => Date.now() - new Date(i.created_at).getTime() < 7*86400000).length} this week` },
+                  { label: "Pending Work",   value: pendingCount,  color: "#FF8A80",    sub: `${deliverables.filter(d => d.is_complete).length} completed` },
+                  { label: "High Signal",    value: ideas.filter(i => i.signal_strength >= 4).length, color: C.success, sub: "ideas worth pursuing" },
+                  { label: "Canon Docs",     value: activeCanonCount, color: C.accent, sub: "conditioning analysis" },
+                ].map(s => (
+                  <div key={s.label} style={{ background: C.surface, border: `1px solid ${C.border}`, padding: "22px 20px" }}>
+                    <div style={{ fontSize: 38, color: s.color, fontStyle: "italic", lineHeight: 1, marginBottom: 8 }}>{s.value}</div>
+                    <div style={{ fontSize: 13, color: C.textPrimary, marginBottom: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Courier New', monospace" }}>{s.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Two columns: recent ideas + pending deliverables */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+
+                {/* Recent ideas */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>RECENT CAPTURES</div>
+                    <span onClick={() => setActiveView("library")} style={{ fontSize: 11, color: C.accentGold, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>VIEW ALL →</span>
+                  </div>
+                  <div style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    {ideas.length === 0 && <div style={{ padding: 24, color: C.textDisabled, fontStyle: "italic", fontSize: 13 }}>No ideas yet. Start capturing.</div>}
+                    {ideas.slice(0, 6).map((idea, i) => {
+                      const cat = getCat(idea.category);
+                      const daysAgo = Math.floor((Date.now() - new Date(idea.created_at).getTime()) / 86400000);
+                      return (
+                        <div key={idea.id} onClick={() => { setActiveIdea(idea); setActiveView("library"); }}
+                          style={{ padding: "13px 18px", borderBottom: i < 5 ? `1px solid ${C.border}` : "none", cursor: "pointer", display: "flex", gap: 12, alignItems: "flex-start" }}
+                          onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          <span style={{ fontSize: 11, color: cat.color, marginTop: 2 }}>{cat.icon}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{idea.text}</div>
+                            <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", marginTop: 3 }}>{daysAgo === 0 ? "today" : `${daysAgo}d ago`} · {cat.label}</div>
+                          </div>
+                          {idea.signal_strength >= 4 && <span style={{ fontSize: 9, color: C.accentGold, fontFamily: "'Courier New', monospace", flexShrink: 0 }}>◈</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pending deliverables */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>NEXT ACTIONS</div>
+                    <span onClick={() => setActiveView("deliverables")} style={{ fontSize: 11, color: C.accentGold, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>VIEW ALL →</span>
+                  </div>
+                  <div style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    {deliverables.filter(d => !d.is_complete).length === 0 && <div style={{ padding: 24, color: C.textDisabled, fontStyle: "italic", fontSize: 13 }}>All caught up.</div>}
+                    {deliverables.filter(d => !d.is_complete).slice(0, 6).map((task, i, arr) => {
+                      const cat = getCat(task.idea?.category);
+                      return (
+                        <div key={task.id} onClick={() => toggleDeliverable(task.id, task.is_complete)}
+                          style={{ padding: "13px 18px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", display: "flex", gap: 12, alignItems: "flex-start" }}
+                          onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          <div style={{ width: 16, height: 16, flexShrink: 0, border: `2px solid ${C.borderLight}`, marginTop: 2 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.5 }}>{task.text}</div>
+                            <div style={{ fontSize: 10, color: cat.color, fontFamily: "'Courier New', monospace", marginTop: 3 }}>{cat.icon} {cat.label}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Category breakdown */}
+              {ideas.length > 0 && (
+                <div style={{ marginTop: 36 }}>
+                  <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 16 }}>SIGNAL DISTRIBUTION</div>
+                  <div style={{ display: "flex", gap: 3, height: 6, borderRadius: 3, overflow: "hidden" }}>
+                    {CATEGORIES.map(cat => {
+                      const count = ideas.filter(i => i.category === cat.id).length;
+                      if (!count) return null;
+                      return <div key={cat.id} title={`${cat.label}: ${count}`} style={{ flex: count, background: cat.color, opacity: 0.8 }} />;
+                    })}
+                  </div>
+                  <div style={{ display: "flex", gap: 20, marginTop: 10, flexWrap: "wrap" }}>
+                    {CATEGORIES.filter(cat => ideas.some(i => i.category === cat.id)).map(cat => (
+                      <div key={cat.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />
+                        <span style={{ fontSize: 11, color: C.textMuted }}>{cat.label} {ideas.filter(i => i.category === cat.id).length}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Canon status */}
+              {canonDocs.length > 0 && (
+                <div style={{ marginTop: 36, paddingTop: 36, borderTop: `1px solid ${C.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>CANON LAYER</div>
+                    <span onClick={() => setActiveView("canon")} style={{ fontSize: 11, color: C.accentGold, cursor: "pointer", fontFamily: "'Courier New', monospace" }}>MANAGE →</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {canonDocs.map(doc => (
+                      <div key={doc.id} style={{ background: C.surface, border: `1px solid ${doc.is_active ? C.success + "60" : C.border}`, padding: "10px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ color: doc.is_active ? C.success : C.textDisabled, fontSize: 12 }}>◈</span>
+                        <div>
+                          <div style={{ fontSize: 13, color: doc.is_active ? C.textPrimary : C.textDisabled }}>{doc.title}</div>
+                          <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Courier New', monospace" }}>{doc.content?.length?.toLocaleString()} chars · {doc.is_active ? "active" : "inactive"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* CAPTURE */}
           {activeView === "capture" && (
