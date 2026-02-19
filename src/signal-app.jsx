@@ -118,8 +118,10 @@ export default function SignalDashboard() {
     finally { setIsLoading(false); }
   };
 
+  const studioFired = useRef(false);
   useEffect(() => {
-    if (ideas.length > 1 && user && !studio && !studioLoading) {
+    if (ideas.length > 1 && user && !studioFired.current) {
+      studioFired.current = true;
       generateStudio(ideas, user);
     }
   }, [ideas, user]);
