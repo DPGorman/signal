@@ -118,7 +118,11 @@ export default function SignalDashboard() {
     finally { setIsLoading(false); }
   };
 
-  const generateStudio = async (ideasList, userObj) => {
+  useEffect(() => {
+    if (ideas.length > 1 && user && !studio && !studioLoading) {
+      generateStudio(ideas, user);
+    }
+  }, [ideas, user]);
     if (!ideasList || ideasList.length < 2) return;
     setStudioLoading(true);
     try {
@@ -1046,10 +1050,10 @@ Respond ONLY with raw JSON, no markdown:
                 Capture a few ideas and the Studio will start reading your project.
               </div>
             ) : (
-              // Auto-trigger — don't make user click
-              <div style={{ fontSize: 13, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.8 }}>
-                {(() => { setTimeout(() => generateStudio(ideas, user), 100); return "Reading your project..."; })()}
-              </div>
+              <button onClick={() => generateStudio(ideas, user)}
+                style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
+                GENERATE INSIGHT →
+              </button>
             )
           )}
 
