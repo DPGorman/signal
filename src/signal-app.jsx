@@ -107,46 +107,38 @@ export default function SignalDashboard() {
     if (!ideasList || ideasList.length < 2) return;
     setStudioLoading(true);
     try {
-      // Detect genuine obsession — same idea resurfacing on different days (not test duplicates)
-      const dayKey = (iso) => new Date(iso).toDateString();
-      const clusterMap = {};
-      ideasList.forEach(idea => {
-        const key = idea.text.toLowerCase().replace(/[^a-z0-9 ]/g, "").slice(0, 45);
-        if (!clusterMap[key]) clusterMap[key] = { texts: [], days: new Set() };
-        clusterMap[key].texts.push(idea.text.slice(0, 80));
-        clusterMap[key].days.add(dayKey(idea.created_at));
-      });
-      const clusters = Object.values(clusterMap)
-        .filter(g => g.days.size >= 2) // only genuine multi-day recurrence
-        .map(g => g.texts[0]);
-      const recentSample = ideasList.slice(0, 8).map(i => `[${i.category}] "${i.text.slice(0, 120)}"`).join("\n");
-      const highSignal = ideasList.filter(i => i.signal_strength >= 4).slice(0, 3).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
+      // Give the AI everything — all ideas, not a sample. Let it think.
+      const allIdeas = ideasList.map((i, idx) =>
+        `#${idx + 1} [${i.category}, strength ${i.signal_strength || "?"}] "${i.text}"`
+      ).join("\n");
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 800,
-          system: `You are a razor-sharp creative collaborator and dramaturg working on a film series. You have access to the creator's captured ideas. Your job is NOT to be encouraging — your job is to be useful. Notice what's not being said. Find the unresolved tension. Ask the question the creator is avoiding.
+          max_tokens: 1000,
+          system: `You are a senior creative collaborator — part script editor, part dramaturg, part producer — working intensively on a film series. You have just read every idea the creator has captured so far.
+
+Your job is to think, not to categorize. Read everything. Notice what's actually there, what's missing, what keeps recurring across different phrasings, what the creator seems to be working toward without knowing it yet.
+
+Be direct. Be specific. Do not be encouraging for its own sake. Your value is in seeing what the creator cannot see because they are too close to it.
+
+IMPORTANT: If you see ideas that are clearly the same thought captured multiple times (even if slightly differently worded), name that honestly. Do not treat repetition as profound — sometimes it is just repetition. But sometimes returning to the same idea in different words means the creator hasn't cracked it yet. Distinguish between the two.
 
 Respond ONLY with raw JSON:
 {
-  "provocation": "one sharp, specific question or observation that the creator hasn't addressed yet — 2-3 sentences max, specific to these ideas",
-  "pattern": "if you notice a repeated idea or theme (the creator is circling something), name it explicitly and say what that repetition usually means",
-  "urgentIdea": "the single idea from the recent captures that most deserves immediate attention and why — 1-2 sentences",
-  "blind_spot": "what is conspicuously absent from these captures? what is the creator NOT capturing that they should be?"
+  "provocation": "the sharpest question or observation this body of work raises — something the creator hasn't resolved, phrased as something they need to sit with. 2-3 sentences. Specific to these ideas, not generic.",
+  "pattern": "what is this creator actually working on underneath the surface? what is the real subject? be interpretive, not descriptive.",
+  "urgentIdea": "the single captured idea that most deserves to be developed right now, and the one sentence that says why.",
+  "blind_spot": "what is this body of work not yet grappling with that it must? be honest.",
+  "duplicates": "if there are ideas that are clearly the same thought, say so plainly and name which one is the strongest articulation. If there are no genuine duplicates, return null."
 }`,
           messages: [{ role: "user", content: `Project: ${userObj?.project_name || "Film Series"}
+Total ideas captured: ${ideasList.length}
 
-Recent captures:
-${recentSample}
-
-${highSignal ? `High signal ideas:\n${highSignal}` : ""}
-
-${clusters.length > 0 ? `Repeated/clustered ideas (possible obsession):\n${clusters.join("\n")}` : ""}
-
-Total captured: ${ideasList.length}` }]
+ALL CAPTURED IDEAS (read everything before responding):
+${allIdeas}` }]
         })
       });
       const data = await res.json();
@@ -165,34 +157,51 @@ Total captured: ${ideasList.length}` }]
     setIsAnalyzing(true);
     try {
       const activeDocs = canonDocs.filter(d => d.is_active);
-      const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]: ${d.content.slice(0, 600)}`).join("\n\n");
+      const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]: ${d.content.slice(0, 800)}`).join("\n\n");
+
+      // Give the AI full awareness of what already exists
+      const existingIdeas = ideas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
+      const existingDeliverables = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
+
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1200,
-          system: `You are a world-class script editor and dramaturg working on a specific creative project. Your job is not to categorize — it is to INTERROGATE. Every idea operates on multiple levels simultaneously: immediate plot, character revelation, thematic resonance, premise encapsulation. See all of them.
+          system: `You are a world-class script editor and dramaturg working intensively on a specific creative project. Your job is to THINK, not to process.
 
-${canonContext ? `CANON — push every idea against this:\n${canonContext}\n\n` : ""}${ctx ? `CONTEXT FROM CREATOR — why this felt important in the moment:\n"${ctx}"\n\n` : ""}
+${canonContext ? `CANON — the foundational documents this project is built against:\n${canonContext}\n\n` : ""}
 
-Rules:
-- aiNote must be specific to THIS idea and THIS project, not generic dramaturgical advice
-- dimensions are the levels this idea operates on simultaneously (2-4, specific not generic)
-- invitations are phrased as creative pulls not tasks — "explore X" not "write X"  
-- canonResonance must name a SPECIFIC tension with or echo of the canon documents
-- signalStrength: 1=noise, 2=interesting, 3=strong, 4=urgent, 5=essential
+CRITICAL — Before generating anything, read what already exists:
+
+EXISTING IDEAS (already captured — do not generate duplicates or near-duplicates of these):
+${existingIdeas || "None yet."}
+
+EXISTING OPEN INVITATIONS (already pending — do not generate invitations that overlap with these):
+${existingDeliverables || "None yet."}
+
+${ctx ? `CREATOR'S NOTE — why this felt important:\n"${ctx}"\n\n` : ""}
+
+Your rules:
+- If this new idea is substantially the same as an existing idea, say so in aiNote and set signalStrength to 1
+- Generate invitations ONLY if they are genuinely different from the existing open invitations — do not add to noise
+- If the existing invitations already cover this territory, return an empty invitations array
+- aiNote must be specific to THIS idea against EVERYTHING ELSE captured, not generic advice
+- dimensions reveal the multiple levels this specific idea operates on simultaneously
+- invitations are creative pulls not tasks. Max 2. Only if genuinely needed.
+- signalStrength: 1=noise or duplicate, 2=interesting, 3=strong, 4=urgent, 5=essential
 
 Respond ONLY with raw JSON, no markdown:
 {
   "category": "premise|character|scene|dialogue|arc|production|research|business",
   "dimensions": ["specific level 1", "specific level 2"],
-  "aiNote": "1-2 sentences of specific dramaturgical insight",
-  "invitations": ["invitation 1", "invitation 2", "invitation 3"],
+  "aiNote": "specific insight — how this idea relates to or extends what's already been captured",
+  "invitations": [],
   "signalStrength": 3,
-  "canonResonance": "specific connection to or tension with the canon"
+  "canonResonance": "specific connection to or tension with the canon, or empty string"
 }`,
-          messages: [{ role: "user", content: `Project: ${user?.project_name || "Film Series"}\n\nIdea: "${text}"` }],
+          messages: [{ role: "user", content: `Project: ${user?.project_name || "Film Series"}\n\nNew idea: "${text}"` }],
         }),
       });
       const data = await res.json();
@@ -202,7 +211,7 @@ Respond ONLY with raw JSON, no markdown:
       return {
         category: "premise", dimensions: ["story mechanics", "thematic weight"],
         aiNote: "This idea has layers worth excavating — come back to it.",
-        invitations: ["Expand this in 3 sentences", "Connect it to your protagonist's central wound"],
+        invitations: [],
         signalStrength: 3, canonResonance: ""
       };
     } finally { setIsAnalyzing(false); }
@@ -998,51 +1007,19 @@ Respond ONLY with raw JSON, no markdown:
                 </div>
               )}
 
-              {/* Repeated ideas detector — only flags genuine obsession, not testing/accidents */}
-              {(() => {
-                // Group ideas by rough semantic similarity (first 60 chars, lowercased, stripped)
-                // Only flag if: captured on 2+ distinct calendar days AND phrasing varies (not verbatim)
-                const dayKey = (iso) => new Date(iso).toDateString();
-                const normalize = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, "").slice(0, 60).trim();
-
-                const groups = {};
-                ideas.forEach(i => {
-                  const k = normalize(i.text).slice(0, 40);
-                  if (!groups[k]) groups[k] = [];
-                  groups[k].push(i);
-                });
-
-                // Only surface groups where ideas span 2+ different days
-                const genuine = Object.values(groups).filter(arr => {
-                  if (arr.length < 2) return false;
-                  const days = new Set(arr.map(i => dayKey(i.created_at)));
-                  return days.size >= 2; // must span multiple calendar days
-                });
-
-                if (!genuine.length) return (
-                  <div style={{ fontSize: 12, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.7 }}>
-                    No recurring patterns detected yet. Patterns emerge over days, not sessions.
+              {/* AI's read on duplicates — honest, not algorithmic */}
+              {studio?.duplicates && studio.duplicates !== "null" && studio.duplicates !== null ? (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>ON REPETITION</div>
+                  <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.85, borderLeft: `3px solid ${C.gold}`, paddingLeft: 14 }}>
+                    {studio.duplicates}
                   </div>
-                );
-
-                return (
-                  <div>
-                    <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>RECURRING ACROSS DAYS ({genuine.length})</div>
-                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 12 }}>
-                      These ideas have resurfaced on different days — a sign something is unresolved.
-                    </div>
-                    {genuine.map((arr, i) => (
-                      <div key={i} onClick={() => { setActiveIdea(arr[0]); navGo("library"); }}
-                        style={{ fontSize: 12, color: C.textSecondary, padding: "10px 12px", background: C.surfaceHigh, marginBottom: 8, cursor: "pointer", borderLeft: `2px solid ${C.gold}` }}>
-                        <div style={{ marginBottom: 4 }}>"{arr[0].text.slice(0, 70)}{arr[0].text.length > 70 ? "..." : ""}"</div>
-                        <div style={{ fontSize: 10, color: C.gold, fontFamily: mono }}>
-                          captured {arr.length}× across {new Set(arr.map(i => dayKey(i.created_at))).size} days
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
+                </div>
+              ) : studio ? (
+                <div style={{ fontSize: 12, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.7, marginBottom: 20 }}>
+                  No redundant captures detected.
+                </div>
+              ) : null}
             </div>
           )}
 
