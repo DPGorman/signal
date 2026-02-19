@@ -107,13 +107,18 @@ export default function SignalDashboard() {
     if (!ideasList || ideasList.length < 2) return;
     setStudioLoading(true);
     try {
-      // Detect clusters — same/similar ideas captured multiple times
-      const textMap = {};
+      // Detect genuine obsession — same idea resurfacing on different days (not test duplicates)
+      const dayKey = (iso) => new Date(iso).toDateString();
+      const clusterMap = {};
       ideasList.forEach(idea => {
-        const key = idea.text.slice(0, 40).toLowerCase();
-        textMap[key] = (textMap[key] || 0) + 1;
+        const key = idea.text.toLowerCase().replace(/[^a-z0-9 ]/g, "").slice(0, 45);
+        if (!clusterMap[key]) clusterMap[key] = { texts: [], days: new Set() };
+        clusterMap[key].texts.push(idea.text.slice(0, 80));
+        clusterMap[key].days.add(dayKey(idea.created_at));
       });
-      const clusters = Object.entries(textMap).filter(([,v]) => v > 1).map(([k]) => k);
+      const clusters = Object.values(clusterMap)
+        .filter(g => g.days.size >= 2) // only genuine multi-day recurrence
+        .map(g => g.texts[0]);
       const recentSample = ideasList.slice(0, 8).map(i => `[${i.category}] "${i.text.slice(0, 120)}"`).join("\n");
       const highSignal = ideasList.filter(i => i.signal_strength >= 4).slice(0, 3).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
 
@@ -993,24 +998,46 @@ Respond ONLY with raw JSON, no markdown:
                 </div>
               )}
 
-              {/* Repeated ideas detector */}
+              {/* Repeated ideas detector — only flags genuine obsession, not testing/accidents */}
               {(() => {
-                const seen = {};
+                // Group ideas by rough semantic similarity (first 60 chars, lowercased, stripped)
+                // Only flag if: captured on 2+ distinct calendar days AND phrasing varies (not verbatim)
+                const dayKey = (iso) => new Date(iso).toDateString();
+                const normalize = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, "").slice(0, 60).trim();
+
+                const groups = {};
                 ideas.forEach(i => {
-                  const k = i.text.slice(0, 50).toLowerCase();
-                  seen[k] = (seen[k] || []);
-                  seen[k].push(i);
+                  const k = normalize(i.text).slice(0, 40);
+                  if (!groups[k]) groups[k] = [];
+                  groups[k].push(i);
                 });
-                const dupes = Object.values(seen).filter(arr => arr.length > 1);
-                if (!dupes.length) return null;
+
+                // Only surface groups where ideas span 2+ different days
+                const genuine = Object.values(groups).filter(arr => {
+                  if (arr.length < 2) return false;
+                  const days = new Set(arr.map(i => dayKey(i.created_at)));
+                  return days.size >= 2; // must span multiple calendar days
+                });
+
+                if (!genuine.length) return (
+                  <div style={{ fontSize: 12, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.7 }}>
+                    No recurring patterns detected yet. Patterns emerge over days, not sessions.
+                  </div>
+                );
+
                 return (
                   <div>
-                    <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>REPEATED SIGNALS ({dupes.length})</div>
-                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 10 }}>You've captured these ideas multiple times. That repetition usually means they haven't found their right form yet.</div>
-                    {dupes.map((arr, i) => (
+                    <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>RECURRING ACROSS DAYS ({genuine.length})</div>
+                    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 12 }}>
+                      These ideas have resurfaced on different days — a sign something is unresolved.
+                    </div>
+                    {genuine.map((arr, i) => (
                       <div key={i} onClick={() => { setActiveIdea(arr[0]); navGo("library"); }}
-                        style={{ fontSize: 12, color: C.textSecondary, padding: "8px 12px", background: C.surfaceHigh, marginBottom: 6, cursor: "pointer", borderLeft: `2px solid ${C.gold}` }}>
-                        "{arr[0].text.slice(0, 60)}..." <span style={{ color: C.gold, fontFamily: mono }}>×{arr.length}</span>
+                        style={{ fontSize: 12, color: C.textSecondary, padding: "10px 12px", background: C.surfaceHigh, marginBottom: 8, cursor: "pointer", borderLeft: `2px solid ${C.gold}` }}>
+                        <div style={{ marginBottom: 4 }}>"{arr[0].text.slice(0, 70)}{arr[0].text.length > 70 ? "..." : ""}"</div>
+                        <div style={{ fontSize: 10, color: C.gold, fontFamily: mono }}>
+                          captured {arr.length}× across {new Set(arr.map(i => dayKey(i.created_at))).size} days
+                        </div>
                       </div>
                     ))}
                   </div>
