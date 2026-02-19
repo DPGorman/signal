@@ -6,30 +6,30 @@ const SUPABASE_ANON_KEY = "sb_publishable__QsWm6OyTnnGcBMxfMBX-Q_sX-asbi6";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const CATEGORIES = [
-  { id: "premise", label: "Premise", icon: "◈", color: "#E8C547" },
-  { id: "character", label: "Character", icon: "◉", color: "#E87B47" },
-  { id: "scene", label: "Scene", icon: "◫", color: "#47B5E8" },
-  { id: "dialogue", label: "Dialogue", icon: "◌", color: "#C447E8" },
-  { id: "arc", label: "Story Arc", icon: "◎", color: "#47E8A0" },
-  { id: "production", label: "Production", icon: "◧", color: "#E84747" },
-  { id: "research", label: "Research", icon: "◐", color: "#8BE847" },
-  { id: "business", label: "Business", icon: "◑", color: "#E8479A" },
+  { id: "premise", label: "Premise", icon: "◈", color: "#C9920A" },
+  { id: "character", label: "Character", icon: "◉", color: "#C45A1A" },
+  { id: "scene", label: "Scene", icon: "◫", color: "#1A78C2" },
+  { id: "dialogue", label: "Dialogue", icon: "◌", color: "#8B2CC4" },
+  { id: "arc", label: "Story Arc", icon: "◎", color: "#1A9E5A" },
+  { id: "production", label: "Production", icon: "◧", color: "#C41A1A" },
+  { id: "research", label: "Research", icon: "◐", color: "#5A9E1A" },
+  { id: "business", label: "Business", icon: "◑", color: "#C41A6E" },
 ];
 
 const DOC_TYPES = [
-  { id: "premise", label: "Premise" },
-  { id: "character_bible", label: "Character Bible" },
   { id: "series_bible", label: "Series Bible" },
+  { id: "character_bible", label: "Character Bible" },
+  { id: "premise", label: "Premise" },
   { id: "tone_guide", label: "Tone Guide" },
   { id: "research", label: "Research" },
   { id: "reference", label: "Reference" },
 ];
 
-const NAV_ITEMS = [
-  { id: "capture", label: "Capture", icon: "⊕" },
-  { id: "library", label: "Library", icon: "◫" },
-  { id: "canon", label: "Canon", icon: "◈" },
-  { id: "deliverables", label: "Deliverables", icon: "◎" },
+const NAV = [
+  { id: "capture", label: "Capture" },
+  { id: "library", label: "Library" },
+  { id: "canon", label: "Canon" },
+  { id: "deliverables", label: "Deliverables" },
 ];
 
 export default function SignalDashboard() {
@@ -45,9 +45,9 @@ export default function SignalDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState(null);
   const [filterCat, setFilterCat] = useState(null);
+  const [showUploadForm, setShowUploadForm] = useState(false);
   const [canonUpload, setCanonUpload] = useState({ title: "", type: "reference", content: "" });
   const [isUploading, setIsUploading] = useState(false);
-  const [showUploadForm, setShowUploadForm] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -80,25 +80,20 @@ export default function SignalDashboard() {
   const analyzeWithAI = async (text) => {
     setIsAnalyzing(true);
     try {
-      const canonContext = canonDocs.slice(0, 3).map(d => `[${d.title}]: ${d.content.slice(0, 400)}`).join("\n\n");
+      const canonContext = canonDocs.filter(d => d.is_active).slice(0, 3).map(d => `[${d.title}]: ${d.content.slice(0, 500)}`).join("\n\n");
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 1000,
-          system: `You are a brilliant script editor and dramaturg working on a specific project. Analyze ideas across MULTIPLE dimensions simultaneously — never flatten a rich idea into a single category.
-
-${canonContext ? `CANON CONTEXT (push against this):\n${canonContext}\n\n` : ""}
-
-Respond ONLY with raw JSON (no markdown, no backticks):
-{"category":"one of [premise,character,scene,dialogue,arc,production,research,business]","dimensions":["2-4 strings"],"aiNote":"1-2 sentences of genuine dramaturgical insight specific to this project","deliverables":["2-3 next steps as invitations"],"inspirationQuestion":"one question","signalStrength":1-5,"canonResonance":"how this connects to or pushes against the canon"}`,
+          system: `You are a brilliant script editor and dramaturg. Analyze ideas across MULTIPLE dimensions simultaneously.${canonContext ? `\n\nCANON CONTEXT:\n${canonContext}` : ""}\n\nRespond ONLY with raw JSON:\n{"category":"premise|character|scene|dialogue|arc|production|research|business","dimensions":["2-4 strings"],"aiNote":"1-2 sentences of genuine insight","deliverables":["2-3 invitations not tasks"],"inspirationQuestion":"one question","signalStrength":1,"canonResonance":"how this connects to canon"}`,
           messages: [{ role: "user", content: `Project: ${user?.project_name || "Film Series"}\n\nIdea: "${text}"` }],
         }),
       });
       const data = await res.json();
       return JSON.parse(data.content[0].text.replace(/```json|```/g, "").trim());
-    } catch (e) {
-      return { category: "premise", dimensions: ["story", "character"], aiNote: "This idea has layers worth exploring.", deliverables: ["Expand in 3 sentences"], inspirationQuestion: "What made this feel important?", signalStrength: 3, canonResonance: "" };
+    } catch {
+      return { category: "premise", dimensions: ["story", "character"], aiNote: "This idea has layers worth exploring.", deliverables: ["Expand in 3 sentences", "Connect to protagonist's arc"], inspirationQuestion: "What made this feel important?", signalStrength: 3, canonResonance: "" };
     } finally { setIsAnalyzing(false); }
   };
 
@@ -130,17 +125,14 @@ Respond ONLY with raw JSON (no markdown, no backticks):
     setIsUploading(true);
     try {
       const { data, error } = await supabase.from("canon_documents").insert([{
-        user_id: user.id,
-        title: canonUpload.title,
-        doc_type: canonUpload.type,
-        content: canonUpload.content,
-        is_active: true,
+        user_id: user.id, title: canonUpload.title,
+        doc_type: canonUpload.type, content: canonUpload.content, is_active: true,
       }]).select().single();
       if (error) throw error;
       setCanonDocs(prev => [data, ...prev]);
       setCanonUpload({ title: "", type: "reference", content: "" });
       setShowUploadForm(false);
-      showNotif("Canon document saved.", "success");
+      showNotif("Document added to Canon.", "success");
     } catch { showNotif("Upload failed.", "error"); }
     finally { setIsUploading(false); }
   };
@@ -149,13 +141,7 @@ Respond ONLY with raw JSON (no markdown, no backticks):
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setCanonUpload(prev => ({
-        ...prev,
-        content: ev.target.result,
-        title: prev.title || file.name.replace(/\.[^/.]+$/, ""),
-      }));
-    };
+    reader.onload = (ev) => setCanonUpload(p => ({ ...p, content: ev.target.result, title: p.title || file.name.replace(/\.[^/.]+$/, "") }));
     reader.readAsText(file);
   };
 
@@ -175,138 +161,140 @@ Respond ONLY with raw JSON (no markdown, no backticks):
   const activeCanonCount = canonDocs.filter(d => d.is_active).length;
 
   if (isLoading) return (
-    <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#222", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.3em" }}>SIGNAL</div>
+    <div style={{ minHeight: "100vh", background: "#F7F5F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: "#BBB", fontFamily: "Georgia, serif", fontSize: 18, fontStyle: "italic", letterSpacing: "-0.02em" }}>Signal</div>
     </div>
   );
 
   if (!user) return (
-    <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#555", fontFamily: "'Georgia', serif", fontSize: 14 }}>
-        Complete onboarding at <a href="https://signal-navy-five.vercel.app" style={{ color: "#E8C547" }}>signal-navy-five.vercel.app</a> first.
-      </div>
+    <div style={{ minHeight: "100vh", background: "#F7F5F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: "#999", fontFamily: "Georgia, serif", fontSize: 15 }}>Complete onboarding first.</div>
     </div>
   );
 
   return (
-    <div style={{ height: "100vh", background: "#080808", color: "#F0EDE6", fontFamily: "'Georgia', serif", display: "flex", overflow: "hidden" }}>
+    <div style={{ height: "100vh", background: "#F7F5F2", display: "flex", overflow: "hidden", fontFamily: "Georgia, 'Times New Roman', serif" }}>
 
       {/* Notification */}
       {notification && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 200, background: notification.type === "success" ? "#47E8A0" : notification.type === "processing" ? "#E8C547" : notification.type === "error" ? "#E84747" : "#333", color: "#080808", padding: "8px 20px", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.1em", animation: "fadeIn 0.2s ease" }}>
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 200, background: notification.type === "success" ? "#1A9E5A" : notification.type === "processing" ? "#C9920A" : notification.type === "error" ? "#C41A1A" : "#555", color: "#FFF", padding: "10px 24px", fontFamily: "'Courier New', monospace", fontSize: 11, letterSpacing: "0.08em", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
           {notification.msg}
         </div>
       )}
 
-      {/* LEFT COLUMN — Navigation + Canon */}
-      <div style={{ width: 220, borderRight: "1px solid #111", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      {/* ── LEFT COLUMN ── */}
+      <div style={{ width: 260, background: "#FFFFFF", borderRight: "1px solid #ECEAE6", display: "flex", flexDirection: "column", flexShrink: 0, boxShadow: "2px 0 8px rgba(0,0,0,0.03)" }}>
 
-        {/* Logo */}
-        <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid #111" }}>
-          <div style={{ fontSize: 20, letterSpacing: "-0.04em", fontStyle: "italic", marginBottom: 2 }}>Signal</div>
-          <div style={{ fontSize: 9, color: "#333", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>{user.project_name?.toUpperCase()}</div>
+        <div style={{ padding: "28px 24px 20px", borderBottom: "1px solid #F2F0EC" }}>
+          <div style={{ fontSize: 24, color: "#1A1A1A", letterSpacing: "-0.04em", fontStyle: "italic", marginBottom: 4 }}>Signal</div>
+          <div style={{ fontSize: 11, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.1em" }}>{user.project_name?.toUpperCase()}</div>
         </div>
 
-        {/* Nav */}
-        <nav style={{ padding: "12px 0" }}>
-          {NAV_ITEMS.map(item => (
-            <div key={item.id} onClick={() => { setActiveView(item.id); setActiveIdea(null); setActiveDoc(null); }} style={{ padding: "9px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, background: activeView === item.id ? "#111" : "transparent", borderLeft: activeView === item.id ? "2px solid #E8C547" : "2px solid transparent", transition: "all 0.1s" }}>
-              <span style={{ fontSize: 11, color: activeView === item.id ? "#E8C547" : "#333" }}>{item.icon}</span>
-              <span style={{ fontSize: 12, color: activeView === item.id ? "#F0EDE6" : "#555", fontFamily: "'Courier New', monospace", letterSpacing: "0.05em" }}>{item.label}</span>
-              {item.id === "deliverables" && pendingCount > 0 && <span style={{ marginLeft: "auto", fontSize: 9, color: "#E8C547", fontFamily: "'Courier New', monospace" }}>{pendingCount}</span>}
-              {item.id === "canon" && activeCanonCount > 0 && <span style={{ marginLeft: "auto", fontSize: 9, color: "#47E8A0", fontFamily: "'Courier New', monospace" }}>{activeCanonCount}</span>}
-              {item.id === "library" && <span style={{ marginLeft: "auto", fontSize: 9, color: "#333", fontFamily: "'Courier New', monospace" }}>{ideas.length}</span>}
+        <nav style={{ padding: "8px 0" }}>
+          {NAV.map(item => (
+            <div key={item.id} onClick={() => { setActiveView(item.id); setActiveIdea(null); }} style={{ padding: "12px 24px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: activeView === item.id ? "#F7F5F2" : "transparent", borderLeft: activeView === item.id ? "3px solid #C9920A" : "3px solid transparent", transition: "all 0.1s" }}>
+              <span style={{ fontSize: 15, color: activeView === item.id ? "#1A1A1A" : "#9A9590" }}>{item.label}</span>
+              <span style={{ fontSize: 12, color: "#C9920A", fontFamily: "'Courier New', monospace" }}>
+                {item.id === "library" && ideas.length > 0 ? ideas.length : ""}
+                {item.id === "deliverables" && pendingCount > 0 ? pendingCount : ""}
+                {item.id === "canon" && activeCanonCount > 0 ? activeCanonCount : ""}
+              </span>
             </div>
           ))}
         </nav>
 
-        <div style={{ height: 1, background: "#111", margin: "4px 0" }} />
+        <div style={{ height: 1, background: "#F2F0EC", margin: "4px 0" }} />
 
-        {/* Recent captures */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 0" }}>
-          <div style={{ padding: "0 20px 8px", fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>RECENT</div>
-          {ideas.slice(0, 8).map(idea => {
+        <div style={{ padding: "12px 24px 6px", fontSize: 10, color: "#C8C4BC", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>RECENT</div>
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {ideas.slice(0, 12).map(idea => {
             const cat = getCat(idea.category);
+            const isActive = activeIdea?.id === idea.id;
             return (
-              <div key={idea.id} onClick={() => { setActiveIdea(idea); setActiveView("library"); }} style={{ padding: "7px 20px", cursor: "pointer", borderLeft: activeIdea?.id === idea.id ? `2px solid ${cat.color}` : "2px solid transparent", transition: "all 0.1s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#0D0D0D"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                <div style={{ fontSize: 9, color: cat.color, fontFamily: "'Courier New', monospace", marginBottom: 2 }}>{cat.icon}</div>
-                <div style={{ fontSize: 11, color: "#555", lineHeight: 1.4 }}>{idea.text.slice(0, 45)}{idea.text.length > 45 ? "..." : ""}</div>
+              <div key={idea.id} onClick={() => { setActiveIdea(idea); setActiveView("library"); }}
+                style={{ padding: "10px 24px", cursor: "pointer", background: isActive ? "#F7F5F2" : "transparent", borderLeft: isActive ? `3px solid ${cat.color}` : "3px solid transparent", transition: "background 0.1s" }}>
+                <div style={{ fontSize: 10, color: cat.color, fontFamily: "'Courier New', monospace", marginBottom: 3 }}>{cat.icon} {cat.label}</div>
+                <div style={{ fontSize: 13, color: isActive ? "#1A1A1A" : "#888", lineHeight: 1.5 }}>{idea.text.slice(0, 52)}{idea.text.length > 52 ? "..." : ""}</div>
               </div>
             );
           })}
         </div>
 
-        {/* Canon status */}
-        <div style={{ padding: "12px 20px", borderTop: "1px solid #111" }}>
-          <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 6 }}>CANON ACTIVE</div>
+        <div style={{ padding: "14px 24px", borderTop: "1px solid #F2F0EC" }}>
+          <div style={{ fontSize: 10, color: "#C8C4BC", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 8 }}>CANON ACTIVE</div>
           {activeCanonCount === 0
-            ? <div style={{ fontSize: 10, color: "#2A2A2A", fontStyle: "italic" }}>No documents yet</div>
+            ? <div style={{ fontSize: 12, color: "#C8C4BC", fontStyle: "italic" }}>No documents yet</div>
             : canonDocs.filter(d => d.is_active).slice(0, 3).map(d => (
-              <div key={d.id} style={{ fontSize: 10, color: "#47E8A0", marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ fontSize: 7 }}>◈</span> {d.title.slice(0, 22)}{d.title.length > 22 ? "..." : ""}
+              <div key={d.id} style={{ fontSize: 12, color: "#1A9E5A", marginBottom: 5, display: "flex", gap: 6, alignItems: "flex-start" }}>
+                <span>◈</span><span>{d.title.slice(0, 24)}{d.title.length > 24 ? "..." : ""}</span>
               </div>
             ))
           }
         </div>
       </div>
 
-      {/* CENTER COLUMN — Main work surface */}
+      {/* ── CENTER COLUMN ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-        {/* Center header */}
-        <div style={{ padding: "18px 32px", borderBottom: "1px solid #111", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ fontSize: 10, color: "#333", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>
+        {/* Center top bar */}
+        <div style={{ padding: "16px 40px", borderBottom: "1px solid #ECEAE6", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FFFFFF", flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>
             {activeView === "capture" && "CAPTURE"}
             {activeView === "library" && `LIBRARY — ${filteredIdeas.length} IDEAS`}
             {activeView === "canon" && "CANON MANAGER"}
             {activeView === "deliverables" && `DELIVERABLES — ${pendingCount} PENDING`}
+          </span>
+          <div style={{ display: "flex", gap: 6 }}>
+            {activeView === "library" && (
+              <>
+                <button onClick={() => setFilterCat(null)} style={{ background: !filterCat ? "#1A1A1A" : "transparent", color: !filterCat ? "#FFF" : "#C0BDB6", border: "1px solid #E0DBD4", padding: "4px 11px", fontSize: 10, fontFamily: "'Courier New', monospace", cursor: "pointer" }}>ALL</button>
+                {CATEGORIES.map(cat => (
+                  <button key={cat.id} onClick={() => setFilterCat(cat.id === filterCat ? null : cat.id)} title={cat.label}
+                    style={{ background: filterCat === cat.id ? cat.color : "transparent", color: filterCat === cat.id ? "#FFF" : "#C0BDB6", border: `1px solid ${filterCat === cat.id ? cat.color : "#E0DBD4"}`, padding: "4px 9px", fontSize: 11, fontFamily: "'Courier New', monospace", cursor: "pointer" }}>
+                    {cat.icon}
+                  </button>
+                ))}
+              </>
+            )}
+            {activeView === "canon" && (
+              <button onClick={() => setShowUploadForm(!showUploadForm)}
+                style={{ background: showUploadForm ? "transparent" : "#C9920A", color: showUploadForm ? "#AAA" : "#FFF", border: showUploadForm ? "1px solid #DDD" : "none", padding: "7px 18px", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
+                {showUploadForm ? "CANCEL" : "+ ADD DOCUMENT"}
+              </button>
+            )}
           </div>
-          {activeView === "library" && (
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              <button onClick={() => setFilterCat(null)} style={{ background: !filterCat ? "#F0EDE6" : "transparent", color: !filterCat ? "#080808" : "#333", border: `1px solid ${!filterCat ? "#F0EDE6" : "#1A1A1A"}`, padding: "2px 8px", fontSize: 8, fontFamily: "'Courier New', monospace", cursor: "pointer" }}>ALL</button>
-              {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => setFilterCat(cat.id === filterCat ? null : cat.id)} style={{ background: filterCat === cat.id ? cat.color : "transparent", color: filterCat === cat.id ? "#080808" : "#333", border: `1px solid ${filterCat === cat.id ? cat.color : "#1A1A1A"}`, padding: "2px 8px", fontSize: 8, fontFamily: "'Courier New', monospace", cursor: "pointer" }}>
-                  {cat.icon}
-                </button>
-              ))}
-            </div>
-          )}
-          {activeView === "canon" && (
-            <button onClick={() => setShowUploadForm(!showUploadForm)} style={{ background: showUploadForm ? "#E8C547" : "transparent", color: showUploadForm ? "#080808" : "#E8C547", border: "1px solid #E8C547", padding: "4px 14px", fontSize: 9, fontFamily: "'Courier New', monospace", letterSpacing: "0.1em", cursor: "pointer" }}>
-              {showUploadForm ? "CANCEL" : "+ ADD DOCUMENT"}
-            </button>
-          )}
         </div>
 
-        {/* Center content */}
+        {/* Center body */}
         <div style={{ flex: 1, overflowY: "auto" }}>
 
           {/* CAPTURE */}
           {activeView === "capture" && (
-            <div style={{ padding: "48px 32px", maxWidth: 680 }}>
-              <div style={{ borderLeft: "2px solid #E8C547", paddingLeft: 20, marginBottom: 48 }}>
-                <div style={{ fontSize: 9, color: "#E8C547", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 8 }}>TODAY'S INVITATION</div>
-                <div style={{ fontSize: 17, lineHeight: 1.8, color: "#666", fontStyle: "italic" }}>What are you afraid to write? That's probably the most important scene.</div>
+            <div style={{ padding: "52px 56px", maxWidth: 700 }}>
+              <div style={{ borderLeft: "3px solid #C9920A", paddingLeft: 22, marginBottom: 52 }}>
+                <div style={{ fontSize: 11, color: "#C9920A", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 10 }}>TODAY'S INVITATION</div>
+                <div style={{ fontSize: 19, lineHeight: 1.9, color: "#AAA", fontStyle: "italic" }}>What are you afraid to write? That's probably the most important scene.</div>
               </div>
 
-              <div style={{ marginBottom: 8, fontSize: 9, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
-              <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }} placeholder="Don't edit. Don't qualify. Just send the signal."
-                style={{ width: "100%", minHeight: 140, background: "#0D0D0D", border: "1px solid #1A1A1A", color: "#F0EDE6", padding: 20, fontFamily: "'Georgia', serif", fontSize: 15, lineHeight: 1.8, resize: "vertical", outline: "none", boxSizing: "border-box" }}
-                onFocus={e => e.target.style.borderColor = "#E8C547"} onBlur={e => e.target.style.borderColor = "#1A1A1A"} />
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-                <span style={{ fontSize: 9, color: "#1A1A1A", fontFamily: "'Courier New', monospace" }}>⌘ + ENTER</span>
-                <button onClick={captureIdea} disabled={isAnalyzing || !input.trim()} style={{ background: isAnalyzing ? "#0D0D0D" : "#E8C547", color: "#080808", border: "none", padding: "10px 24px", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.1em", cursor: isAnalyzing ? "default" : "pointer" }}>
+              <div style={{ fontSize: 11, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 10 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
+              <textarea value={input} onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }}
+                placeholder="Don't edit. Don't qualify. Just send the signal." rows={5}
+                style={{ width: "100%", background: "#FFFFFF", border: "1px solid #E0DBD4", color: "#1A1A1A", padding: "20px 22px", fontFamily: "Georgia, serif", fontSize: 16, lineHeight: 1.85, resize: "vertical", outline: "none", boxSizing: "border-box", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}
+                onFocus={e => e.target.style.borderColor = "#C9920A"} onBlur={e => e.target.style.borderColor = "#E0DBD4"} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+                <span style={{ fontSize: 11, color: "#D0CCC6", fontFamily: "'Courier New', monospace" }}>⌘ + ENTER</span>
+                <button onClick={captureIdea} disabled={isAnalyzing || !input.trim()}
+                  style={{ background: isAnalyzing || !input.trim() ? "#E8E4DF" : "#C9920A", color: isAnalyzing || !input.trim() ? "#AAA" : "#FFF", border: "none", padding: "12px 28px", fontFamily: "'Courier New', monospace", fontSize: 11, letterSpacing: "0.1em", cursor: isAnalyzing || !input.trim() ? "default" : "pointer", transition: "all 0.2s" }}>
                   {isAnalyzing ? "ANALYZING..." : "SEND THE SIGNAL →"}
                 </button>
               </div>
 
-              <div style={{ marginTop: 56, display: "flex", gap: 48 }}>
-                {[{ label: "CAPTURED", value: ideas.length }, { label: "PENDING", value: pendingCount }, { label: "CANON DOCS", value: activeCanonCount }].map(s => (
+              <div style={{ marginTop: 72, display: "flex", gap: 64, paddingTop: 36, borderTop: "1px solid #ECEAE6" }}>
+                {[{ label: "IDEAS CAPTURED", value: ideas.length }, { label: "PENDING WORK", value: pendingCount }, { label: "CANON DOCS", value: activeCanonCount }].map(s => (
                   <div key={s.label}>
-                    <div style={{ fontSize: 32, fontStyle: "italic", color: "#F0EDE6" }}>{s.value}</div>
-                    <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginTop: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 44, color: "#1A1A1A", fontStyle: "italic", lineHeight: 1 }}>{s.value}</div>
+                    <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginTop: 8 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
@@ -316,119 +304,125 @@ Respond ONLY with raw JSON (no markdown, no backticks):
           {/* LIBRARY */}
           {activeView === "library" && (
             <div style={{ display: "flex", height: "100%" }}>
-              {/* Idea list */}
-              <div style={{ width: 300, borderRight: "1px solid #0D0D0D", overflowY: "auto" }}>
-                {filteredIdeas.length === 0 && <div style={{ padding: 32, color: "#1A1A1A", fontStyle: "italic", fontSize: 13 }}>Nothing here yet.</div>}
+              {/* List */}
+              <div style={{ width: 320, borderRight: "1px solid #ECEAE6", overflowY: "auto", background: "#FAFAF8", flexShrink: 0 }}>
+                {filteredIdeas.length === 0 && <div style={{ padding: 48, color: "#C8C4BC", fontStyle: "italic", fontSize: 15 }}>Nothing here yet.</div>}
                 {filteredIdeas.map(idea => {
                   const cat = getCat(idea.category);
                   const isActive = activeIdea?.id === idea.id;
                   const daysAgo = Math.floor((Date.now() - new Date(idea.created_at).getTime()) / 86400000);
                   return (
-                    <div key={idea.id} onClick={() => setActiveIdea(idea)} style={{ padding: "14px 20px", borderLeft: isActive ? `2px solid ${cat.color}` : "2px solid transparent", background: isActive ? "#0D0D0D" : "transparent", cursor: "pointer", borderBottom: "1px solid #0A0A0A" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                        <span style={{ fontSize: 8, color: cat.color, fontFamily: "'Courier New', monospace" }}>{cat.icon} {cat.label.toUpperCase()}</span>
-                        <span style={{ fontSize: 8, color: "#1A1A1A", fontFamily: "'Courier New', monospace" }}>{daysAgo === 0 ? "today" : `${daysAgo}d`}</span>
+                    <div key={idea.id} onClick={() => setActiveIdea(idea)}
+                      style={{ padding: "18px 22px", borderBottom: "1px solid #F2F0EC", borderLeft: isActive ? `3px solid ${cat.color}` : "3px solid transparent", background: isActive ? "#FFFFFF" : "transparent", cursor: "pointer" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                        <span style={{ fontSize: 11, color: cat.color, fontFamily: "'Courier New', monospace" }}>{cat.icon} {cat.label}</span>
+                        <span style={{ fontSize: 11, color: "#C8C4BC", fontFamily: "'Courier New', monospace" }}>{daysAgo === 0 ? "today" : `${daysAgo}d`}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: isActive ? "#F0EDE6" : "#666", lineHeight: 1.5 }}>{idea.text.slice(0, 75)}{idea.text.length > 75 ? "..." : ""}</div>
-                      {idea.signal_strength >= 4 && <div style={{ marginTop: 4, fontSize: 8, color: "#E8C547", fontFamily: "'Courier New', monospace" }}>HIGH SIGNAL</div>}
+                      <div style={{ fontSize: 14, color: isActive ? "#1A1A1A" : "#777", lineHeight: 1.65 }}>{idea.text.slice(0, 100)}{idea.text.length > 100 ? "..." : ""}</div>
+                      {idea.signal_strength >= 4 && <div style={{ marginTop: 6, fontSize: 10, color: "#C9920A", fontFamily: "'Courier New', monospace" }}>HIGH SIGNAL</div>}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Idea detail */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "32px 36px" }}>
+              {/* Detail */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "44px 52px" }}>
                 {activeIdea ? (
-                  <div style={{ maxWidth: 560 }}>
-                    <div style={{ fontSize: 9, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 16 }}>
-                      {new Date(activeIdea.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} · via {activeIdea.source || "app"}
+                  <div style={{ maxWidth: 580 }}>
+                    <div style={{ fontSize: 11, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.08em", marginBottom: 22 }}>
+                      {new Date(activeIdea.created_at).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} · via {activeIdea.source || "app"}
                     </div>
-                    <div style={{ fontSize: 18, lineHeight: 1.8, color: "#F0EDE6", marginBottom: 28 }}>{activeIdea.text}</div>
+
+                    <div style={{ fontSize: 20, lineHeight: 1.85, color: "#1A1A1A", marginBottom: 40 }}>{activeIdea.text}</div>
 
                     {activeIdea.ai_note && (
-                      <div style={{ marginBottom: 28 }}>
-                        <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
-                        <div style={{ background: "#0A0A0A", borderLeft: `2px solid ${getCat(activeIdea.category).color}`, padding: "14px 18px", fontSize: 13, color: "#888", lineHeight: 1.8 }}>{activeIdea.ai_note}</div>
+                      <div style={{ marginBottom: 36 }}>
+                        <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 12 }}>DRAMATURGICAL ANALYSIS</div>
+                        <div style={{ background: "#FFFFFF", borderLeft: `3px solid ${getCat(activeIdea.category).color}`, padding: "18px 22px", fontSize: 16, color: "#555", lineHeight: 1.9, boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>{activeIdea.ai_note}</div>
                       </div>
                     )}
 
                     {activeIdea.canon_resonance && (
-                      <div style={{ marginBottom: 28 }}>
-                        <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 10 }}>CANON RESONANCE</div>
-                        <div style={{ background: "#0A0A0A", borderLeft: "2px solid #47E8A0", padding: "14px 18px", fontSize: 12, color: "#666", lineHeight: 1.8 }}>{activeIdea.canon_resonance}</div>
+                      <div style={{ marginBottom: 36 }}>
+                        <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 12 }}>CANON RESONANCE</div>
+                        <div style={{ background: "#FFFFFF", borderLeft: "3px solid #1A9E5A", padding: "18px 22px", fontSize: 15, color: "#666", lineHeight: 1.9, boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>{activeIdea.canon_resonance}</div>
                       </div>
                     )}
 
                     {activeIdea.dimensions?.length > 0 && (
-                      <div style={{ marginBottom: 28 }}>
-                        <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 10 }}>OPERATING ON</div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {activeIdea.dimensions.map((d, i) => <span key={i} style={{ border: `1px solid ${getCat(activeIdea.category).color}26`, color: getCat(activeIdea.category).color, padding: "4px 10px", fontSize: 10, fontFamily: "'Courier New', monospace" }}>{d.label}</span>)}
+                      <div style={{ marginBottom: 36 }}>
+                        <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 12 }}>OPERATING ON</div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {activeIdea.dimensions.map((d, i) => (
+                            <span key={i} style={{ background: "#FFFFFF", border: `1px solid ${getCat(activeIdea.category).color}50`, color: getCat(activeIdea.category).color, padding: "6px 14px", fontSize: 12, fontFamily: "'Courier New', monospace", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>{d.label}</span>
+                          ))}
                         </div>
                       </div>
                     )}
 
                     {deliverables.filter(d => d.idea_id === activeIdea.id).length > 0 && (
                       <div>
-                        <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 10 }}>INVITATIONS TO ACTION</div>
+                        <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 12 }}>INVITATIONS TO ACTION</div>
                         {deliverables.filter(d => d.idea_id === activeIdea.id).map(d => (
-                          <div key={d.id} onClick={() => toggleDeliverable(d.id, d.is_complete)} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: "1px solid #0A0A0A", cursor: "pointer", alignItems: "flex-start" }}>
-                            <div style={{ width: 14, height: 14, flexShrink: 0, border: `1px solid ${d.is_complete ? getCat(activeIdea.category).color : "#1A1A1A"}`, background: d.is_complete ? getCat(activeIdea.category).color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#080808", marginTop: 3 }}>
+                          <div key={d.id} onClick={() => toggleDeliverable(d.id, d.is_complete)}
+                            style={{ display: "flex", gap: 16, padding: "14px 0", borderBottom: "1px solid #F2F0EC", cursor: "pointer", alignItems: "flex-start" }}>
+                            <div style={{ width: 20, height: 20, flexShrink: 0, border: `2px solid ${d.is_complete ? getCat(activeIdea.category).color : "#DDD"}`, background: d.is_complete ? getCat(activeIdea.category).color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#FFF", marginTop: 3, transition: "all 0.2s" }}>
                               {d.is_complete ? "✓" : ""}
                             </div>
-                            <span style={{ fontSize: 13, color: d.is_complete ? "#2A2A2A" : "#C0BDB6", textDecoration: d.is_complete ? "line-through" : "none", lineHeight: 1.6 }}>{d.text}</span>
+                            <span style={{ fontSize: 15, color: d.is_complete ? "#C0BDB6" : "#444", textDecoration: d.is_complete ? "line-through" : "none", lineHeight: 1.75 }}>{d.text}</span>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#1A1A1A", fontStyle: "italic", fontSize: 14 }}>Select an idea</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#D8D4CE", fontStyle: "italic", fontSize: 17 }}>Select an idea to read it</div>
                 )}
               </div>
             </div>
           )}
 
-          {/* CANON MANAGER */}
+          {/* CANON */}
           {activeView === "canon" && (
-            <div style={{ padding: "32px", maxWidth: 800 }}>
-
+            <div style={{ padding: "40px 48px", maxWidth: 760 }}>
               {showUploadForm && (
-                <div style={{ background: "#0D0D0D", border: "1px solid #1A1A1A", padding: 28, marginBottom: 32 }}>
-                  <div style={{ fontSize: 10, color: "#E8C547", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 20 }}>NEW CANON DOCUMENT</div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid #E8E4DF", padding: 36, marginBottom: 36, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+                  <div style={{ fontSize: 11, color: "#C9920A", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 24 }}>NEW CANON DOCUMENT</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
                     <div>
-                      <div style={{ fontSize: 8, color: "#333", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 6 }}>TITLE</div>
-                      <input value={canonUpload.title} onChange={e => setCanonUpload(p => ({ ...p, title: e.target.value }))} placeholder="Series Bible, Character Doc..."
-                        style={{ width: "100%", background: "#111", border: "1px solid #222", color: "#F0EDE6", padding: "10px 14px", fontFamily: "'Georgia', serif", fontSize: 13, outline: "none", boxSizing: "border-box" }}
-                        onFocus={e => e.target.style.borderColor = "#E8C547"} onBlur={e => e.target.style.borderColor = "#222"} />
+                      <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 8 }}>TITLE</div>
+                      <input value={canonUpload.title} onChange={e => setCanonUpload(p => ({ ...p, title: e.target.value }))} placeholder="e.g. CRISPR Series Bible"
+                        style={{ width: "100%", background: "#FAFAF8", border: "1px solid #E0DBD4", color: "#1A1A1A", padding: "11px 14px", fontFamily: "Georgia, serif", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                        onFocus={e => e.target.style.borderColor = "#C9920A"} onBlur={e => e.target.style.borderColor = "#E0DBD4"} />
                     </div>
                     <div>
-                      <div style={{ fontSize: 8, color: "#333", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 6 }}>TYPE</div>
+                      <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginBottom: 8 }}>DOCUMENT TYPE</div>
                       <select value={canonUpload.type} onChange={e => setCanonUpload(p => ({ ...p, type: e.target.value }))}
-                        style={{ width: "100%", background: "#111", border: "1px solid #222", color: "#F0EDE6", padding: "10px 14px", fontFamily: "'Courier New', monospace", fontSize: 11, outline: "none", boxSizing: "border-box" }}>
+                        style={{ width: "100%", background: "#FAFAF8", border: "1px solid #E0DBD4", color: "#1A1A1A", padding: "11px 14px", fontFamily: "'Courier New', monospace", fontSize: 12, outline: "none", boxSizing: "border-box" }}>
                         {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                       </select>
                     </div>
                   </div>
-
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 8, color: "#333", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 6 }}>CONTENT</div>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                      <button onClick={() => fileInputRef.current?.click()} style={{ background: "transparent", border: "1px solid #222", color: "#555", padding: "6px 14px", fontFamily: "'Courier New', monospace", fontSize: 9, letterSpacing: "0.1em", cursor: "pointer" }}>
-                        UPLOAD FILE (.txt, .md)
-                      </button>
-                      <input ref={fileInputRef} type="file" accept=".txt,.md" onChange={handleFileUpload} style={{ display: "none" }} />
-                      {canonUpload.content && <span style={{ fontSize: 9, color: "#47E8A0", fontFamily: "'Courier New', monospace", alignSelf: "center" }}>✓ {canonUpload.content.length.toLocaleString()} characters loaded</span>}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em" }}>CONTENT</div>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <button onClick={() => fileInputRef.current?.click()}
+                          style={{ background: "transparent", border: "1px solid #E0DBD4", color: "#AAA", padding: "5px 14px", fontFamily: "'Courier New', monospace", fontSize: 10, cursor: "pointer" }}>
+                          UPLOAD FILE (.txt, .md)
+                        </button>
+                        <input ref={fileInputRef} type="file" accept=".txt,.md" onChange={handleFileUpload} style={{ display: "none" }} />
+                        {canonUpload.content && <span style={{ fontSize: 11, color: "#1A9E5A", fontFamily: "'Courier New', monospace" }}>✓ {canonUpload.content.length.toLocaleString()} chars</span>}
+                      </div>
                     </div>
-                    <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))} placeholder="Paste your document content here, or upload a file above..."
-                      rows={8} style={{ width: "100%", background: "#111", border: "1px solid #222", color: "#F0EDE6", padding: "12px 14px", fontFamily: "'Georgia', serif", fontSize: 12, lineHeight: 1.7, outline: "none", resize: "vertical", boxSizing: "border-box" }}
-                      onFocus={e => e.target.style.borderColor = "#E8C547"} onBlur={e => e.target.style.borderColor = "#222"} />
+                    <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
+                      placeholder="Paste document content here, or upload a file above..." rows={8}
+                      style={{ width: "100%", background: "#FAFAF8", border: "1px solid #E0DBD4", color: "#1A1A1A", padding: "14px 16px", fontFamily: "Georgia, serif", fontSize: 14, lineHeight: 1.75, outline: "none", resize: "vertical", boxSizing: "border-box" }}
+                      onFocus={e => e.target.style.borderColor = "#C9920A"} onBlur={e => e.target.style.borderColor = "#E0DBD4"} />
                   </div>
-
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button onClick={uploadCanon} disabled={isUploading || !canonUpload.title || !canonUpload.content} style={{ background: isUploading ? "#0D0D0D" : "#E8C547", color: "#080808", border: "none", padding: "10px 24px", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
+                    <button onClick={uploadCanon} disabled={isUploading || !canonUpload.title || !canonUpload.content}
+                      style={{ background: isUploading || !canonUpload.title || !canonUpload.content ? "#E8E4DF" : "#C9920A", color: isUploading || !canonUpload.title || !canonUpload.content ? "#AAA" : "#FFF", border: "none", padding: "12px 28px", fontFamily: "'Courier New', monospace", fontSize: 11, letterSpacing: "0.1em", cursor: "pointer" }}>
                       {isUploading ? "SAVING..." : "SAVE TO CANON →"}
                     </button>
                   </div>
@@ -436,33 +430,37 @@ Respond ONLY with raw JSON (no markdown, no backticks):
               )}
 
               {canonDocs.length === 0 && !showUploadForm && (
-                <div style={{ textAlign: "center", padding: "80px 0" }}>
-                  <div style={{ fontSize: 32, color: "#111", marginBottom: 16 }}>◈</div>
-                  <div style={{ fontSize: 14, color: "#333", fontStyle: "italic", marginBottom: 8 }}>No Canon documents yet.</div>
-                  <div style={{ fontSize: 12, color: "#222", lineHeight: 1.7 }}>Upload your series bible, character docs, premise statements.<br />The AI will push every new idea against them.</div>
+                <div style={{ textAlign: "center", padding: "100px 0" }}>
+                  <div style={{ fontSize: 56, color: "#E8E4DF", marginBottom: 24 }}>◈</div>
+                  <div style={{ fontSize: 18, color: "#BBB", fontStyle: "italic", marginBottom: 12 }}>No Canon documents yet.</div>
+                  <div style={{ fontSize: 14, color: "#C8C4BC", lineHeight: 1.9 }}>Upload your series bible, character documents, and premise statements.<br />The AI will push every new idea against them.</div>
                 </div>
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {canonDocs.map(doc => (
-                  <div key={doc.id} onClick={() => setActiveDoc(activeDoc?.id === doc.id ? null : doc)} style={{ background: activeDoc?.id === doc.id ? "#0D0D0D" : "transparent", border: "1px solid #111", padding: "16px 20px", cursor: "pointer", transition: "all 0.15s" }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = "#1A1A1A"}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = "#111"}>
+                  <div key={doc.id} onClick={() => setActiveDoc(activeDoc?.id === doc.id ? null : doc)}
+                    style={{ background: "#FFFFFF", border: "1px solid #ECEAE6", padding: "20px 24px", cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", transition: "box-shadow 0.15s" }}
+                    onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"}
+                    onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span style={{ fontSize: 12, color: doc.is_active ? "#47E8A0" : "#333" }}>◈</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                        <span style={{ fontSize: 22, color: doc.is_active ? "#1A9E5A" : "#DDD" }}>◈</span>
                         <div>
-                          <div style={{ fontSize: 13, color: doc.is_active ? "#F0EDE6" : "#444" }}>{doc.title}</div>
-                          <div style={{ fontSize: 9, color: "#333", fontFamily: "'Courier New', monospace", marginTop: 2 }}>{DOC_TYPES.find(t => t.id === doc.doc_type)?.label || doc.doc_type} · {doc.content?.length?.toLocaleString()} chars</div>
+                          <div style={{ fontSize: 16, color: "#1A1A1A", marginBottom: 4 }}>{doc.title}</div>
+                          <div style={{ fontSize: 11, color: "#C0BDB6", fontFamily: "'Courier New', monospace" }}>
+                            {DOC_TYPES.find(t => t.id === doc.doc_type)?.label} · {doc.content?.length?.toLocaleString()} characters
+                          </div>
                         </div>
                       </div>
-                      <button onClick={e => { e.stopPropagation(); toggleCanonDoc(doc.id, doc.is_active); }} style={{ background: "transparent", border: `1px solid ${doc.is_active ? "#47E8A0" : "#222"}`, color: doc.is_active ? "#47E8A0" : "#333", padding: "3px 10px", fontFamily: "'Courier New', monospace", fontSize: 8, letterSpacing: "0.1em", cursor: "pointer" }}>
+                      <button onClick={e => { e.stopPropagation(); toggleCanonDoc(doc.id, doc.is_active); }}
+                        style={{ background: doc.is_active ? "#EBF7F2" : "#F7F5F2", color: doc.is_active ? "#1A9E5A" : "#AAA", border: `1px solid ${doc.is_active ? "#B0DEC8" : "#E0DBD4"}`, padding: "6px 16px", fontFamily: "'Courier New', monospace", fontSize: 10, letterSpacing: "0.08em", cursor: "pointer" }}>
                         {doc.is_active ? "ACTIVE" : "INACTIVE"}
                       </button>
                     </div>
                     {activeDoc?.id === doc.id && (
-                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #111", fontSize: 12, color: "#555", lineHeight: 1.7, maxHeight: 200, overflowY: "auto" }}>
-                        {doc.content?.slice(0, 800)}{doc.content?.length > 800 ? "..." : ""}
+                      <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid #F2F0EC", fontSize: 14, color: "#888", lineHeight: 1.85, maxHeight: 240, overflowY: "auto" }}>
+                        {doc.content?.slice(0, 1200)}{doc.content?.length > 1200 ? "..." : ""}
                       </div>
                     )}
                   </div>
@@ -473,32 +471,37 @@ Respond ONLY with raw JSON (no markdown, no backticks):
 
           {/* DELIVERABLES */}
           {activeView === "deliverables" && (
-            <div style={{ padding: "32px", maxWidth: 680 }}>
-              <div style={{ height: 2, background: "#0D0D0D", marginBottom: 40 }}>
-                <div style={{ height: "100%", background: "#47E8A0", width: `${(deliverables.filter(d => d.is_complete).length / Math.max(deliverables.length, 1)) * 100}%`, transition: "width 0.5s ease" }} />
+            <div style={{ padding: "40px 56px", maxWidth: 720 }}>
+              <div style={{ marginBottom: 44, display: "flex", gap: 64 }}>
+                {[{ label: "PENDING", value: pendingCount }, { label: "COMPLETED", value: deliverables.filter(d => d.is_complete).length }, { label: "TOTAL", value: deliverables.length }].map(s => (
+                  <div key={s.label}>
+                    <div style={{ fontSize: 48, color: "#1A1A1A", fontStyle: "italic", lineHeight: 1 }}>{s.value}</div>
+                    <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.12em", marginTop: 8 }}>{s.label}</div>
+                  </div>
+                ))}
               </div>
 
-              <div style={{ marginBottom: 32, display: "flex", gap: 40 }}>
-                <div><div style={{ fontSize: 28, fontStyle: "italic" }}>{pendingCount}</div><div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginTop: 4 }}>PENDING</div></div>
-                <div><div style={{ fontSize: 28, fontStyle: "italic" }}>{deliverables.filter(d => d.is_complete).length}</div><div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginTop: 4 }}>COMPLETED</div></div>
+              <div style={{ height: 3, background: "#ECEAE6", marginBottom: 48, borderRadius: 2 }}>
+                <div style={{ height: "100%", background: "#1A9E5A", width: `${(deliverables.filter(d => d.is_complete).length / Math.max(deliverables.length, 1)) * 100}%`, transition: "width 0.5s ease", borderRadius: 2 }} />
               </div>
 
               {CATEGORIES.map(cat => {
                 const catTasks = deliverables.filter(d => d.idea?.category === cat.id);
                 if (!catTasks.length) return null;
                 return (
-                  <div key={cat.id} style={{ marginBottom: 32 }}>
-                    <div style={{ fontSize: 8, color: cat.color, fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 12 }}>
+                  <div key={cat.id} style={{ marginBottom: 40 }}>
+                    <div style={{ fontSize: 11, color: cat.color, fontFamily: "'Courier New', monospace", letterSpacing: "0.1em", marginBottom: 16 }}>
                       {cat.icon} {cat.label.toUpperCase()} — {catTasks.filter(t => !t.is_complete).length} remaining
                     </div>
                     {catTasks.map(task => (
-                      <div key={task.id} onClick={() => toggleDeliverable(task.id, task.is_complete)} style={{ display: "flex", gap: 14, padding: "12px 0", borderBottom: "1px solid #0A0A0A", cursor: "pointer", alignItems: "flex-start" }}>
-                        <div style={{ width: 15, height: 15, flexShrink: 0, border: `1px solid ${task.is_complete ? cat.color : "#1A1A1A"}`, background: task.is_complete ? cat.color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#080808", marginTop: 3 }}>
+                      <div key={task.id} onClick={() => toggleDeliverable(task.id, task.is_complete)}
+                        style={{ display: "flex", gap: 18, padding: "15px 0", borderBottom: "1px solid #F2F0EC", cursor: "pointer", alignItems: "flex-start" }}>
+                        <div style={{ width: 20, height: 20, flexShrink: 0, border: `2px solid ${task.is_complete ? cat.color : "#DDD"}`, background: task.is_complete ? cat.color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#FFF", marginTop: 4, transition: "all 0.2s" }}>
                           {task.is_complete ? "✓" : ""}
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, color: task.is_complete ? "#2A2A2A" : "#C0BDB6", textDecoration: task.is_complete ? "line-through" : "none", lineHeight: 1.6, marginBottom: 2 }}>{task.text}</div>
-                          <div style={{ fontSize: 9, color: "#1A1A1A", fontStyle: "italic" }}>from: {task.idea?.text?.slice(0, 50)}...</div>
+                          <div style={{ fontSize: 16, color: task.is_complete ? "#C0BDB6" : "#333", textDecoration: task.is_complete ? "line-through" : "none", lineHeight: 1.75, marginBottom: 4 }}>{task.text}</div>
+                          <div style={{ fontSize: 12, color: "#C0BDB6", fontStyle: "italic" }}>from: {task.idea?.text?.slice(0, 65)}...</div>
                         </div>
                       </div>
                     ))}
@@ -510,62 +513,49 @@ Respond ONLY with raw JSON (no markdown, no backticks):
         </div>
       </div>
 
-      {/* RIGHT COLUMN — Context panel */}
-      <div style={{ width: 240, borderLeft: "1px solid #111", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-        <div style={{ padding: "18px 20px", borderBottom: "1px solid #111" }}>
-          <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>SIGNAL STATUS</div>
-        </div>
+      {/* ── RIGHT COLUMN ── */}
+      <div style={{ width: 260, background: "#FFFFFF", borderLeft: "1px solid #ECEAE6", display: "flex", flexDirection: "column", flexShrink: 0, boxShadow: "-2px 0 8px rgba(0,0,0,0.03)" }}>
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid #F2F0EC", fontSize: 11, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em" }}>SIGNAL STATUS</div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-
-          {/* Stats */}
-          <div style={{ marginBottom: 28 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+          <div style={{ marginBottom: 32 }}>
             {[
-              { label: "IDEAS", value: ideas.length, color: "#E8C547" },
-              { label: "THIS WEEK", value: ideas.filter(i => Date.now() - new Date(i.created_at).getTime() < 7 * 86400000).length, color: "#47B5E8" },
-              { label: "HIGH SIGNAL", value: ideas.filter(i => i.signal_strength >= 4).length, color: "#47E8A0" },
+              { label: "Total Ideas", value: ideas.length, color: "#C9920A" },
+              { label: "This Week", value: ideas.filter(i => Date.now() - new Date(i.created_at).getTime() < 7 * 86400000).length, color: "#1A78C2" },
+              { label: "High Signal", value: ideas.filter(i => i.signal_strength >= 4).length, color: "#1A9E5A" },
+              { label: "Via WhatsApp", value: ideas.filter(i => i.source === "whatsapp").length, color: "#8B2CC4" },
             ].map(s => (
-              <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #0D0D0D" }}>
-                <span style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.1em" }}>{s.label}</span>
-                <span style={{ fontSize: 16, color: s.color, fontStyle: "italic" }}>{s.value}</span>
+              <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid #F5F2EE" }}>
+                <span style={{ fontSize: 14, color: "#888" }}>{s.label}</span>
+                <span style={{ fontSize: 22, color: s.color, fontStyle: "italic" }}>{s.value}</span>
               </div>
             ))}
           </div>
 
-          {/* Category breakdown */}
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 12 }}>BY CATEGORY</div>
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 16 }}>BY CATEGORY</div>
             {CATEGORIES.map(cat => {
               const count = ideas.filter(i => i.category === cat.id).length;
               if (!count) return null;
               return (
-                <div key={cat.id} style={{ marginBottom: 6 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 9, color: "#333", fontFamily: "'Courier New', monospace" }}>{cat.icon} {cat.label}</span>
-                    <span style={{ fontSize: 9, color: cat.color, fontFamily: "'Courier New', monospace" }}>{count}</span>
+                <div key={cat.id} style={{ marginBottom: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                    <span style={{ fontSize: 13, color: "#888" }}>{cat.label}</span>
+                    <span style={{ fontSize: 13, color: cat.color, fontFamily: "'Courier New', monospace" }}>{count}</span>
                   </div>
-                  <div style={{ height: 1, background: "#0D0D0D" }}>
-                    <div style={{ height: "100%", background: cat.color, width: `${(count / ideas.length) * 100}%`, opacity: 0.6 }} />
+                  <div style={{ height: 3, background: "#F2F0EC", borderRadius: 2 }}>
+                    <div style={{ height: "100%", background: cat.color, width: `${(count / ideas.length) * 100}%`, borderRadius: 2, opacity: 0.6 }} />
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* WhatsApp */}
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 10 }}>WHATSAPP CAPTURE</div>
-            <div style={{ fontSize: 9, color: "#333", lineHeight: 1.7 }}>
-              {ideas.filter(i => i.source === "whatsapp").length} ideas via WhatsApp
-            </div>
-          </div>
-
-          {/* Active Canon */}
           <div>
-            <div style={{ fontSize: 8, color: "#2A2A2A", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 10 }}>CANON LAYER</div>
+            <div style={{ fontSize: 10, color: "#C0BDB6", fontFamily: "'Courier New', monospace", letterSpacing: "0.15em", marginBottom: 12 }}>CANON LAYER</div>
             {activeCanonCount === 0
-              ? <div style={{ fontSize: 10, color: "#1A1A1A", fontStyle: "italic", lineHeight: 1.6 }}>No documents active. AI analyzing without Canon context.</div>
-              : <div style={{ fontSize: 10, color: "#555", lineHeight: 1.7 }}>{activeCanonCount} document{activeCanonCount !== 1 ? "s" : ""} conditioning analysis.</div>
+              ? <div style={{ fontSize: 13, color: "#C8C4BC", lineHeight: 1.75, fontStyle: "italic" }}>No documents active. AI working without Canon context.</div>
+              : <div style={{ fontSize: 13, color: "#777", lineHeight: 1.75 }}>{activeCanonCount} document{activeCanonCount !== 1 ? "s" : ""} conditioning all analysis.</div>
             }
           </div>
         </div>
@@ -574,9 +564,11 @@ Respond ONLY with raw JSON (no markdown, no backticks):
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
         * { box-sizing:border-box; }
-        ::-webkit-scrollbar { width:2px; } ::-webkit-scrollbar-track { background:#080808; } ::-webkit-scrollbar-thumb { background:#1A1A1A; }
-        textarea::placeholder, input::placeholder { color:#1A1A1A; }
-        select option { background:#111; }
+        ::-webkit-scrollbar { width:4px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:#E0DBD4; border-radius:2px; }
+        textarea::placeholder, input::placeholder { color:#C8C4BC; }
+        select option { background:#FFF; color:#1A1A1A; }
       `}</style>
     </div>
   );
