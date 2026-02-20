@@ -1,4 +1,4 @@
- import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
 const SUPABASE_URL = "https://krhidwibweznwakaoxjw.supabase.co";
@@ -83,24 +83,12 @@ export default function Signal() {
   const [showUpload,    setShowUpload]    = useState(false);
   const [canonUpload,   setCanonUpload]   = useState({ title: "", type: "reference", content: "" });
   const [isUploading,   setIsUploading]   = useState(false);
-  const [isDragOver,    setIsDragOver]    = useState(false);
   const [studio,        setStudio]        = useState(null);
   const [studioLoading, setStudioLoading] = useState(false);
   const [studioTab,     setStudioTab]     = useState("insight");
   const [auditing,      setAuditing]      = useState(false);
 
-  const studioFired  = useRef(false);
-
-  // Prevent Chrome from opening files when dropped outside the drop zone
-  useEffect(() => {
-    const prevent = (e) => e.preventDefault();
-    document.addEventListener("dragover", prevent);
-    document.addEventListener("drop", prevent);
-    return () => {
-      document.removeEventListener("dragover", prevent);
-      document.removeEventListener("drop", prevent);
-    };
-  }, []);
+  const studioFired = useRef(false);
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
@@ -172,14 +160,11 @@ Respond ONLY in raw JSON:
       const allIdeas = ideas.map(i => `ID:${i.id} [${i.category}] "${i.text}"`).join("\n");
       const result = await callAI(
         `You are cleaning a creative idea database. Delete without mercy:
+1. Any idea containing the words "test", "not a capture", "for the platform", or clearly written to test the system
+2. Any idea that is essentially the same as another — keep only the single clearest articulation
+3. Sentence fragments fully covered by a more complete version
 
-1. Any idea containing the words "test", "not a capture", "for the platform", or clearly written to test the system rather than capture a real creative idea
-2. Any idea that is essentially the same as another idea — even if phrased slightly differently. When two ideas convey the same story beat, character note, or premise, keep only the single clearest articulation and delete the rest
-3. Sentence fragments or incomplete thoughts fully covered by a more complete version
-
-Be decisive. If something looks like a test or a duplicate, it is. Return the IDs to delete.
-
-Return ONLY raw JSON — no other text:
+Return ONLY raw JSON:
 { "toDelete": ["id1","id2"], "summary": "one sentence saying what was removed" }
 If nothing to remove: { "toDelete": [], "summary": "Library is clean." }`,
         `ALL IDEAS:\n${allIdeas}`,
@@ -284,38 +269,6 @@ Raw JSON only:
     finally { setIsUploading(false); }
   };
 
-  const processFile = async (file) => {
-    if (!file) return;
-    const name = file.name.replace(/\.[^/.]+$/, "");
-    notify("Reading file...", "processing");
-    try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      // Send to AI proxy — Claude reads the file natively, no parsing libraries needed
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file: { base64, mediaType: file.type || "application/pdf", filename: file.name },
-          message: "Extract all the text from this document. Return only the extracted text, preserving paragraph breaks. No commentary.",
-          maxTokens: 4000,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setCanonUpload(p => ({ ...p, content: data.text, title: p.title || name }));
-      notify("File loaded.", "success");
-    } catch (err) {
-      console.error("File read error:", err);
-      notify("Could not read file — try pasting text directly.", "error");
-    }
-  };
-
   const toggleDeliverable = async (id, current) => {
     await supabase.from("deliverables")
       .update({ is_complete: !current, completed_at: !current ? new Date().toISOString() : null })
@@ -387,25 +340,18 @@ Raw JSON only:
     </div>
   );
 
-  // ══════════════════════════════════════════════════════════════════════
-  // VIEWS
-  // ══════════════════════════════════════════════════════════════════════
-
   const DashboardView = () => (
     <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "44px 52px" }}>
-
       <div style={{ marginBottom: 40 }}>
         <div style={{ fontSize: 28, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em", marginBottom: 5 }}>{user.project_name}</div>
         <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
         </div>
       </div>
-
-      {/* Stat tiles — all clickable */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 44 }}>
         {[
           { label: "Ideas",       value: ideas.length,   color: C.gold,   sub: `${ideas.filter(i => Date.now() - new Date(i.created_at) < 7*864e5).length} this week`, dest: "library" },
-          { label: "Invitations", value: pending.length, color: C.red,    sub: `${deliverables.filter(d => d.is_complete).length} completed`,  dest: "deliverables" },
+          { label: "Invitations", value: pending.length, color: C.red,    sub: `${deliverables.filter(d => d.is_complete).length} completed`, dest: "deliverables" },
           { label: "High Signal", value: ideas.filter(i => i.signal_strength >= 4).length, color: C.green, sub: "worth pursuing", dest: "library" },
           { label: "Canon",       value: activeCanon.length, color: C.purple, sub: "active documents", dest: "canon" },
         ].map(s => (
@@ -419,8 +365,6 @@ Raw JSON only:
           </div>
         ))}
       </div>
-
-      {/* Recent captures */}
       <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}` }}>
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <SectionHead label="RECENT CAPTURES" onClick={() => navGo("library")} />
@@ -449,8 +393,6 @@ Raw JSON only:
             })
         }
       </div>
-
-      {/* Open invitations */}
       <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}` }}>
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <SectionHead label="OPEN INVITATIONS" onClick={() => navGo("deliverables")} />
@@ -475,8 +417,6 @@ Raw JSON only:
             })
         }
       </div>
-
-      {/* Signal distribution */}
       {ideas.length > 0 && (
         <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}`, padding: "16px 18px" }}>
           <SectionHead label="SIGNAL DISTRIBUTION" onClick={() => navGo("library")} />
@@ -499,8 +439,6 @@ Raw JSON only:
           </div>
         </div>
       )}
-
-      {/* Canon */}
       {canonDocs.length > 0 && (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, padding: "16px 18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -533,7 +471,6 @@ Raw JSON only:
           <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 10 }}>TODAY'S INVITATION</div>
           <div style={{ fontSize: 19, lineHeight: 1.9, color: C.textMuted, fontStyle: "italic" }}>{todayInvitation}</div>
         </div>
-
         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
         <textarea value={input} onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }}
@@ -542,7 +479,6 @@ Raw JSON only:
           style={{ ...inputBase, fontSize: 16, lineHeight: 1.9, resize: "vertical", marginBottom: 16 }}
           onFocus={e => e.target.style.borderColor = C.gold}
           onBlur={e => e.target.style.borderColor = C.border} />
-
         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>
           WHY DOES THIS FEEL IMPORTANT? <span style={{ color: C.textDisabled }}>(optional)</span>
         </div>
@@ -551,20 +487,13 @@ Raw JSON only:
           style={{ ...inputBase, marginBottom: 24 }}
           onFocus={e => e.target.style.borderColor = C.gold}
           onBlur={e => e.target.style.borderColor = C.border} />
-
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 11, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
           <button onClick={captureIdea} disabled={isAnalyzing || !input.trim()}
-            style={{
-              background: isAnalyzing || !input.trim() ? C.surfaceHigh : C.gold,
-              color: isAnalyzing || !input.trim() ? C.textMuted : C.bg,
-              border: "none", padding: "12px 32px", fontFamily: mono, fontSize: 11,
-              letterSpacing: "0.1em", cursor: isAnalyzing || !input.trim() ? "default" : "pointer",
-            }}>
+            style={{ background: isAnalyzing || !input.trim() ? C.surfaceHigh : C.gold, color: isAnalyzing || !input.trim() ? C.textMuted : C.bg, border: "none", padding: "12px 32px", fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", cursor: isAnalyzing || !input.trim() ? "default" : "pointer" }}>
             {isAnalyzing ? "ANALYZING..." : "SEND THE SIGNAL →"}
           </button>
         </div>
-
         <div style={{ marginTop: 56, paddingTop: 32, borderTop: `1px solid ${C.border}`, display: "flex", gap: 48 }}>
           {[
             { l: "IDEAS CAPTURED",   v: ideas.length,       dest: "library"      },
@@ -585,7 +514,6 @@ Raw JSON only:
     const displayIdea = activeIdea || filtered[0] || null;
     return (
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* List */}
         <div style={{ width: 300, borderRight: `1px solid ${C.border}`, overflowY: "auto", flexShrink: 0 }}>
           <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
             <button onClick={() => setFilterCat(null)}
@@ -599,7 +527,6 @@ Raw JSON only:
               </button>
             ))}
           </div>
-
           {filtered.length === 0
             ? <div style={{ padding: 40, color: C.textDisabled, fontStyle: "italic" }}>Nothing here yet.</div>
             : filtered.map(idea => {
@@ -622,8 +549,6 @@ Raw JSON only:
               })
           }
         </div>
-
-        {/* Detail */}
         <div style={{ flex: 1, overflowY: "auto", padding: "48px 56px" }}>
           {!displayIdea
             ? <div style={{ color: C.textDisabled, fontStyle: "italic" }}>No ideas yet.</div>
@@ -634,37 +559,30 @@ Raw JSON only:
                   <div style={{ maxWidth: 640 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
                       <span style={{ fontSize: 11, color: cat.color, fontFamily: mono, letterSpacing: "0.1em" }}>{cat.icon} {cat.label.toUpperCase()}</span>
-                      {displayIdea.signal_strength >= 4 && (
-                        <span style={{ fontSize: 10, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px" }}>HIGH SIGNAL</span>
-                      )}
+                      {displayIdea.signal_strength >= 4 && <span style={{ fontSize: 10, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px" }}>HIGH SIGNAL</span>}
                       <span style={{ fontSize: 11, color: C.textDisabled, fontFamily: mono, marginLeft: "auto" }}>
                         {new Date(displayIdea.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </span>
                     </div>
-
                     <div style={{ fontSize: 22, color: C.textPrimary, lineHeight: 1.9, marginBottom: 36, fontFamily: serif }}>{displayIdea.text}</div>
-
                     {displayIdea.inspiration_question && (
                       <div style={{ marginBottom: 32, padding: "16px 20px", background: C.surfaceHigh, borderLeft: `3px solid ${C.textMuted}` }}>
                         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>WHY IT FELT IMPORTANT</div>
                         <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.85, fontStyle: "italic" }}>{displayIdea.inspiration_question}</div>
                       </div>
                     )}
-
                     {displayIdea.ai_note && (
                       <div style={{ marginBottom: 32 }}>
                         <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
                         <div style={{ fontSize: 16, color: C.textSecondary, lineHeight: 1.9 }}>{displayIdea.ai_note}</div>
                       </div>
                     )}
-
                     {displayIdea.canon_resonance && (
                       <div style={{ marginBottom: 32 }}>
                         <div style={{ fontSize: 10, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
                         <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.85 }}>{displayIdea.canon_resonance}</div>
                       </div>
                     )}
-
                     {displayIdea.dimensions?.length > 0 && (
                       <div style={{ marginBottom: 32 }}>
                         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 12 }}>DIMENSIONS</div>
@@ -675,7 +593,6 @@ Raw JSON only:
                         </div>
                       </div>
                     )}
-
                     {ideaDels.length > 0 && (
                       <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 28 }}>
                         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 16 }}>INVITATIONS TO ACTION</div>
@@ -719,23 +636,17 @@ Raw JSON only:
               {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
 
-            <button
-              onClick={() => {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.onchange = async (e) => {
-                  const file = e.target.files[0];
-                  if (file) await processFile(file);
-                };
-                input.click();
-              }}
-              style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.textSecondary, padding: "10px 8px", fontFamily: mono, fontSize: 10, cursor: "pointer", marginBottom: 8, letterSpacing: "0.08em" }}>
-              {canonUpload.content ? "✓ FILE LOADED — UPLOAD AGAIN" : "UPLOAD FILE (.pdf .docx .txt .md)"}
-            </button>
+            <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>UPLOAD FILE</div>
+            <input
+              type="file"
+              style={{ display: "block", width: "100%", color: C.textSecondary, fontFamily: mono, fontSize: 11, cursor: "pointer", background: C.surfaceHigh, border: `1px solid ${C.border}`, padding: "8px", marginBottom: 10, boxSizing: "border-box" }}
+              onChange={async (e) => { const file = e.target.files[0]; if (file) await processFile(file); }}
+            />
 
+            <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>OR PASTE TEXT</div>
             <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
-              placeholder="Or paste text directly here..."
-              rows={4}
+              placeholder="Paste document text here..."
+              rows={5}
               style={{ ...inputBase, fontSize: 13, resize: "vertical", marginBottom: 8 }} />
             <button onClick={uploadCanon} disabled={isUploading || !canonUpload.title || !canonUpload.content}
               style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "9px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
@@ -789,10 +700,7 @@ Raw JSON only:
   const DeliverablesView = () => {
     const completed = deliverables.filter(d => d.is_complete);
     const pct = deliverables.length ? Math.round((completed.length / deliverables.length) * 100) : 0;
-    const byCategory = CATEGORIES.map(cat => ({
-      ...cat, items: pending.filter(d => d.idea?.category === cat.id),
-    })).filter(cat => cat.items.length > 0);
-
+    const byCategory = CATEGORIES.map(cat => ({ ...cat, items: pending.filter(d => d.idea?.category === cat.id) })).filter(cat => cat.items.length > 0);
     return (
       <div style={{ flex: 1, overflowY: "auto", padding: "44px 52px" }}>
         <div style={{ maxWidth: 700 }}>
@@ -805,7 +713,6 @@ Raw JSON only:
               <div style={{ height: "100%", background: C.gold, width: `${pct}%`, borderRadius: 2, transition: "width 0.4s" }} />
             </div>
           </div>
-
           {pending.length === 0
             ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 16 }}>All invitations complete.</div>
             : byCategory.map(cat => (
@@ -819,9 +726,7 @@ Raw JSON only:
                       <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 4 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.75 }}>{d.text}</div>
-                        {d.idea?.text && (
-                          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, marginTop: 5 }}>from: "{d.idea.text.slice(0, 70)}..."</div>
-                        )}
+                        {d.idea?.text && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, marginTop: 5 }}>from: "{d.idea.text.slice(0, 70)}..."</div>}
                       </div>
                     </div>
                   ))}
@@ -846,9 +751,7 @@ Raw JSON only:
           ))}
         </div>
       </div>
-
       <div style={{ flex: 1, overflowY: "auto", padding: "18px 16px" }}>
-
         {studioTab === "insight" && (
           studioLoading
             ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 13, lineHeight: 1.8 }}>Reading your project...</div>
@@ -882,32 +785,28 @@ Raw JSON only:
                   GENERATE INSIGHT →
                 </button>
         )}
-
         {studioTab === "patterns" && (
           <div>
             <div style={{ marginBottom: 22 }}>
               <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>LIBRARY AUDIT</div>
-              <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 10 }}>AI removes duplicates and test entries. Keeps the best version of each.</div>
+              <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 10 }}>AI removes duplicates and test entries.</div>
               <button onClick={auditLibrary} disabled={auditing}
                 style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}`, color: C.red, padding: "9px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: auditing ? "default" : "pointer", opacity: auditing ? 0.5 : 1 }}>
                 {auditing ? "AUDITING..." : "AUDIT + CLEAN LIBRARY"}
               </button>
             </div>
-
             {studio?.pattern && (
               <div style={{ marginBottom: 22 }}>
                 <div style={{ fontSize: 10, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>WHAT YOU KEEP CIRCLING</div>
                 <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.85, borderLeft: `3px solid ${C.purple}`, paddingLeft: 12 }}>{studio.pattern}</div>
               </div>
             )}
-
             {studio?.duplicates && studio.duplicates !== "null" && (
               <div style={{ marginBottom: 22 }}>
                 <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>ON REPETITION</div>
                 <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.85, borderLeft: `3px solid ${C.gold}`, paddingLeft: 12 }}>{studio.duplicates}</div>
               </div>
             )}
-
             {ideas.length > 0 && (
               <div>
                 <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 12 }}>BY CATEGORY</div>
@@ -915,8 +814,7 @@ Raw JSON only:
                   const count = ideas.filter(i => i.category === cat.id).length;
                   if (!count) return null;
                   return (
-                    <div key={cat.id} onClick={() => { setFilterCat(cat.id); navGo("library"); }}
-                      style={{ marginBottom: 10, cursor: "pointer" }}>
+                    <div key={cat.id} onClick={() => { setFilterCat(cat.id); navGo("library"); }} style={{ marginBottom: 10, cursor: "pointer" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                         <span style={{ fontSize: 12, color: C.textSecondary }}>{cat.icon} {cat.label}</span>
                         <span style={{ fontSize: 12, color: cat.color, fontFamily: mono }}>{count}</span>
@@ -931,7 +829,6 @@ Raw JSON only:
             )}
           </div>
         )}
-
         {studioTab === "stats" && (
           <div>
             {[
@@ -945,12 +842,11 @@ Raw JSON only:
               <div key={s.label} onClick={() => navGo(s.dest)}
                 style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
                 onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent">
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 <span style={{ fontSize: 13, color: C.textSecondary }}>{s.label}</span>
                 <span style={{ fontSize: 22, color: s.color, fontStyle: "italic" }}>{s.value}</span>
               </div>
             ))}
-
             {activeCanon.length > 0 && (
               <div style={{ marginTop: 18 }}>
                 <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON ACTIVE</div>
@@ -968,26 +864,18 @@ Raw JSON only:
     </div>
   );
 
-  // ══════════════════════════════════════════════════════════════════════
-  // SHELL
-  // ══════════════════════════════════════════════════════════════════════
-
   return (
     <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, overflow: "hidden" }}>
-
       {notification && (
         <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, border: `1px solid ${notification.type === "success" ? C.green : notification.type === "error" ? C.red : C.border}`, color: C.textPrimary, padding: "10px 22px", fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", zIndex: 1000 }}>
           {notification.msg}
         </div>
       )}
-
-      {/* LEFT NAV */}
       <div style={{ width: 220, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "26px 22px 18px", cursor: "pointer" }} onClick={() => navGo("dashboard")}>
           <div style={{ fontSize: 20, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em" }}>signal</div>
           <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginTop: 3 }}>{user.project_name?.toUpperCase()}</div>
         </div>
-
         <nav>
           {[
             { id: "dashboard",    label: "Dashboard",    badge: null },
@@ -1005,7 +893,6 @@ Raw JSON only:
             </div>
           ))}
         </nav>
-
         <div style={{ padding: "14px 20px 6px", fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>RECENT</div>
         <div style={{ flex: 1, overflowY: "auto" }}>
           {ideas.slice(0, 8).map(idea => {
@@ -1022,7 +909,6 @@ Raw JSON only:
             );
           })}
         </div>
-
         {activeCanon.length > 0 && (
           <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.border}`, cursor: "pointer" }} onClick={() => navGo("canon")}>
             <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>CANON ACTIVE</div>
@@ -1035,8 +921,6 @@ Raw JSON only:
           </div>
         )}
       </div>
-
-      {/* CENTER */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "13px 36px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
@@ -1051,10 +935,7 @@ Raw JSON only:
           {view === "deliverables" && <DeliverablesView />}
         </div>
       </div>
-
-      {/* RIGHT STUDIO */}
       <StudioPanel />
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Google+Sans+Mono&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
