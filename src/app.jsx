@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function Signal() {
+export default function SignalDashboard() {
   const [text, setText] = useState("");
   
   return (
