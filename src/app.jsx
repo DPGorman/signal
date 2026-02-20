@@ -205,8 +205,14 @@ Return ONLY raw JSON:
         }
         studioFired.current = false;
         await loadAll(user.id);
-        // Use our own count-based summary, not the AI's potentially stale one
-        notify(`Removed ${toDelete.length} ${toDelete.length === 1 ? "entry" : "entries"}.`, "success");
+        // Build a real summary from what was actually deleted
+        const reasons = result.reasons || [];
+        const testCount = reasons.filter(r => /test|not a (real|actual)|for the platform/i.test(r)).length;
+        const dupeCount = toDelete.length - testCount;
+        const parts = [];
+        if (testCount) parts.push(`${testCount} test ${testCount === 1 ? "entry" : "entries"}`);
+        if (dupeCount) parts.push(`${dupeCount} ${dupeCount === 1 ? "duplicate" : "duplicates"}`);
+        notify(`Cleaned: ${parts.join(" + ") || toDelete.length + " entries"}. ${ideas.length - toDelete.length} ideas remain.`, "success");
       } else {
         notify("Library is clean — nothing to remove.", "info");
       }
