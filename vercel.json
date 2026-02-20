@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/recrawl?token=signal-recrawl-2024",
+      "schedule": "0 9,14,20 * * *"
+    }
+  ]
+}
