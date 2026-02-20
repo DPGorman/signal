@@ -252,6 +252,36 @@ Raw JSON only:
     finally { setIsAnalyzing(false); }
   };
 
+  const processFile = async (file) => {
+    if (!file) return;
+    const name = file.name.replace(/\.[^/.]+$/, "");
+    notify("Reading file...", "processing");
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file: { base64, mediaType: file.type || "application/pdf", filename: file.name },
+          message: "Extract all the text from this document. Return only the extracted text, preserving paragraph breaks. No commentary.",
+          maxTokens: 4000,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setCanonUpload(p => ({ ...p, content: data.text, title: p.title || name }));
+      notify("File loaded — review and click Add to Canon.", "success");
+    } catch (err) {
+      console.error("File read error:", err);
+      notify("Could not read file. Try pasting the text instead.", "error");
+    }
+  };
+
   const uploadCanon = async () => {
     if (!canonUpload.title || !canonUpload.content || !user) return;
     setIsUploading(true);
@@ -639,10 +669,15 @@ Raw JSON only:
             <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>UPLOAD FILE</div>
             <input
               type="file"
-              accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/x-markdown,.pdf,.doc,.docx,.txt,.md"
+              accept=".pdf,.doc,.docx,.txt,.md"
               style={{ display: "block", width: "100%", color: C.textSecondary, fontFamily: mono, fontSize: 11, cursor: "pointer", background: C.surfaceHigh, border: `1px solid ${C.border}`, padding: "8px", marginBottom: 10, boxSizing: "border-box" }}
               onChange={async (e) => { const file = e.target.files[0]; if (file) await processFile(file); }}
             />
+            {canonUpload.content && (
+              <div style={{ fontSize: 10, color: C.green, fontFamily: mono, marginBottom: 8 }}>
+                ✓ File loaded — {canonUpload.content.length.toLocaleString()} chars
+              </div>
+            )}
 
             <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>OR PASTE TEXT</div>
             <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
