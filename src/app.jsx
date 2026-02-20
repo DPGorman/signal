@@ -273,13 +273,25 @@ Raw JSON only:
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      const res = await fetch("/api/parse-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: base64, filename: file.name }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to parse file.");
+
+      // Retry up to 3 times to handle Vercel cold starts
+      let data = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await fetch("/api/parse-file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: base64, filename: file.name }),
+          });
+          data = await res.json();
+          if (res.ok && data.text) break;
+          if (attempt < 3) await new Promise(r => setTimeout(r, 1500));
+        } catch (fetchErr) {
+          if (attempt === 3) throw fetchErr;
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      }
+      if (!data?.text) throw new Error(data?.error || "Failed to parse file.");
       extractedText = data.text;
 
       if (!extractedText || extractedText.trim().length < 10) {
