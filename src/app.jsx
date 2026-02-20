@@ -259,28 +259,36 @@ Raw JSON only:
     const name = file.name.replace(/\.[^/.]+$/, "");
     setIsProcessing(true);
     setUploadedName("");
+    setCanonUpload(p => ({ ...p, content: "" }));
     notify("Reading file...", "processing");
     try {
+      // Read file as text first for txt/md, use AI for PDF/DOCX
+      const ext = file.name.split(".").pop().toLowerCase();
+      let extractedText = "";
+
+      // Always use parse-file — never AI — to avoid hallucination
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(",")[1]);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      const res = await fetch("/api/ai", {
+      const res = await fetch("/api/parse-file", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file: { base64, mediaType: file.type || "application/pdf", filename: file.name },
-          message: "Extract all the text from this document. Return only the extracted text, preserving paragraph breaks. No commentary.",
-          maxTokens: 4000,
-        }),
+        body: JSON.stringify({ content: base64, filename: file.name }),
       });
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setCanonUpload(p => ({ ...p, content: data.text, title: p.title || name }));
+      if (!res.ok || data.error) throw new Error(data.error || "Failed to parse file.");
+      extractedText = data.text;
+
+      if (!extractedText || extractedText.trim().length < 10) {
+        throw new Error("File appears empty or could not be read.");
+      }
+
+      setCanonUpload(p => ({ ...p, content: extractedText.trim(), title: p.title || name }));
       setUploadedName(file.name);
-      notify("File loaded — review and click Add to Canon.", "success");
+      notify("File loaded — check the preview below before saving.", "success");
     } catch (err) {
       console.error("File read error:", err);
       notify("Could not read file. Try pasting the text instead.", "error");
