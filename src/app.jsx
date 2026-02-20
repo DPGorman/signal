@@ -1081,17 +1081,16 @@ Raw JSON only:
         </div>
       </div>
       <StudioPanel />
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Google+Sans+Mono&display=swap');
+      <style dangerouslySetInnerHTML={{ __html: `
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Google Sans', 'Inter', system-ui, sans-serif; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
-        textarea::placeholder, input::placeholder { color: ${C.textDisabled}; font-family: 'Google Sans', system-ui, sans-serif; }
-        select option { background: ${C.surface}; color: ${C.textPrimary}; }
-        button { transition: opacity 0.15s; font-family: 'Google Sans', system-ui, sans-serif; }
-      `}</style>
+        ::-webkit-scrollbar-thumb { background: #48454E; border-radius: 2px; }
+        textarea::placeholder, input::placeholder { color: #49454F; }
+        select option { background: #2B2930; color: #E6E1E5; }
+        button { transition: opacity 0.15s; }
+      ` }} />
     </div>
   );
 }
