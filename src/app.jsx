@@ -90,6 +90,8 @@ export default function Signal() {
   const [studioTab,     setStudioTab]     = useState("insight");
   const [auditing,      setAuditing]      = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [replies,       setReplies]       = useState([]);
+  const [replyDrafts,   setReplyDrafts]   = useState({});
 
   const studioFired = useRef(false);
 
@@ -116,16 +118,18 @@ export default function Signal() {
 
   const loadAll = async (uid) => {
     try {
-      const [{ data: u }, { data: i }, { data: d }, { data: c }] = await Promise.all([
+      const [{ data: u }, { data: i }, { data: d }, { data: c }, { data: r }] = await Promise.all([
         supabase.from("users").select("*").eq("id", uid).single(),
         supabase.from("ideas").select("*, dimensions(*)").eq("user_id", uid).order("created_at", { ascending: false }),
         supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid).order("created_at", { ascending: false }),
         supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("replies").select("*").eq("user_id", uid).order("created_at", { ascending: true }),
       ]);
       if (u) setUser(u);
       if (i) setIdeas(i);
       if (d) setDeliverables(d);
       if (c) setCanonDocs(c);
+      if (r) setReplies(r);
     } catch (e) { console.error("loadAll:", e); }
     finally { setIsLoading(false); }
   };
@@ -134,11 +138,15 @@ export default function Signal() {
     if (!ideasList?.length || studioLoading) return;
     setStudioLoading(true);
     try {
-      const allIdeas = ideasList.map((i, n) =>
-        `#${n + 1} [${i.category}, signal ${i.signal_strength || "?"}] "${i.text}"`
-      ).join("\n");
+      const allIdeas = ideasList.map((i, n) => {
+        const ideaReplies = replies.filter(r => r.idea_id === i.id);
+        const replyText = ideaReplies.length ? `\n  Creator's responses: ${ideaReplies.map(r => `[on ${r.target_section}]: "${r.content}"`).join("; ")}` : "";
+        return `#${n + 1} [${i.category}, signal ${i.signal_strength || "?"}] "${i.text}"${replyText}`;
+      }).join("\n");
+      const studioReplies = replies.filter(r => !r.idea_id && r.target_section.startsWith("studio_"));
+      const studioReplyText = studioReplies.length ? `\n\nCREATOR'S RESPONSES TO PREVIOUS INSIGHTS:\n${studioReplies.map(r => `[${r.target_section.replace("studio_","")}]: "${r.content}"`).join("\n")}` : "";
       const result = await callAI(
-        `You are a senior creative collaborator — script editor, dramaturg, producer. Read every idea this creator has captured. Think, don't categorize. Notice what's there, what's missing, what keeps surfacing. Be direct and specific.
+        `You are a senior creative collaborator — script editor, dramaturg, producer. Read every idea this creator has captured AND their responses to previous insights. The creator's replies reveal how they're thinking — use that to go deeper, not repeat yourself. Notice what's there, what's missing, what keeps surfacing. Be direct and specific. If the creator has pushed back on something, engage with their pushback.
 
 Respond ONLY in raw JSON:
 {
@@ -148,7 +156,7 @@ Respond ONLY in raw JSON:
   "blind_spot": "what this work isn't yet grappling with that it must.",
   "duplicates": "name ideas that are clearly the same thought and which articulation is strongest. null if none."
 }`,
-        `Project: ${userObj?.project_name || "Film Series"}\nTotal: ${ideasList.length}\n\nALL IDEAS:\n${allIdeas}`
+        `Project: ${userObj?.project_name || "Film Series"}\nTotal: ${ideasList.length}\n\nALL IDEAS:\n${allIdeas}${studioReplyText}`
       );
       setStudio(result);
     } catch (e) { console.error("Studio:", e); }
@@ -232,6 +240,7 @@ Return ONLY raw JSON:
       const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]:\n${d.content.slice(0, 800)}`).join("\n\n");
       const existing     = ideas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
       const openInvites  = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
+      const recentReplies = replies.slice(-10).map(r => `[${r.target_section}]: "${r.content}"`).join("\n");
 
       const analysis = await callAI(
         `You are a world-class script editor on a specific creative project.
@@ -242,7 +251,7 @@ ${existing || "None yet."}
 OPEN INVITATIONS — don't overlap:
 ${openInvites || "None yet."}
 
-${ctx ? `WHY THIS FELT IMPORTANT:\n"${ctx}"\n\n` : ""}Rules: if substantially same as existing idea, say so in aiNote and set signalStrength to 1. Max 2 invitations, only if genuinely new. signalStrength: 1=noise, 2=interesting, 3=strong, 4=urgent, 5=essential.
+${ctx ? `WHY THIS FELT IMPORTANT:\n"${ctx}"\n\n` : ""}${recentReplies ? `CREATOR'S RECENT REFLECTIONS:\n${recentReplies}\n\n` : ""}Rules: if substantially same as existing idea, say so in aiNote and set signalStrength to 1. Max 2 invitations, only if genuinely new. signalStrength: 1=noise, 2=interesting, 3=strong, 4=urgent, 5=essential.
 
 Raw JSON only:
 {
@@ -284,6 +293,77 @@ Raw JSON only:
       studioFired.current = false;
     } catch (e) { console.error("Capture:", e); notify("Analysis failed.", "error"); }
     finally { setIsAnalyzing(false); }
+  };
+
+  const submitReply = async (ideaId, section, text) => {
+    if (!text.trim() || !user) return;
+    try {
+      const { data, error } = await supabase.from("replies").insert([{
+        user_id: user.id,
+        idea_id: ideaId,
+        target_section: section,
+        content: text.trim(),
+      }]).select().single();
+      if (error) throw error;
+      setReplies(prev => [...prev, data]);
+      setReplyDrafts(prev => ({ ...prev, [`${ideaId}-${section}`]: "" }));
+      notify("Response saved.", "success");
+    } catch (e) { console.error("Reply error:", e); notify("Failed to save response.", "error"); }
+  };
+
+  const submitStudioReply = async (section, text) => {
+    if (!text.trim() || !user) return;
+    try {
+      const { data, error } = await supabase.from("replies").insert([{
+        user_id: user.id,
+        idea_id: null,
+        target_section: `studio_${section}`,
+        content: text.trim(),
+      }]).select().single();
+      if (error) throw error;
+      setReplies(prev => [...prev, data]);
+      setReplyDrafts(prev => ({ ...prev, [`studio-${section}`]: "" }));
+      notify("Response saved.", "success");
+    } catch (e) { console.error("Reply error:", e); notify("Failed to save response.", "error"); }
+  };
+
+  const getReplies = (ideaId, section) => replies.filter(r => r.idea_id === ideaId && r.target_section === section);
+  const getStudioReplies = (section) => replies.filter(r => !r.idea_id && r.target_section === `studio_${section}`);
+
+  const ReplyBox = ({ ideaId, section, compact }) => {
+    const key = ideaId ? `${ideaId}-${section}` : `studio-${section}`;
+    const draft = replyDrafts[key] || "";
+    const existing = ideaId ? getReplies(ideaId, section) : getStudioReplies(section);
+    const isStudio = !ideaId;
+    return (
+      <div style={{ marginTop: 10 }}>
+        {existing.map(r => (
+          <div key={r.id} style={{ padding: "10px 14px", background: C.bg, borderLeft: `2px solid ${C.blue}`, borderRadius: "0 3px 3px 0", marginBottom: 8 }}>
+            <div style={{ fontSize: 9, color: C.blue, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 4 }}>
+              YOU · {new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </div>
+            <div style={{ fontSize: compact ? 11 : 13, color: C.textPrimary, lineHeight: 1.65 }}>{r.content}</div>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: existing.length ? 6 : 0 }}>
+          <input
+            value={draft}
+            onChange={e => setReplyDrafts(prev => ({ ...prev, [key]: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter" && draft.trim()) { isStudio ? submitStudioReply(section, draft) : submitReply(ideaId, section, draft); }}}
+            placeholder="Respond..."
+            style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: compact ? "6px 10px" : "8px 12px", fontFamily: serif, fontSize: compact ? 11 : 12, outline: "none", borderRadius: 3 }}
+            onFocus={e => e.target.style.borderColor = C.blue}
+            onBlur={e => e.target.style.borderColor = C.border}
+          />
+          {draft.trim() && (
+            <button onClick={() => isStudio ? submitStudioReply(section, draft) : submitReply(ideaId, section, draft)}
+              style={{ background: C.blue, border: "none", color: C.bg, padding: compact ? "6px 10px" : "8px 14px", fontFamily: mono, fontSize: 9, cursor: "pointer", borderRadius: 3, flexShrink: 0 }}>
+              ↵
+            </button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const processFile = async (file) => {
@@ -662,12 +742,14 @@ Raw JSON only:
                       <div style={{ marginBottom: 36 }}>
                         <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.14em", marginBottom: 12 }}>DRAMATURGICAL ANALYSIS</div>
                         <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.75 }}>{displayIdea.ai_note}</div>
+                        <ReplyBox ideaId={displayIdea.id} section="ai_note" />
                       </div>
                     )}
                     {displayIdea.canon_resonance && (
                       <div style={{ marginBottom: 36 }}>
                         <div style={{ fontSize: 9, color: C.purple, fontFamily: mono, letterSpacing: "0.14em", marginBottom: 12 }}>CANON RESONANCE</div>
                         <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.75 }}>{displayIdea.canon_resonance}</div>
+                        <ReplyBox ideaId={displayIdea.id} section="canon_resonance" />
                       </div>
                     )}
                     {displayIdea.dimensions?.length > 0 && (
@@ -854,17 +936,20 @@ Raw JSON only:
                 <div style={{ marginBottom: 28 }}>
                   <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.14em", marginBottom: 12 }}>PROVOCATION</div>
                   <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.8, borderLeft: `2px solid ${C.gold}`, paddingLeft: 12 }}>{studio.provocation}</div>
+                  <ReplyBox section="provocation" compact />
                 </div>
                 {studio.blind_spot && (
                   <div style={{ marginBottom: 28 }}>
                     <div style={{ fontSize: 9, color: C.red, fontFamily: mono, letterSpacing: "0.14em", marginBottom: 12 }}>BLIND SPOT</div>
                     <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.75 }}>{studio.blind_spot}</div>
+                    <ReplyBox section="blind_spot" compact />
                   </div>
                 )}
                 {studio.urgentIdea && (
                   <div style={{ marginBottom: 28 }}>
                     <div style={{ fontSize: 9, color: C.green, fontFamily: mono, letterSpacing: "0.14em", marginBottom: 12 }}>ACT ON THIS NOW</div>
                     <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.75, fontStyle: "italic" }}>{studio.urgentIdea}</div>
+                    <ReplyBox section="urgent" compact />
                   </div>
                 )}
                 <button onClick={() => { studioFired.current = false; setStudio(null); runStudio(ideas, user); }}
