@@ -1,8 +1,7 @@
 // ============================================
 // SIGNAL: AI Proxy
 // api/ai.js
-// Handles both text prompts and file extraction (PDF, DOCX, images)
-// Claude reads files natively — no parsing libraries needed
+// Handles text prompts and file extraction (PDF, DOCX)
 // ============================================
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
@@ -13,20 +12,15 @@ export default async function handler(req, res) {
 
   const { system, message, maxTokens, file } = req.body;
 
-  // Build the user content — either plain text or file + text
   let userContent;
 
   if (file) {
-    // file = { base64, mediaType, filename }
-    // Claude supports: application/pdf, image/*, and treats docx as document
-    const mediaType = file.mediaType || "application/pdf";
-
     userContent = [
       {
         type: "document",
         source: {
           type: "base64",
-          media_type: mediaType,
+          media_type: file.mediaType || "application/pdf",
           data: file.base64,
         },
       },
@@ -64,12 +58,10 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data.content?.map(b => b.text || "").join("") || "";
 
-    // If this was a file extraction, return raw text
     if (file) {
       return res.status(200).json({ text });
     }
 
-    // Otherwise parse as JSON (existing behavior)
     try {
       const clean = text.replace(/```json|```/g, "").trim();
       return res.status(200).json(JSON.parse(clean));
