@@ -639,6 +639,7 @@ Raw JSON only:
             <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>UPLOAD FILE</div>
             <input
               type="file"
+              accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/x-markdown,.pdf,.doc,.docx,.txt,.md"
               style={{ display: "block", width: "100%", color: C.textSecondary, fontFamily: mono, fontSize: 11, cursor: "pointer", background: C.surfaceHigh, border: `1px solid ${C.border}`, padding: "8px", marginBottom: 10, boxSizing: "border-box" }}
               onChange={async (e) => { const file = e.target.files[0]; if (file) await processFile(file); }}
             />
