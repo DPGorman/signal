@@ -83,6 +83,8 @@ export default function Signal() {
   const [showUpload,    setShowUpload]    = useState(false);
   const [canonUpload,   setCanonUpload]   = useState({ title: "", type: "reference", content: "" });
   const [isUploading,   setIsUploading]   = useState(false);
+  const [isProcessing,  setIsProcessing]  = useState(false);
+  const [uploadedName,  setUploadedName]  = useState("");
   const [studio,        setStudio]        = useState(null);
   const [studioLoading, setStudioLoading] = useState(false);
   const [studioTab,     setStudioTab]     = useState("insight");
@@ -253,8 +255,10 @@ Raw JSON only:
   };
 
   const processFile = async (file) => {
-    if (!file) return;
+    if (!file || isProcessing) return;
     const name = file.name.replace(/\.[^/.]+$/, "");
+    setIsProcessing(true);
+    setUploadedName("");
     notify("Reading file...", "processing");
     try {
       const base64 = await new Promise((resolve, reject) => {
@@ -275,10 +279,13 @@ Raw JSON only:
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setCanonUpload(p => ({ ...p, content: data.text, title: p.title || name }));
+      setUploadedName(file.name);
       notify("File loaded — review and click Add to Canon.", "success");
     } catch (err) {
       console.error("File read error:", err);
       notify("Could not read file. Try pasting the text instead.", "error");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -293,6 +300,7 @@ Raw JSON only:
       if (error) throw error;
       setCanonDocs(prev => [data, ...prev]);
       setCanonUpload({ title: "", type: "reference", content: "" });
+      setUploadedName("");
       setShowUpload(false);
       notify("Added to Canon.", "success");
     } catch { notify("Upload failed.", "error"); }
@@ -667,17 +675,18 @@ Raw JSON only:
             </select>
 
             <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>UPLOAD FILE</div>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.txt,.md"
-              style={{ display: "block", width: "100%", color: C.textSecondary, fontFamily: mono, fontSize: 11, cursor: "pointer", background: C.surfaceHigh, border: `1px solid ${C.border}`, padding: "8px", marginBottom: 10, boxSizing: "border-box" }}
-              onChange={async (e) => { const file = e.target.files[0]; if (file) await processFile(file); }}
-            />
-            {canonUpload.content && (
-              <div style={{ fontSize: 10, color: C.green, fontFamily: mono, marginBottom: 8 }}>
-                ✓ File loaded — {canonUpload.content.length.toLocaleString()} chars
+            <label style={{ display: "block", marginBottom: 10 }}>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.md"
+                style={{ display: "none" }}
+                disabled={isProcessing}
+                onChange={async (e) => { const file = e.target.files[0]; if (file) await processFile(file); e.target.value = ""; }}
+              />
+              <div style={{ background: isProcessing ? C.border : C.surfaceHigh, border: `1px solid ${isProcessing ? C.gold : uploadedName ? C.green : C.border}`, color: isProcessing ? C.gold : uploadedName ? C.green : C.textSecondary, padding: "10px 14px", fontFamily: mono, fontSize: 11, cursor: isProcessing ? "default" : "pointer", boxSizing: "border-box", width: "100%", letterSpacing: "0.06em" }}>
+                {isProcessing ? "READING FILE..." : uploadedName ? `✓ ${uploadedName}` : "CHOOSE FILE →"}
               </div>
-            )}
+            </label>
 
             <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>OR PASTE TEXT</div>
             <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
