@@ -1074,7 +1074,7 @@ Raw JSON only:
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {view === "dashboard"    && <DashboardView />}
-          {view === "capture"      && <CaptureView />}
+          {view === "capture"      && CaptureView()}
           {view === "library"      && <LibraryView />}
           {view === "canon"        && <CanonView />}
           {view === "deliverables" && <DeliverablesView />}
