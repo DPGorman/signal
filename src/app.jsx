@@ -158,32 +158,57 @@ Respond ONLY in raw JSON:
   const auditLibrary = async () => {
     if (!ideas.length || !user || auditing) return;
     setAuditing(true);
-    notify("Reading your library...", "processing");
+    notify("Scanning library...", "processing");
     try {
+      // Build a map of valid IDs so we can validate AI output
+      const validIds = new Set(ideas.map(i => i.id));
       const allIdeas = ideas.map(i => `ID:${i.id} [${i.category}] "${i.text}"`).join("\n");
       const result = await callAI(
-        `You are cleaning a creative idea database. Delete without mercy:
-1. Any idea containing the words "test", "not a capture", "for the platform", or clearly written to test the system
-2. Any idea that is essentially the same as another — keep only the single clearest articulation
-3. Sentence fragments fully covered by a more complete version
+        `You are auditing a creative idea library. This is a live database — every ID below is real and current right now.
+
+Your job: identify ideas to DELETE. Be specific. Criteria:
+1. TEST ENTRIES: anything clearly written to test the system, not a real creative idea (e.g. "test", "this is not a real capture", "checking if this works")
+2. EXACT DUPLICATES: if two ideas say the same thing, delete the weaker version and keep the strongest articulation. Cite both IDs and explain which you're keeping.
+3. FRAGMENTS: a short fragment that is fully contained within a longer, better idea
+
+CRITICAL RULES:
+- Only return IDs that appear EXACTLY in the list below. Do not invent IDs.
+- For each deletion, explain WHY in the reasons array.
+- If the library is already clean with no duplicates or test entries, return an empty toDelete array. Do NOT fabricate deletions.
+
+Timestamp: ${Date.now()}
 
 Return ONLY raw JSON:
-{ "toDelete": ["id1","id2"], "summary": "one sentence saying what was removed" }
-If nothing to remove: { "toDelete": [], "summary": "Library is clean." }`,
-        `ALL IDEAS:\n${allIdeas}`,
-        800
+{
+  "toDelete": ["actual-uuid-from-list"],
+  "reasons": ["short reason for each deletion in same order"],
+  "kept": ["if duplicate pair, which ID was kept"],
+  "summary": "one sentence: what was removed OR 'Library is clean — no duplicates or test entries found.'"
+}`,
+        `CURRENT LIBRARY (${ideas.length} ideas):\n${allIdeas}`,
+        1000
       );
-      if (result.toDelete?.length > 0) {
-        for (const id of result.toDelete) {
+
+      // Validate: only delete IDs that actually exist in current ideas
+      const toDelete = (result.toDelete || []).filter(id => validIds.has(id));
+
+      if (toDelete.length > 0) {
+        const deletedTexts = toDelete.map(id => {
+          const idea = ideas.find(i => i.id === id);
+          return idea ? `"${idea.text.slice(0, 50)}..."` : null;
+        }).filter(Boolean);
+
+        for (const id of toDelete) {
           await supabase.from("deliverables").delete().eq("idea_id", id);
           await supabase.from("dimensions").delete().eq("idea_id", id);
           await supabase.from("ideas").delete().eq("id", id);
         }
         studioFired.current = false;
         await loadAll(user.id);
-        notify(result.summary, "success");
+        // Use our own count-based summary, not the AI's potentially stale one
+        notify(`Removed ${toDelete.length} ${toDelete.length === 1 ? "entry" : "entries"}.`, "success");
       } else {
-        notify(result.summary, "info");
+        notify("Library is clean — nothing to remove.", "info");
       }
     } catch (e) { console.error("Audit:", e); notify("Audit failed.", "error"); }
     finally { setAuditing(false); }
