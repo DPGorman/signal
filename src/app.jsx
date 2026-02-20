@@ -56,6 +56,18 @@ const DAILY_INVITATIONS = [
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
 const todayInvitation = DAILY_INVITATIONS[new Date().getDay() % DAILY_INVITATIONS.length];
 
+const GLOBAL_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+  textarea::placeholder, input::placeholder { color: ${C.textDisabled}; font-family: 'Inter', system-ui, sans-serif; }
+  select option { background: ${C.surface}; color: ${C.textPrimary}; }
+  button { transition: opacity 0.15s; font-family: 'Inter', system-ui, sans-serif; }
+`;
+
 async function callAI(system, userMsg, maxTokens = 1000) {
   const res = await fetch("/api/ai", {
     method: "POST",
@@ -94,8 +106,6 @@ export default function Signal() {
   const [replyDrafts,   setReplyDrafts]   = useState({});
 
   const studioFired = useRef(false);
-  const captureRef = useRef(null);
-  const contextRef = useRef(null);
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
@@ -234,13 +244,9 @@ Return ONLY raw JSON:
   };
 
   const captureIdea = async () => {
-    const rawText = captureRef.current?.value || input;
-    const rawCtx = contextRef.current?.value || context;
-    if (!rawText.trim() || !user || isAnalyzing) return;
-    const text = rawText.trim();
-    const ctx  = rawCtx.trim();
-    if (captureRef.current) captureRef.current.value = "";
-    if (contextRef.current) contextRef.current.value = "";
+    if (!input.trim() || !user || isAnalyzing) return;
+    const text = input.trim();
+    const ctx  = context.trim();
     setInput(""); setContext("");
     setIsAnalyzing(true);
     notify("Analyzing...", "processing");
@@ -1076,25 +1082,21 @@ Raw JSON only:
                   <div style={{ fontSize: 16, lineHeight: 1.8, color: C.textMuted, fontStyle: "italic" }}>{todayInvitation}</div>
                 </div>
                 <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.18em", marginBottom: 10 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
-                <textarea ref={captureRef} defaultValue=""
+                <textarea value={input} onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }}
                   placeholder="Don't edit. Don't qualify. Just send the signal."
                   rows={5}
-                  style={{ ...inputBase, fontSize: 14, lineHeight: 1.8, resize: "vertical", marginBottom: 20 }}
-                  onFocus={e => e.target.style.borderColor = C.gold}
-                  onBlur={e => e.target.style.borderColor = C.border} />
+                  style={{ ...inputBase, fontSize: 14, lineHeight: 1.8, resize: "vertical", marginBottom: 20 }} />
                 <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.18em", marginBottom: 10 }}>
                   WHY DOES THIS FEEL IMPORTANT? <span style={{ color: C.textDisabled }}>(optional)</span>
                 </div>
-                <input ref={contextRef} defaultValue=""
+                <input value={context} onChange={e => setContext(e.target.value)}
                   placeholder="e.g. it reframes the protagonist's entire moral logic..."
-                  style={{ ...inputBase, marginBottom: 28 }}
-                  onFocus={e => e.target.style.borderColor = C.gold}
-                  onBlur={e => e.target.style.borderColor = C.border} />
+                  style={{ ...inputBase, marginBottom: 28 }} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 10, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
-                  <button onClick={captureIdea} disabled={isAnalyzing}
-                    style={{ background: isAnalyzing ? C.surfaceHigh : C.gold, color: isAnalyzing ? C.textMuted : C.bg, border: "none", padding: "11px 28px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: isAnalyzing ? "default" : "pointer", borderRadius: 3 }}>
+                  <button onClick={captureIdea} disabled={isAnalyzing || !input.trim()}
+                    style={{ background: isAnalyzing || !input.trim() ? C.surfaceHigh : C.gold, color: isAnalyzing || !input.trim() ? C.textMuted : C.bg, border: "none", padding: "11px 28px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: isAnalyzing || !input.trim() ? "default" : "pointer", borderRadius: 3 }}>
                     {isAnalyzing ? "ANALYZING..." : "SEND THE SIGNAL →"}
                   </button>
                 </div>
@@ -1119,17 +1121,7 @@ Raw JSON only:
         </div>
       </div>
       <StudioPanel />
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
-        ::-webkit-scrollbar { width: 3px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
-        textarea::placeholder, input::placeholder { color: ${C.textDisabled}; font-family: 'Inter', system-ui, sans-serif; }
-        select option { background: ${C.surface}; color: ${C.textPrimary}; }
-        button { transition: opacity 0.15s; font-family: 'Inter', system-ui, sans-serif; }
-      `}</style>
+      <style dangerouslySetInnerHTML={{ __html: GLOBAL_STYLES }} />
     </div>
   );
 }
