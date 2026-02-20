@@ -1104,7 +1104,51 @@ Raw JSON only:
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {view === "dashboard"    && <DashboardView />}
-          {view === "capture"      && <CaptureView />}
+          {view === "capture"      && (
+            <div style={{ flex: 1, overflowY: "auto", padding: "56px 60px" }}>
+              <div style={{ maxWidth: 600 }}>
+                <div style={{ borderLeft: `2px solid ${C.gold}`, paddingLeft: 20, marginBottom: 52 }}>
+                  <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.18em", marginBottom: 10 }}>TODAY'S INVITATION</div>
+                  <div style={{ fontSize: 16, lineHeight: 1.8, color: C.textMuted, fontStyle: "italic" }}>{todayInvitation}</div>
+                </div>
+                <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.18em", marginBottom: 10 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
+                <textarea value={input} onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }}
+                  placeholder="Don't edit. Don't qualify. Just send the signal."
+                  rows={5}
+                  style={{ ...inputBase, fontSize: 14, lineHeight: 1.8, resize: "vertical", marginBottom: 20 }}
+                  onFocus={e => e.target.style.borderColor = C.gold}
+                  onBlur={e => e.target.style.borderColor = C.border} />
+                <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.18em", marginBottom: 10 }}>
+                  WHY DOES THIS FEEL IMPORTANT? <span style={{ color: C.textDisabled }}>(optional)</span>
+                </div>
+                <input value={context} onChange={e => setContext(e.target.value)}
+                  placeholder="e.g. it reframes the protagonist's entire moral logic..."
+                  style={{ ...inputBase, marginBottom: 28 }}
+                  onFocus={e => e.target.style.borderColor = C.gold}
+                  onBlur={e => e.target.style.borderColor = C.border} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
+                  <button onClick={captureIdea} disabled={isAnalyzing || !input.trim()}
+                    style={{ background: isAnalyzing || !input.trim() ? C.surfaceHigh : C.gold, color: isAnalyzing || !input.trim() ? C.textMuted : C.bg, border: "none", padding: "11px 28px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: isAnalyzing || !input.trim() ? "default" : "pointer", borderRadius: 3 }}>
+                    {isAnalyzing ? "ANALYZING..." : "SEND THE SIGNAL →"}
+                  </button>
+                </div>
+                <div style={{ marginTop: 60, paddingTop: 32, borderTop: `1px solid ${C.border}`, display: "flex", gap: 48 }}>
+                  {[
+                    { l: "IDEAS CAPTURED",   v: ideas.length,       dest: "library"      },
+                    { l: "OPEN INVITATIONS", v: pending.length,     dest: "deliverables" },
+                    { l: "CANON DOCS",       v: activeCanon.length, dest: "canon"        },
+                  ].map(s => (
+                    <div key={s.l} onClick={() => navGo(s.dest)} style={{ cursor: "pointer" }}>
+                      <div style={{ fontSize: 36, color: C.textPrimary, fontWeight: 300, lineHeight: 1 }}>{s.v}</div>
+                      <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.14em", marginTop: 10 }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           {view === "library"      && <LibraryView />}
           {view === "canon"        && <CanonView />}
           {view === "deliverables" && <DeliverablesView />}
