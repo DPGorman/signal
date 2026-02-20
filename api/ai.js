@@ -1,8 +1,4 @@
-// ============================================
-// SIGNAL: AI Proxy
 // api/ai.js
-// Handles text prompts and file extraction (PDF, DOCX)
-// ============================================
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
 };
@@ -15,20 +11,32 @@ export default async function handler(req, res) {
   let userContent;
 
   if (file) {
-    userContent = [
-      {
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: file.mediaType || "application/pdf",
-          data: file.base64,
+    // Claude natively supports PDF only
+    // For all other types, extract text server-side and send as text
+    const ext = (file.filename || "").split(".").pop().toLowerCase();
+    
+    if (ext === "pdf" || file.mediaType === "application/pdf") {
+      // Send as native document
+      userContent = [
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: file.base64,
+          },
         },
-      },
-      {
-        type: "text",
-        text: message || "Extract all the text from this document. Return only the extracted text, no commentary.",
-      },
-    ];
+        {
+          type: "text",
+          text: message || "Extract all the text from this document. Return only the extracted text, preserving paragraph breaks. No commentary.",
+        },
+      ];
+    } else {
+      // Decode base64 and send as plain text
+      const buffer = Buffer.from(file.base64, "base64");
+      const text = buffer.toString("utf-8");
+      userContent = `${message || "Here is a document:"}\n\n${text}`;
+    }
   } else {
     userContent = message;
   }
@@ -43,7 +51,7 @@ export default async function handler(req, res) {
         "anthropic-beta": "pdfs-2024-09-25",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6-20251001",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: maxTokens || 1000,
         system: system || undefined,
         messages: [{ role: "user", content: userContent }],
