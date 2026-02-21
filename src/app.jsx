@@ -92,6 +92,11 @@ export default function Signal() {
   const [replies,       setReplies]       = useState([]);
   const [composeDocs,   setComposeDocs]   = useState([]);
   const [activeCompose,  setActiveCompose] = useState(null);
+  const [connections,   setConnections]   = useState([]);
+  const [mapNodes,      setMapNodes]      = useState([]);
+  const [hoveredNode,   setHoveredNode]   = useState(null);
+  const [dragNode,      setDragNode]      = useState(null);
+  const [dragOffset,    setDragOffset]    = useState({ x: 0, y: 0 });
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
@@ -99,6 +104,7 @@ export default function Signal() {
   const composeContentRef = useRef(null);
   const composeTitleRef = useRef(null);
   const composeSaveTimer = useRef(null);
+  const mapContainerRef = useRef(null);
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
@@ -120,6 +126,26 @@ export default function Signal() {
       runStudio(ideas, user);
     }
   }, [ideas, user]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!ideas.length) return;
+    const cx = 500, cy = 400;
+    const nodes = ideas.map((idea, i) => {
+      const angle = (i / ideas.length) * Math.PI * 2;
+      const cat = getCat(idea.category);
+      const connCount = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id).length;
+      const radius = Math.max(120, 350 - connCount * 40);
+      return {
+        id: idea.id, category: idea.category,
+        x: cx + Math.cos(angle) * radius + (Math.random() - 0.5) * 60,
+        y: cy + Math.sin(angle) * radius + (Math.random() - 0.5) * 60,
+        text: idea.text.slice(0, 50), fullText: idea.text,
+        color: cat.color, icon: cat.icon,
+        signal: idea.signal_strength || 3, connCount,
+      };
+    });
+    setMapNodes(nodes);
+  }, [ideas.length, connections.length]); // eslint-disable-line
 
   const loadAll = async (uid) => {
     try {
@@ -144,6 +170,10 @@ export default function Signal() {
       const { data: cd } = await supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false });
       if (cd) setComposeDocs(cd);
     } catch (e) { console.warn("Compose:", e); }
+    try {
+      const { data: cn } = await supabase.from("connections").select("*").eq("user_id", uid);
+      if (cn) setConnections(cn);
+    } catch (e) { console.warn("Connections:", e); }
   };
 
   const runStudio = async (ideasList, userObj) => {
@@ -288,8 +318,52 @@ Raw JSON only:
       setView("library");
       notify("Signal captured.", "success");
       studioFired.current = false;
+      // Generate connections in background
+      generateConnections(saved.id, text, user.id);
     } catch (e) { console.error("Capture:", e); notify("Analysis failed.", "error"); }
     finally { setIsAnalyzing(false); }
+  };
+
+  const generateConnections = async (newIdeaId, newIdeaText, userId) => {
+    if (ideas.length < 1) return;
+    try {
+      const otherIdeas = ideas.filter(i => i.id !== newIdeaId).slice(0, 30);
+      if (!otherIdeas.length) return;
+      const ideaList = otherIdeas.map((i, n) => `${n}|${i.id}|${i.category}|${i.text.slice(0, 120)}`).join("\n");
+      const result = await callAI(
+        `You find meaningful connections between creative ideas in a project. Given a NEW idea and a list of EXISTING ideas, identify which existing ideas are meaningfully connected to the new one.
+
+Connections can be: thematic resonance, character overlap, plot causality, tonal echo, contradiction worth exploring, shared imagery, one idea completes or challenges another.
+
+Do NOT connect ideas just because they're in the same category. Only connect ideas that have a real creative relationship.
+
+Return ONLY raw JSON:
+{
+  "connections": [
+    { "index": 0, "relationship": "one sentence describing the creative connection", "strength": 3 }
+  ]
+}
+
+strength: 1=faint echo, 2=interesting parallel, 3=strong connection, 4=these ideas need each other, 5=same nerve
+
+If no meaningful connections exist, return {"connections": []}`,
+        `NEW IDEA: "${newIdeaText}"\n\nEXISTING IDEAS (index|id|category|text):\n${ideaList}`,
+        800
+      );
+      const newConns = (result.connections || [])
+        .filter(c => c.index >= 0 && c.index < otherIdeas.length && c.strength >= 2)
+        .map(c => ({
+          user_id: userId,
+          idea_a: newIdeaId,
+          idea_b: otherIdeas[c.index].id,
+          relationship: c.relationship,
+          strength: c.strength,
+        }));
+      if (newConns.length > 0) {
+        await supabase.from("connections").insert(newConns);
+        setConnections(prev => [...prev, ...newConns]);
+      }
+    } catch (e) { console.warn("Connection generation:", e); }
   };
 
   const addReply = async (ideaId, section, text) => {
@@ -999,6 +1073,129 @@ Raw JSON only:
     </div>
   );
 
+  const MindMapView = () => {
+
+    const getNode = (id) => mapNodes.find(n => n.id === id);
+
+    const handleMouseDown = (e, node) => {
+      e.preventDefault();
+      const rect = mapContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setDragNode(node.id);
+      setDragOffset({ x: e.clientX - rect.left - node.x, y: e.clientY - rect.top - node.y });
+    };
+
+    const handleMouseMove = (e) => {
+      if (!dragNode) return;
+      const rect = mapContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = e.clientX - rect.left - dragOffset.x;
+      const y = e.clientY - rect.top - dragOffset.y;
+      setMapNodes(prev => prev.map(n => n.id === dragNode ? { ...n, x, y } : n));
+    };
+
+    const handleMouseUp = () => setDragNode(null);
+
+    const nodeRadius = (node) => Math.max(6, 4 + node.signal * 2 + node.connCount);
+
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "12px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono }}>{ideas.length} ideas · {connections.length} connections</span>
+          <button onClick={async () => {
+            if (!user || ideas.length < 2) return;
+            notify("Mapping all connections...", "processing");
+            for (const idea of ideas) {
+              const existing = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id);
+              if (existing.length < 2) {
+                await generateConnections(idea.id, idea.text, user.id);
+              }
+            }
+            await loadAll(user.id);
+            notify("Connections mapped.", "success");
+          }}
+            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "6px 14px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", cursor: "pointer" }}>
+            MAP ALL CONNECTIONS
+          </button>
+        </div>
+        <div ref={mapContainerRef}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          style={{ flex: 1, position: "relative", overflow: "hidden", background: C.bg, cursor: dragNode ? "grabbing" : "default" }}>
+          <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+            {connections.map((conn, i) => {
+              const a = getNode(conn.idea_a);
+              const b = getNode(conn.idea_b);
+              if (!a || !b) return null;
+              const isHovered = hoveredNode && (conn.idea_a === hoveredNode || conn.idea_b === hoveredNode);
+              return (
+                <line key={i}
+                  x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                  stroke={isHovered ? C.gold : C.border}
+                  strokeWidth={isHovered ? 2 : Math.max(0.5, conn.strength * 0.4)}
+                  opacity={isHovered ? 0.9 : 0.3}
+                />
+              );
+            })}
+          </svg>
+          {mapNodes.map(node => {
+            const r = nodeRadius(node);
+            const isHovered = hoveredNode === node.id;
+            const nodeConns = connections.filter(c => c.idea_a === node.id || c.idea_b === node.id);
+            return (
+              <div key={node.id}
+                onMouseDown={e => handleMouseDown(e, node)}
+                onMouseEnter={() => setHoveredNode(node.id)}
+                onMouseLeave={() => setHoveredNode(null)}
+                onClick={() => { setActiveIdea(ideas.find(i => i.id === node.id)); navGo("library"); }}
+                style={{
+                  position: "absolute",
+                  left: node.x - r,
+                  top: node.y - r,
+                  width: r * 2,
+                  height: r * 2,
+                  borderRadius: "50%",
+                  background: node.color + (isHovered ? "CC" : "66"),
+                  border: `2px solid ${isHovered ? node.color : "transparent"}`,
+                  cursor: "pointer",
+                  transition: dragNode ? "none" : "border-color 0.15s",
+                  zIndex: isHovered ? 10 : 1,
+                }}>
+                {isHovered && (
+                  <div style={{
+                    position: "absolute",
+                    left: r * 2 + 10,
+                    top: -10,
+                    background: C.surface,
+                    border: `1px solid ${C.border}`,
+                    padding: "12px 16px",
+                    width: 280,
+                    zIndex: 100,
+                    pointerEvents: "none",
+                  }}>
+                    <div style={{ fontSize: 10, color: node.color, fontFamily: mono, marginBottom: 6 }}>{node.icon} {node.category.toUpperCase()}</div>
+                    <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.6, marginBottom: nodeConns.length ? 10 : 0 }}>{node.fullText.slice(0, 120)}{node.fullText.length > 120 ? "..." : ""}</div>
+                    {nodeConns.length > 0 && (
+                      <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 6 }}>{nodeConns.length} CONNECTION{nodeConns.length > 1 ? "S" : ""}</div>
+                        {nodeConns.slice(0, 3).map((c, ci) => (
+                          <div key={ci} style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.5, marginBottom: 4 }}>
+                            → {c.relationship}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const StudioPanel = () => (
     <div style={{ width: 268, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
       <div style={{ padding: "14px 16px 0", borderBottom: `1px solid ${C.border}` }}>
@@ -1148,6 +1345,7 @@ Raw JSON only:
             { id: "canon",        label: "Canon",        badge: activeCanon.length || null },
             { id: "deliverables", label: "Deliverables", badge: pending.length || null },
             { id: "compose",      label: "Compose",      badge: composeDocs.length || null },
+            { id: "connections",  label: "Connections",  badge: connections.length || null },
           ].map(item => (
             <div key={item.id} onClick={() => navGo(item.id)}
               style={{ padding: "11px 20px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: view === item.id ? C.surfaceHigh : "transparent", borderLeft: view === item.id ? `3px solid ${C.gold}` : "3px solid transparent" }}
@@ -1189,7 +1387,7 @@ Raw JSON only:
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "13px 36px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
-            {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE" }[view]}
+            {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -1199,6 +1397,7 @@ Raw JSON only:
           {view === "canon"        && CanonView()}
           {view === "deliverables" && DeliverablesView()}
           {view === "compose"      && ComposeView()}
+          {view === "connections"  && MindMapView()}
         </div>
       </div>
       {StudioPanel()}

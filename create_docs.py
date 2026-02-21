@@ -14,7 +14,7 @@ drive_service = build('drive', 'v3', credentials=creds)
 # 3. YOUR CONFIGURATION
 # ==========================================
 # PASTE YOUR FOLDER ID HERE
-FOLDER_ID = 'PASTE_YOUR_FOLDER_ID_HERE' 
+FOLDER_ID = '19MoRJSXHzHuhTzp-pCYc-ahKntZUPb-V' 
 
 # The list of documents you want to generate
 doc_names = [
