@@ -90,10 +90,15 @@ export default function Signal() {
   const [studioTab,     setStudioTab]     = useState("insight");
   const [auditing,      setAuditing]      = useState(false);
   const [replies,       setReplies]       = useState([]);
+  const [composeDocs,   setComposeDocs]   = useState([]);
+  const [activeCompose,  setActiveCompose] = useState(null);
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
   const contextInputRef = useRef(null);
+  const composeContentRef = useRef(null);
+  const composeTitleRef = useRef(null);
+  const composeSaveTimer = useRef(null);
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
@@ -135,6 +140,10 @@ export default function Signal() {
       const { data: r } = await supabase.from("replies").select("*").eq("user_id", uid).order("created_at", { ascending: true });
       if (r) setReplies(r);
     } catch (e) { console.warn("Replies:", e); }
+    try {
+      const { data: cd } = await supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false });
+      if (cd) setComposeDocs(cd);
+    } catch (e) { console.warn("Compose:", e); }
   };
 
   const runStudio = async (ideasList, userObj) => {
@@ -880,6 +889,116 @@ Raw JSON only:
     );
   };
 
+  const createComposeDoc = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase.from("compose_documents").insert([{
+        user_id: user.id, title: "Untitled", content: "",
+      }]).select().single();
+      if (error) throw error;
+      setComposeDocs(prev => [data, ...prev]);
+      setActiveCompose(data);
+      notify("New document created.", "success");
+    } catch (e) { console.error("Compose create:", e); notify("Failed to create.", "error"); }
+  };
+
+  const saveComposeDoc = async (id, updates) => {
+    try {
+      const { error } = await supabase.from("compose_documents")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+      setComposeDocs(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+      if (activeCompose?.id === id) setActiveCompose(prev => ({ ...prev, ...updates }));
+    } catch (e) { console.error("Compose save:", e); }
+  };
+
+  const deleteComposeDoc = async (id) => {
+    await supabase.from("compose_documents").delete().eq("id", id);
+    setComposeDocs(prev => prev.filter(d => d.id !== id));
+    if (activeCompose?.id === id) setActiveCompose(null);
+    notify("Document deleted.", "info");
+  };
+
+  const autoSaveCompose = (id) => {
+    if (composeSaveTimer.current) clearTimeout(composeSaveTimer.current);
+    composeSaveTimer.current = setTimeout(() => {
+      const content = composeContentRef.current?.value || "";
+      const title = composeTitleRef.current?.value || "Untitled";
+      saveComposeDoc(id, { title, content });
+    }, 1500);
+  };
+
+  const ComposeView = () => (
+    <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ width: 260, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}` }}>
+          <button onClick={createComposeDoc}
+            style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "9px", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer" }}>
+            + NEW DOCUMENT
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {composeDocs.length === 0
+            ? <div style={{ padding: "32px 20px", color: C.textDisabled, fontStyle: "italic", fontSize: 13 }}>No documents yet.</div>
+            : composeDocs.map(doc => (
+                <div key={doc.id} onClick={() => setActiveCompose(doc)}
+                  style={{ padding: "14px 18px", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", background: activeCompose?.id === doc.id ? C.surfaceHigh : "transparent", borderLeft: activeCompose?.id === doc.id ? `3px solid ${C.gold}` : "3px solid transparent" }}
+                  onMouseEnter={e => activeCompose?.id !== doc.id && (e.currentTarget.style.background = C.surfaceHigh)}
+                  onMouseLeave={e => activeCompose?.id !== doc.id && (e.currentTarget.style.background = "transparent")}>
+                  <div style={{ fontSize: 14, color: activeCompose?.id === doc.id ? C.textPrimary : C.textSecondary, marginBottom: 4 }}>{doc.title || "Untitled"}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 10, color: C.textMuted, fontFamily: mono }}>{doc.content?.length || 0} chars</span>
+                    <button onClick={e => { e.stopPropagation(); deleteComposeDoc(doc.id); }}
+                      style={{ fontSize: 10, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "2px 8px", fontFamily: mono, cursor: "pointer" }}>
+                      DELETE
+                    </button>
+                  </div>
+                </div>
+              ))
+          }
+        </div>
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {!activeCompose
+          ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDisabled, fontStyle: "italic", fontSize: 15 }}>Select or create a document.</div>
+          : (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "36px 48px", overflow: "hidden" }}>
+              <input
+                ref={composeTitleRef}
+                key={activeCompose.id + "-title"}
+                defaultValue={activeCompose.title}
+                placeholder="Document title..."
+                onChange={() => autoSaveCompose(activeCompose.id)}
+                style={{ background: "transparent", border: "none", color: C.textPrimary, fontSize: 24, fontStyle: "italic", outline: "none", marginBottom: 20, fontFamily: serif, letterSpacing: "-0.02em" }}
+              />
+              <textarea
+                ref={composeContentRef}
+                key={activeCompose.id + "-content"}
+                defaultValue={activeCompose.content}
+                placeholder="Start writing, or paste content here..."
+                onChange={() => autoSaveCompose(activeCompose.id)}
+                style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "20px 24px", fontFamily: serif, fontSize: 15, lineHeight: 2, outline: "none", resize: "none", overflowY: "auto" }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+                <span style={{ fontSize: 10, color: C.textMuted, fontFamily: mono }}>Auto-saves as you type</span>
+                <button onClick={() => {
+                  const content = composeContentRef.current?.value || "";
+                  const title = composeTitleRef.current?.value || "Untitled";
+                  saveComposeDoc(activeCompose.id, { title, content });
+                  notify("Saved.", "success");
+                }}
+                  style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "6px 16px", fontFamily: mono, fontSize: 10, cursor: "pointer" }}>
+                  SAVE NOW
+                </button>
+              </div>
+            </div>
+          )
+        }
+      </div>
+    </div>
+  );
+
   const StudioPanel = () => (
     <div style={{ width: 268, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
       <div style={{ padding: "14px 16px 0", borderBottom: `1px solid ${C.border}` }}>
@@ -1028,6 +1147,7 @@ Raw JSON only:
             { id: "library",      label: "Library",      badge: ideas.length || null },
             { id: "canon",        label: "Canon",        badge: activeCanon.length || null },
             { id: "deliverables", label: "Deliverables", badge: pending.length || null },
+            { id: "compose",      label: "Compose",      badge: composeDocs.length || null },
           ].map(item => (
             <div key={item.id} onClick={() => navGo(item.id)}
               style={{ padding: "11px 20px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: view === item.id ? C.surfaceHigh : "transparent", borderLeft: view === item.id ? `3px solid ${C.gold}` : "3px solid transparent" }}
@@ -1069,7 +1189,7 @@ Raw JSON only:
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "13px 36px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
-            {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES" }[view]}
+            {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE" }[view]}
           </span>
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -1078,6 +1198,7 @@ Raw JSON only:
           {view === "library"      && LibraryView()}
           {view === "canon"        && CanonView()}
           {view === "deliverables" && DeliverablesView()}
+          {view === "compose"      && ComposeView()}
         </div>
       </div>
       {StudioPanel()}
