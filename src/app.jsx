@@ -56,6 +56,23 @@ const DAILY_INVITATIONS = [
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
 const todayInvitation = DAILY_INVITATIONS[new Date().getDay() % DAILY_INVITATIONS.length];
 
+const Highlight = ({ text, term }) => {
+  if (!term || term.length < 2 || !text) return text;
+  const parts = [];
+  const lower = text.toLowerCase();
+  const tLower = term.toLowerCase();
+  let last = 0;
+  let idx = lower.indexOf(tLower);
+  while (idx !== -1) {
+    if (idx > last) parts.push(text.slice(last, idx));
+    parts.push(<span key={idx} style={{ background: "#E8C54740", color: "#E8C547", borderRadius: 2, padding: "0 1px" }}>{text.slice(idx, idx + term.length)}</span>);
+    last = idx + term.length;
+    idx = lower.indexOf(tLower, last);
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts.length ? <>{parts}</> : text;
+};
+
 async function callAI(system, userMsg, maxTokens = 1000) {
   const res = await fetch("/api/ai", {
     method: "POST",
@@ -98,6 +115,9 @@ export default function Signal() {
   const [dragNode,      setDragNode]      = useState(null);
   const [dragOffset,    setDragOffset]    = useState({ x: 0, y: 0 });
   const [focusedNode,   setFocusedNode]   = useState(null);
+  const [globalSearch,  setGlobalSearch]  = useState("");
+  const [localSearch,   setLocalSearch]   = useState("");
+  const [searchHighlight, setSearchHighlight] = useState("");
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
@@ -106,6 +126,8 @@ export default function Signal() {
   const composeTitleRef = useRef(null);
   const composeSaveTimer = useRef(null);
   const mapContainerRef = useRef(null);
+  const globalSearchRef = useRef(null);
+  const localSearchRef = useRef(null);
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
@@ -514,13 +536,52 @@ If no meaningful connections exist, return {"connections": []}`,
 
   const navGo = (v, idea = null) => {
     setView(v);
-    if (idea) setActiveIdea(idea);
-    else if (v !== "library") { setActiveIdea(null); setActiveDoc(null); }
+    setLocalSearch("");
+    if (localSearchRef.current) localSearchRef.current.value = "";
+    if (idea) { setActiveIdea(idea); }
+    else if (v !== "library" && v !== "canon" && v !== "compose") { setActiveIdea(null); setActiveDoc(null); }
   };
+
+  const searchAll = (q) => {
+    if (!q || q.length < 2) return [];
+    const term = q.toLowerCase();
+    const results = [];
+    const inTab = view;
+    const searchIdeas = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "library");
+    const searchCanon = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "canon");
+    const searchCompose = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "compose");
+    const searchDeliverables = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "deliverables");
+    if (searchIdeas) ideas.forEach(i => {
+      if (i.text.toLowerCase().includes(term) || (i.ai_note || "").toLowerCase().includes(term) || (i.canon_resonance || "").toLowerCase().includes(term))
+        results.push({ type: "idea", item: i, label: i.text.slice(0, 80), sub: getCat(i.category).label, color: getCat(i.category).color });
+    });
+    if (searchCanon) canonDocs.forEach(d => {
+      if (d.title.toLowerCase().includes(term) || (d.content || "").toLowerCase().includes(term))
+        results.push({ type: "canon", item: d, label: d.title, sub: "Canon", color: C.green });
+    });
+    if (searchCompose) composeDocs.forEach(d => {
+      if ((d.title || "").toLowerCase().includes(term) || (d.content || "").toLowerCase().includes(term))
+        results.push({ type: "compose", item: d, label: d.title || "Untitled", sub: "Compose", color: C.blue });
+    });
+    if (searchDeliverables) deliverables.forEach(d => {
+      if (d.text.toLowerCase().includes(term))
+        results.push({ type: "deliverable", item: d, label: d.text.slice(0, 80), sub: d.is_complete ? "Complete" : "Open", color: C.red });
+    });
+    return results.slice(0, 15);
+  };
+
+  const globalResults = searchAll(globalSearch);
 
   const pending     = deliverables.filter(d => !d.is_complete);
   const activeCanon = canonDocs.filter(d => d.is_active);
-  const filtered    = filterCat ? ideas.filter(i => i.category === filterCat) : ideas;
+  const filtered    = (() => {
+    let f = filterCat ? ideas.filter(i => i.category === filterCat) : ideas;
+    if (localSearch && localSearch.length >= 2) {
+      const term = localSearch.toLowerCase();
+      f = f.filter(i => i.text.toLowerCase().includes(term) || (i.ai_note || "").toLowerCase().includes(term));
+    }
+    return f;
+  })();
   const mono        = "'Google Sans Mono', 'Roboto Mono', monospace";
   const serif       = "'Google Sans', 'Inter', system-ui, sans-serif";
 
@@ -732,6 +793,14 @@ If no meaningful connections exist, return {"connections": []}`,
     return (
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <div style={{ width: 300, borderRight: `1px solid ${C.border}`, overflowY: "auto", flexShrink: 0 }}>
+          <div style={{ padding: "8px 14px", borderBottom: `1px solid ${C.border}` }}>
+            <input
+              ref={localSearchRef}
+              placeholder="Search library..."
+              onChange={e => setLocalSearch(e.target.value)}
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "5px 10px", fontFamily: mono, fontSize: 10, outline: "none" }}
+            />
+          </div>
           <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
             <button onClick={() => setFilterCat(null)}
               style={{ background: !filterCat ? C.gold : "transparent", color: !filterCat ? C.bg : C.textMuted, border: `1px solid ${!filterCat ? C.gold : C.border}`, padding: "3px 10px", fontSize: 10, fontFamily: mono, cursor: "pointer" }}>
@@ -751,7 +820,7 @@ If no meaningful connections exist, return {"connections": []}`,
                 const isActive = displayIdea?.id === idea.id;
                 const daysAgo = Math.floor((Date.now() - new Date(idea.created_at)) / 864e5);
                 return (
-                  <div key={idea.id} onClick={() => setActiveIdea(idea)}
+                  <div key={idea.id} onClick={() => { setActiveIdea(idea); setSearchHighlight(""); }}
                     style={{ padding: "12px 16px", borderBottom: `1px solid ${C.borderSubtle}`, borderLeft: isActive ? `3px solid ${cat.color}` : "3px solid transparent", background: isActive ? C.surfaceHigh : "transparent", cursor: "pointer" }}
                     onMouseEnter={e => !isActive && (e.currentTarget.style.background = C.surfaceHigh)}
                     onMouseLeave={e => !isActive && (e.currentTarget.style.background = "transparent")}>
@@ -759,7 +828,7 @@ If no meaningful connections exist, return {"connections": []}`,
                       <span style={{ fontSize: 10, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
                       <span style={{ fontSize: 10, color: C.textDisabled, fontFamily: mono }}>{daysAgo === 0 ? "today" : `${daysAgo}d`}{idea.signal_strength >= 4 ? " ◈" : ""}</span>
                     </div>
-                    <div style={{ fontSize: 13, color: isActive ? C.textPrimary : C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{idea.text}</div>
+                    <div style={{ fontSize: 13, color: isActive ? C.textPrimary : C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}><Highlight text={idea.text} term={localSearch} /></div>
                     {idea.signal_strength >= 4 && <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, marginTop: 6 }}>◈ HIGH SIGNAL</div>}
                   </div>
                 );
@@ -777,28 +846,29 @@ If no meaningful connections exist, return {"connections": []}`,
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
                       <span style={{ fontSize: 11, color: cat.color, fontFamily: mono, letterSpacing: "0.1em" }}>{cat.icon} {cat.label.toUpperCase()}</span>
                       {displayIdea.signal_strength >= 4 && <span style={{ fontSize: 10, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px" }}>HIGH SIGNAL</span>}
+                      {searchHighlight && <span onClick={() => setSearchHighlight("")} style={{ fontSize: 9, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer" }}>✕ CLEAR HIGHLIGHT</span>}
                       <span style={{ fontSize: 11, color: C.textDisabled, fontFamily: mono, marginLeft: "auto" }}>
                         {new Date(displayIdea.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </span>
                     </div>
-                    <div style={{ fontSize: 22, color: C.textPrimary, lineHeight: 1.9, marginBottom: 36, fontFamily: serif }}>{displayIdea.text}</div>
+                    <div style={{ fontSize: 22, color: C.textPrimary, lineHeight: 1.9, marginBottom: 36, fontFamily: serif }}><Highlight text={displayIdea.text} term={searchHighlight} /></div>
                     {displayIdea.inspiration_question && (
                       <div style={{ marginBottom: 32, padding: "16px 20px", background: C.surfaceHigh, borderLeft: `3px solid ${C.textMuted}` }}>
                         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>WHY IT FELT IMPORTANT</div>
-                        <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.85, fontStyle: "italic" }}>{displayIdea.inspiration_question}</div>
+                        <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.85, fontStyle: "italic" }}><Highlight text={displayIdea.inspiration_question} term={searchHighlight} /></div>
                       </div>
                     )}
                     {displayIdea.ai_note && (
                       <div style={{ marginBottom: 32 }}>
                         <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
-                        <div style={{ fontSize: 16, color: C.textSecondary, lineHeight: 1.9 }}>{displayIdea.ai_note}</div>
+                        <div style={{ fontSize: 16, color: C.textSecondary, lineHeight: 1.9 }}><Highlight text={displayIdea.ai_note} term={searchHighlight} /></div>
                         <ReplyBox ideaId={displayIdea.id} section="ai_note" />
                       </div>
                     )}
                     {displayIdea.canon_resonance && (
                       <div style={{ marginBottom: 32 }}>
                         <div style={{ fontSize: 10, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
-                        <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.85 }}>{displayIdea.canon_resonance}</div>
+                        <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.85 }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
                         <ReplyBox ideaId={displayIdea.id} section="canon_resonance" />
                       </div>
                     )}
@@ -913,9 +983,9 @@ If no meaningful connections exist, return {"connections": []}`,
           ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 15 }}>Select a document.</div>
           : (
             <div style={{ maxWidth: 680 }}>
-              <div style={{ fontSize: 22, color: C.textPrimary, marginBottom: 6 }}>{activeDoc.title}</div>
+              <div style={{ fontSize: 22, color: C.textPrimary, marginBottom: 6 }}><Highlight text={activeDoc.title} term={searchHighlight} /></div>
               <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, marginBottom: 32 }}>{activeDoc.content?.length?.toLocaleString()} chars · {activeDoc.is_active ? "active" : "inactive"}</div>
-              <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.95, whiteSpace: "pre-wrap", fontFamily: serif }}>{activeDoc.content}</div>
+              <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.95, whiteSpace: "pre-wrap", fontFamily: serif }}><Highlight text={activeDoc.content} term={searchHighlight} /></div>
             </div>
           )
         }
@@ -951,7 +1021,7 @@ If no meaningful connections exist, return {"connections": []}`,
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 4 }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.75 }}>{d.text}</div>
+                        <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.75 }}><Highlight text={d.text} term={searchHighlight} /></div>
                         {d.idea?.text && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, marginTop: 5 }}>from: "{d.idea.text.slice(0, 70)}..."</div>}
                       </div>
                     </div>
@@ -1441,10 +1511,46 @@ If no meaningful connections exist, return {"connections": []}`,
         )}
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ padding: "13px 36px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
+        <div style={{ padding: "10px 36px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", gap: 16, position: "relative" }}>
+          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", flexShrink: 0 }}>
             {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
+          <div style={{ flex: 1, position: "relative" }}>
+            <input
+              ref={globalSearchRef}
+              placeholder={{ dashboard: "Search everything...", capture: "Search everything...", library: "Search ideas...", canon: "Search canon...", compose: "Search documents...", deliverables: "Search deliverables...", connections: "Search everything..." }[view] || "Search..."}
+              onChange={e => setGlobalSearch(e.target.value)}
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "6px 12px 6px 28px", fontFamily: mono, fontSize: 11, outline: "none", borderRadius: 0 }}
+            />
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: C.textDisabled }}>⌕</span>
+            {globalSearch && globalResults.length > 0 && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.surface, border: `1px solid ${C.border}`, borderTop: "none", maxHeight: 360, overflowY: "auto", zIndex: 200 }}>
+                {globalResults.map((r, i) => (
+                  <div key={i} onClick={() => {
+                    const term = globalSearch;
+                    setSearchHighlight(term);
+                    if (r.type === "idea") { setActiveIdea(r.item); navGo("library"); }
+                    else if (r.type === "canon") { setActiveDoc(r.item); navGo("canon"); }
+                    else if (r.type === "compose") { setActiveCompose(r.item); navGo("compose"); }
+                    else if (r.type === "deliverable") navGo("deliverables");
+                    setGlobalSearch("");
+                    if (globalSearchRef.current) globalSearchRef.current.value = "";
+                  }}
+                    style={{ padding: "10px 14px", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}
+                    onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <span style={{ fontSize: 9, color: r.color, fontFamily: mono, flexShrink: 0, marginTop: 3 }}>{r.sub.toUpperCase()}</span>
+                    <span style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={r.label} term={globalSearch} /></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {globalSearch && globalResults.length === 0 && globalSearch.length >= 2 && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.surface, border: `1px solid ${C.border}`, borderTop: "none", padding: "14px", zIndex: 200 }}>
+                <span style={{ fontSize: 12, color: C.textDisabled, fontStyle: "italic" }}>No results for "{globalSearch}"</span>
+              </div>
+            )}
+          </div>
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {view === "dashboard"    && DashboardView()}
