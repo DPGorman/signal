@@ -57,20 +57,24 @@ const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
 const todayInvitation = DAILY_INVITATIONS[new Date().getDay() % DAILY_INVITATIONS.length];
 
 const Highlight = ({ text, term }) => {
-  if (!term || term.length < 2 || !text) return text;
-  const parts = [];
-  const lower = text.toLowerCase();
-  const tLower = term.toLowerCase();
-  let last = 0;
-  let idx = lower.indexOf(tLower);
-  while (idx !== -1) {
-    if (idx > last) parts.push(text.slice(last, idx));
-    parts.push(<span key={idx} style={{ background: "#E8C54740", color: "#E8C547", borderRadius: 2, padding: "0 1px" }}>{text.slice(idx, idx + term.length)}</span>);
-    last = idx + term.length;
-    idx = lower.indexOf(tLower, last);
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts.length ? <>{parts}</> : text;
+  if (!term || term.length < 2 || !text || typeof text !== "string") return text || "";
+  try {
+    const parts = [];
+    const lower = text.toLowerCase();
+    const tLower = term.toLowerCase();
+    let last = 0;
+    let idx = lower.indexOf(tLower);
+    let count = 0;
+    while (idx !== -1 && count < 50) {
+      if (idx > last) parts.push(text.slice(last, idx));
+      parts.push(<span key={idx} style={{ background: "#E8C54740", color: "#E8C547", borderRadius: 2, padding: "0 1px" }}>{text.slice(idx, idx + term.length)}</span>);
+      last = idx + term.length;
+      idx = lower.indexOf(tLower, last);
+      count++;
+    }
+    if (last < text.length) parts.push(text.slice(last));
+    return parts.length ? <>{parts}</> : text;
+  } catch (e) { return text; }
 };
 
 async function callAI(system, userMsg, maxTokens = 1000) {
@@ -128,6 +132,7 @@ export default function Signal() {
   const mapContainerRef = useRef(null);
   const globalSearchRef = useRef(null);
   const localSearchRef = useRef(null);
+  const searchTimer = useRef(null);
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
@@ -544,30 +549,32 @@ If no meaningful connections exist, return {"connections": []}`,
 
   const searchAll = (q) => {
     if (!q || q.length < 2) return [];
-    const term = q.toLowerCase();
-    const results = [];
-    const inTab = view;
-    const searchIdeas = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "library");
-    const searchCanon = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "canon");
-    const searchCompose = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "compose");
-    const searchDeliverables = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "deliverables");
-    if (searchIdeas) ideas.forEach(i => {
-      if (i.text.toLowerCase().includes(term) || (i.ai_note || "").toLowerCase().includes(term) || (i.canon_resonance || "").toLowerCase().includes(term))
-        results.push({ type: "idea", item: i, label: i.text.slice(0, 80), sub: getCat(i.category).label, color: getCat(i.category).color });
-    });
-    if (searchCanon) canonDocs.forEach(d => {
-      if (d.title.toLowerCase().includes(term) || (d.content || "").toLowerCase().includes(term))
-        results.push({ type: "canon", item: d, label: d.title, sub: "Canon", color: C.green });
-    });
-    if (searchCompose) composeDocs.forEach(d => {
-      if ((d.title || "").toLowerCase().includes(term) || (d.content || "").toLowerCase().includes(term))
-        results.push({ type: "compose", item: d, label: d.title || "Untitled", sub: "Compose", color: C.blue });
-    });
-    if (searchDeliverables) deliverables.forEach(d => {
-      if (d.text.toLowerCase().includes(term))
-        results.push({ type: "deliverable", item: d, label: d.text.slice(0, 80), sub: d.is_complete ? "Complete" : "Open", color: C.red });
-    });
-    return results.slice(0, 15);
+    try {
+      const term = q.toLowerCase();
+      const results = [];
+      const inTab = view;
+      const searchIdeas = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "library");
+      const searchCanon = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "canon");
+      const searchCompose = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "compose");
+      const searchDeliverables = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "deliverables");
+      if (searchIdeas) ideas.forEach(i => {
+        if (i.text.toLowerCase().includes(term) || (i.ai_note || "").toLowerCase().includes(term))
+          results.push({ type: "idea", item: i, label: i.text.slice(0, 80), sub: getCat(i.category).label, color: getCat(i.category).color });
+      });
+      if (searchCanon) canonDocs.forEach(d => {
+        if (d.title.toLowerCase().includes(term) || (d.content || "").slice(0, 5000).toLowerCase().includes(term))
+          results.push({ type: "canon", item: d, label: d.title, sub: "Canon", color: C.green });
+      });
+      if (searchCompose) composeDocs.forEach(d => {
+        if ((d.title || "").toLowerCase().includes(term) || (d.content || "").slice(0, 5000).toLowerCase().includes(term))
+          results.push({ type: "compose", item: d, label: d.title || "Untitled", sub: "Compose", color: C.blue });
+      });
+      if (searchDeliverables) deliverables.forEach(d => {
+        if (d.text.toLowerCase().includes(term))
+          results.push({ type: "deliverable", item: d, label: d.text.slice(0, 80), sub: d.is_complete ? "Complete" : "Open", color: C.red });
+      });
+      return results.slice(0, 15);
+    } catch (e) { console.warn("Search error:", e); return []; }
   };
 
   const globalResults = searchAll(globalSearch);
@@ -1519,7 +1526,11 @@ If no meaningful connections exist, return {"connections": []}`,
             <input
               ref={globalSearchRef}
               placeholder={{ dashboard: "Search everything...", capture: "Search everything...", library: "Search ideas...", canon: "Search canon...", compose: "Search documents...", deliverables: "Search deliverables...", connections: "Search everything..." }[view] || "Search..."}
-              onChange={e => setGlobalSearch(e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                if (searchTimer.current) clearTimeout(searchTimer.current);
+                searchTimer.current = setTimeout(() => setGlobalSearch(val), 200);
+              }}
               style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "6px 12px 6px 28px", fontFamily: mono, fontSize: 11, outline: "none", borderRadius: 0 }}
             />
             <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: C.textDisabled }}>⌕</span>
