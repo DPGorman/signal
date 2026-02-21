@@ -1153,15 +1153,33 @@ If no meaningful connections exist, return {"connections": []}`,
                   position: "absolute",
                   left: node.x - r,
                   top: node.y - r,
+                  cursor: "pointer",
+                  zIndex: isHovered ? 10 : 1,
+                }}>
+                <div style={{
                   width: r * 2,
                   height: r * 2,
                   borderRadius: "50%",
                   background: node.color + (isHovered ? "CC" : "66"),
                   border: `2px solid ${isHovered ? node.color : "transparent"}`,
-                  cursor: "pointer",
                   transition: dragNode ? "none" : "border-color 0.15s",
-                  zIndex: isHovered ? 10 : 1,
-                }}>
+                }} />
+                <div style={{
+                  position: "absolute",
+                  top: r * 2 + 4,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  whiteSpace: "nowrap",
+                  maxWidth: 120,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  fontSize: 9,
+                  color: isHovered ? C.textPrimary : C.textMuted,
+                  fontFamily: mono,
+                  textAlign: "center",
+                  pointerEvents: "none",
+                  transition: "color 0.15s",
+                }}>{node.text}</div>
                 {isHovered && (
                   <div style={{
                     position: "absolute",
