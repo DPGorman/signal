@@ -122,6 +122,7 @@ export default function Signal() {
   const [globalSearch,  setGlobalSearch]  = useState("");
   const [localSearch,   setLocalSearch]   = useState("");
   const [searchHighlight, setSearchHighlight] = useState("");
+  const [scrollToId,    setScrollToId]    = useState(null);
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
@@ -1022,10 +1023,11 @@ If no meaningful connections exist, return {"connections": []}`,
                 <div key={cat.id} style={{ marginBottom: 36 }}>
                   <div style={{ fontSize: 10, color: cat.color, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 14 }}>{cat.icon} {cat.label.toUpperCase()}</div>
                   {cat.items.map(d => (
-                    <div key={d.id} onClick={() => toggleDeliverable(d.id, d.is_complete)}
-                      style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
+                    <div key={d.id} id={`del-${d.id}`}
+                      onClick={() => toggleDeliverable(d.id, d.is_complete)}
+                      style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", background: scrollToId === d.id ? C.surfaceHigh : "transparent", transition: "background 0.5s" }}
                       onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      onMouseLeave={e => scrollToId !== d.id && (e.currentTarget.style.background = "transparent")}>
                       <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 4 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.75 }}><Highlight text={d.text} term={searchHighlight} /></div>
@@ -1543,7 +1545,15 @@ If no meaningful connections exist, return {"connections": []}`,
                     if (r.type === "idea") { setActiveIdea(r.item); navGo("library"); }
                     else if (r.type === "canon") { setActiveDoc(r.item); navGo("canon"); }
                     else if (r.type === "compose") { setActiveCompose(r.item); navGo("compose"); }
-                    else if (r.type === "deliverable") navGo("deliverables");
+                    else if (r.type === "deliverable") {
+                      navGo("deliverables");
+                      setScrollToId(r.item.id);
+                      setTimeout(() => {
+                        const el = document.getElementById(`del-${r.item.id}`);
+                        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        setTimeout(() => setScrollToId(null), 2000);
+                      }, 100);
+                    }
                     setGlobalSearch("");
                     if (globalSearchRef.current) globalSearchRef.current.value = "";
                   }}
