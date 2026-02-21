@@ -215,10 +215,11 @@ Return ONLY raw JSON:
   };
 
   const captureIdea = async () => {
-    if (!input.trim() || !user || isAnalyzing) return;
-    const text = input.trim();
-    const ctx  = context.trim();
-    setInput(""); setContext("");
+    const text = (captureInputRef.current?.value || "").trim();
+    const ctx  = (contextInputRef.current?.value || "").trim();
+    if (!text || !user || isAnalyzing) return;
+    if (captureInputRef.current) captureInputRef.current.value = "";
+    if (contextInputRef.current) contextInputRef.current.value = "";
     setIsAnalyzing(true);
     notify("Analyzing...", "processing");
     try {
@@ -595,6 +596,9 @@ Raw JSON only:
     </div>
   );
 
+  const captureInputRef = useRef(null);
+  const contextInputRef = useRef(null);
+
   const CaptureView = () => (
     <div style={{ flex: 1, overflowY: "auto", padding: "52px 56px" }}>
       <div style={{ maxWidth: 660 }}>
@@ -603,21 +607,23 @@ Raw JSON only:
           <div style={{ fontSize: 19, lineHeight: 1.9, color: C.textMuted, fontStyle: "italic" }}>{todayInvitation}</div>
         </div>
         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
-        <textarea value={input} onChange={e => setInput(e.target.value)}
+        <textarea ref={captureInputRef}
           onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }}
           placeholder="Don't edit. Don't qualify. Just send the signal."
           rows={5}
           style={{ ...inputBase, fontSize: 16, lineHeight: 1.9, resize: "vertical", marginBottom: 16 }}
+        />
         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>
           WHY DOES THIS FEEL IMPORTANT? <span style={{ color: C.textDisabled }}>(optional)</span>
         </div>
-        <input value={context} onChange={e => setContext(e.target.value)}
+        <input ref={contextInputRef}
           placeholder="e.g. it reframes the protagonist's entire moral logic..."
           style={{ ...inputBase, marginBottom: 24 }}
+        />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 11, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
-          <button onClick={captureIdea} disabled={isAnalyzing || !input.trim()}
-            style={{ background: isAnalyzing || !input.trim() ? C.surfaceHigh : C.gold, color: isAnalyzing || !input.trim() ? C.textMuted : C.bg, border: "none", padding: "12px 32px", fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", cursor: isAnalyzing || !input.trim() ? "default" : "pointer" }}>
+          <button onClick={captureIdea} disabled={isAnalyzing}
+            style={{ background: isAnalyzing ? C.surfaceHigh : C.gold, color: isAnalyzing ? C.textMuted : C.bg, border: "none", padding: "12px 32px", fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", cursor: isAnalyzing ? "default" : "pointer" }}>
             {isAnalyzing ? "ANALYZING..." : "SEND THE SIGNAL →"}
           </button>
         </div>
