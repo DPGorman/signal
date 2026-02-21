@@ -319,8 +319,6 @@ Raw JSON only:
             onKeyDown={e => { if (e.key === "Enter" && draft.trim()) send(); }}
             placeholder="Respond..."
             style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: compact ? "7px 10px" : "9px 12px", fontFamily: serif, fontSize: compact ? 12 : 13, outline: "none" }}
-            onFocus={e => e.target.style.borderColor = C.blue}
-            onBlur={e => e.target.style.borderColor = C.border} />
           {draft.trim() && (
             <button onClick={send}
               style={{ background: C.blue, border: "none", color: C.bg, padding: "7px 12px", fontFamily: mono, fontSize: 10, cursor: "pointer", flexShrink: 0 }}>
@@ -610,16 +608,12 @@ Raw JSON only:
           placeholder="Don't edit. Don't qualify. Just send the signal."
           rows={5}
           style={{ ...inputBase, fontSize: 16, lineHeight: 1.9, resize: "vertical", marginBottom: 16 }}
-          onFocus={e => e.target.style.borderColor = C.gold}
-          onBlur={e => e.target.style.borderColor = C.border} />
         <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>
           WHY DOES THIS FEEL IMPORTANT? <span style={{ color: C.textDisabled }}>(optional)</span>
         </div>
         <input value={context} onChange={e => setContext(e.target.value)}
           placeholder="e.g. it reframes the protagonist's entire moral logic..."
           style={{ ...inputBase, marginBottom: 24 }}
-          onFocus={e => e.target.style.borderColor = C.gold}
-          onBlur={e => e.target.style.borderColor = C.border} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 11, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
           <button onClick={captureIdea} disabled={isAnalyzing || !input.trim()}
