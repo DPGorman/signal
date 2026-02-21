@@ -97,6 +97,7 @@ export default function Signal() {
   const [hoveredNode,   setHoveredNode]   = useState(null);
   const [dragNode,      setDragNode]      = useState(null);
   const [dragOffset,    setDragOffset]    = useState({ x: 0, y: 0 });
+  const [focusedNode,   setFocusedNode]   = useState(null);
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
@@ -1122,19 +1123,47 @@ If no meaningful connections exist, return {"connections": []}`,
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onClick={e => { if (e.target === mapContainerRef.current) setFocusedNode(null); }}
           style={{ flex: 1, position: "relative", overflow: "hidden", background: C.bg, cursor: dragNode ? "grabbing" : "default" }}>
+          {focusedNode && (() => {
+            const fi = ideas.find(i => i.id === focusedNode);
+            const fc = connections.filter(c => c.idea_a === focusedNode || c.idea_b === focusedNode);
+            if (!fi) return null;
+            return (
+              <div style={{ position: "absolute", top: 16, left: 24, zIndex: 50, background: C.surface, border: `1px solid ${C.border}`, padding: "14px 18px", maxWidth: 340 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 10, color: getCat(fi.category).color, fontFamily: mono }}>{getCat(fi.category).icon} {fi.category.toUpperCase()}</span>
+                  <span onClick={() => { setActiveIdea(fi); navGo("library"); }}
+                    style={{ fontSize: 9, color: C.gold, fontFamily: mono, cursor: "pointer" }}>OPEN IN LIBRARY →</span>
+                </div>
+                <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.6, marginBottom: fc.length ? 10 : 0 }}>{fi.text.slice(0, 150)}{fi.text.length > 150 ? "..." : ""}</div>
+                {fc.length > 0 && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                    <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 6 }}>{fc.length} CONNECTION{fc.length > 1 ? "S" : ""}</div>
+                    {fc.map((c, ci) => (
+                      <div key={ci} style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.5, marginBottom: 4 }}>→ {c.relationship}</div>
+                    ))}
+                  </div>
+                )}
+                <div onClick={() => setFocusedNode(null)}
+                  style={{ marginTop: 10, fontSize: 9, color: C.textMuted, fontFamily: mono, cursor: "pointer" }}>✕ SHOW ALL</div>
+              </div>
+            );
+          })()}
           <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
             {connections.map((conn, i) => {
               const a = getNode(conn.idea_a);
               const b = getNode(conn.idea_b);
               if (!a || !b) return null;
               const isHovered = hoveredNode && (conn.idea_a === hoveredNode || conn.idea_b === hoveredNode);
+              const isFocusConn = focusedNode && (conn.idea_a === focusedNode || conn.idea_b === focusedNode);
+              const hidden = focusedNode && !isFocusConn;
               return (
                 <line key={i}
                   x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                  stroke={isHovered ? C.gold : C.border}
-                  strokeWidth={isHovered ? 2 : Math.max(0.5, conn.strength * 0.4)}
-                  opacity={isHovered ? 0.9 : 0.3}
+                  stroke={isFocusConn ? C.gold : isHovered ? C.gold : C.border}
+                  strokeWidth={isFocusConn ? 2 : isHovered ? 2 : Math.max(0.5, conn.strength * 0.4)}
+                  opacity={hidden ? 0.03 : isFocusConn ? 0.9 : isHovered ? 0.9 : 0.3}
                 />
               );
             })}
@@ -1143,26 +1172,34 @@ If no meaningful connections exist, return {"connections": []}`,
             const r = nodeRadius(node);
             const isHovered = hoveredNode === node.id;
             const nodeConns = connections.filter(c => c.idea_a === node.id || c.idea_b === node.id);
+            const isFocused = focusedNode === node.id;
+            const isConnectedToFocus = focusedNode && nodeConns.some(c => c.idea_a === focusedNode || c.idea_b === focusedNode);
+            const isFaded = focusedNode && !isFocused && !isConnectedToFocus;
             return (
               <div key={node.id}
                 onMouseDown={e => handleMouseDown(e, node)}
                 onMouseEnter={() => setHoveredNode(node.id)}
                 onMouseLeave={() => setHoveredNode(null)}
-                onClick={() => { setActiveIdea(ideas.find(i => i.id === node.id)); navGo("library"); }}
+                onClick={() => {
+                  if (focusedNode === node.id) { setFocusedNode(null); }
+                  else { setFocusedNode(node.id); }
+                }}
                 style={{
                   position: "absolute",
                   left: node.x - r,
                   top: node.y - r,
                   cursor: "pointer",
-                  zIndex: isHovered ? 10 : 1,
+                  zIndex: isFocused ? 20 : isHovered ? 10 : 1,
+                  opacity: isFaded ? 0.12 : 1,
+                  transition: "opacity 0.3s",
                 }}>
                 <div style={{
                   width: r * 2,
                   height: r * 2,
                   borderRadius: "50%",
-                  background: node.color + (isHovered ? "CC" : "66"),
-                  border: `2px solid ${isHovered ? node.color : "transparent"}`,
-                  transition: dragNode ? "none" : "border-color 0.15s",
+                  background: node.color + (isFocused ? "EE" : isHovered ? "CC" : "66"),
+                  border: `2px solid ${isFocused ? C.gold : isHovered ? node.color : "transparent"}`,
+                  transition: dragNode ? "none" : "border-color 0.15s, background 0.3s",
                 }} />
                 <div style={{
                   position: "absolute",
@@ -1170,11 +1207,12 @@ If no meaningful connections exist, return {"connections": []}`,
                   left: "50%",
                   transform: "translateX(-50%)",
                   whiteSpace: "nowrap",
-                  maxWidth: 120,
+                  maxWidth: isFocused || isConnectedToFocus ? 180 : 120,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
-                  fontSize: 9,
-                  color: isHovered ? C.textPrimary : C.textMuted,
+                  fontSize: isFocused ? 11 : 9,
+                  fontWeight: isFocused ? 500 : 400,
+                  color: isFocused ? C.gold : isConnectedToFocus ? C.textPrimary : isHovered ? C.textPrimary : C.textMuted,
                   fontFamily: mono,
                   textAlign: "center",
                   pointerEvents: "none",
