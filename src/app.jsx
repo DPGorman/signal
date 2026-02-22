@@ -92,15 +92,18 @@ export default function Signal() {
   const [filterCat, setFilterCat] = useState(null);
   const [studio, setStudio] = useState(null);
   const [studioLoading, setStudioLoading] = useState(false);
-  const [studioTab, setStudioTab] = useState("insight");
-  const [auditing, setAuditing] = useState(false);
   const [replies, setReplies] = useState([]);
+  const [composeDocs, setComposeDocs] = useState([]);
+  const [activeCompose, setActiveCompose] = useState(null);
   const [connections, setConnections] = useState([]);
+  const [mapNodes, setMapNodes] = useState([]);
+  const [dragNode, setDragNode] = useState(null);
+  const [focusedNode, setFocusedNode] = useState(null);
   const [globalSearch, setGlobalSearch] = useState("");
-  const [localSearch, setLocalSearch] = useState("");
 
-  const studioFired = useRef(false);
   const captureInputRef = useRef(null);
+  const composeSaveTimer = useRef(null);
+  const mapContainerRef = useRef(null);
 
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
@@ -110,272 +113,177 @@ export default function Signal() {
         .then(({ data }) => {
           if (data?.id) { localStorage.setItem("signal_user_id", data.id); loadAll(data.id); }
           else setIsLoading(false);
-        })
-        .catch(() => setIsLoading(false));
+        });
     }
   }, []);
 
   useEffect(() => {
-    if (ideas.length > 1 && user && !studioFired.current && !studioLoading) {
-      studioFired.current = true;
-      runStudio(ideas, user);
-    }
-  }, [ideas, user]);
+    if (!ideas.length) return;
+    const cx = 500, cy = 400;
+    setMapNodes(ideas.map((idea, i) => {
+      const angle = (i / ideas.length) * Math.PI * 2;
+      const radius = 300;
+      return {
+        id: idea.id, color: getCat(idea.category).color,
+        x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius
+      };
+    }));
+  }, [ideas.length]);
 
   const loadAll = async (uid) => {
     try {
-      const [{ data: u }, { data: i }, { data: d }, { data: c }] = await Promise.all([
+      const [{ data: u }, { data: i }, { data: d }, { data: c }, { data: r }, { data: cd }, { data: cn }] = await Promise.all([
         supabase.from("users").select("*").eq("id", uid).single(),
         supabase.from("ideas").select("*, dimensions(*)").eq("user_id", uid).order("created_at", { ascending: false }),
-        supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid).order("created_at", { ascending: false }),
-        supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid),
+        supabase.from("canon_documents").select("*").eq("user_id", uid),
+        supabase.from("replies").select("*").eq("user_id", uid),
+        supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false }),
+        supabase.from("connections").select("*").eq("user_id", uid)
       ]);
       if (u) setUser(u);
       if (i) setIdeas(i);
       if (d) setDeliverables(d);
       if (c) setCanonDocs(c);
-    } catch (e) { console.error("loadAll:", e); }
-    finally { setIsLoading(false); }
-    try {
-      const { data: r } = await supabase.from("replies").select("*").eq("user_id", uid).order("created_at", { ascending: true });
       if (r) setReplies(r);
-    } catch (e) { console.warn("Replies:", e); }
-    try {
-      const { data: cn } = await supabase.from("connections").select("*").eq("user_id", uid);
+      if (cd) setComposeDocs(cd);
       if (cn) setConnections(cn);
-    } catch (e) { console.warn("Connections:", e); }
+    } finally { setIsLoading(false); }
   };
 
   const runStudio = async (ideasList, userObj) => {
-    if (!ideasList?.length || studioLoading) return;
     setStudioLoading(true);
     try {
-      const allIdeas = ideasList.map((i, n) => `#${n + 1} [${i.category}] "${i.text}"`).join("\n");
+      const allIdeas = ideasList.map(i => i.text).join("\n");
       const result = await callAI(
-        `You are a script editor. Provide JSON with provocation, pattern, urgentIdea, blind_spot, duplicates.`,
-        `Project: ${userObj?.project_name}\n\nIDEAS:\n${allIdeas}`
+        "You are a script editor. Provide JSON with provocation, pattern, urgentIdea.",
+        `Project: ${userObj?.project_name}\nIDEAS:\n${allIdeas}`
       );
       setStudio(result);
-    } catch (e) { console.error("Studio:", e); }
-    finally { setStudioLoading(false); }
-  };
-
-  const auditLibrary = async () => {
-    if (window.location.hostname === "localhost") {
-      notify("Audit only works on the deployed Vercel site.", "error");
-      return;
-    }
-    setAuditing(true);
-    notify("Auditing library...", "processing");
-    try {
-        const validIds = new Set(ideas.map(i => i.id));
-        const allIdeas = ideas.map(i => `ID:${i.id} [${i.category}] "${i.text}"`).join("\n");
-        const result = await callAI(
-          `Identify ideas to DELETE. Return JSON with toDelete (ids) and reasons.`,
-          `LIBRARY:\n${allIdeas}`
-        );
-        const toDelete = (result.toDelete || []).filter(id => validIds.has(id));
-        if (toDelete.length > 0) {
-            for (const id of toDelete) {
-                await supabase.from("ideas").delete().eq("id", id);
-            }
-            await loadAll(user.id);
-            notify(`Deleted ${toDelete.length} items.`, "success");
-        } else { notify("Library is clean.", "info"); }
-    } catch (e) { notify("Audit failed.", "error"); }
-    finally { setAuditing(false); }
+    } finally { setStudioLoading(false); }
   };
 
   const captureIdea = async () => {
-    const text = (captureInputRef.current?.value || "").trim();
+    const text = captureInputRef.current?.value.trim();
     if (!text || isAnalyzing) return;
     setIsAnalyzing(true);
     notify("Capturing signal...", "processing");
     try {
-        const analysis = await callAI(
-            `Analyze this idea. Return JSON with category, aiNote, signalStrength.`,
-            `New idea: "${text}"`
-        );
-        const { data: saved } = await supabase.from("ideas").insert([{
-            user_id: user.id, text, category: analysis.category || "premise", ai_note: analysis.aiNote || "", signal_strength: analysis.signalStrength || 3
-        }]).select().single();
-        await loadAll(user.id);
-        setActiveIdea(saved);
-        setView("library");
-        notify("Signal captured.", "success");
-    } catch (e) { notify("Capture failed.", "error"); }
-    finally { setIsAnalyzing(false); }
+      const analysis = await callAI("Analyze this.", `Idea: "${text}"`);
+      const { data: saved } = await supabase.from("ideas").insert([{
+        user_id: user.id, text, category: analysis.category || "premise", ai_note: analysis.aiNote || ""
+      }]).select().single();
+      await loadAll(user.id);
+      setActiveIdea(saved);
+      navGo("library");
+      notify("Captured.", "success");
+    } finally { setIsAnalyzing(false); }
   };
 
-  const navGo = (v, idea = null) => {
+  const saveCompose = async (id, updates) => {
+    if (composeSaveTimer.current) clearTimeout(composeSaveTimer.current);
+    composeSaveTimer.current = setTimeout(async () => {
+      await supabase.from("compose_documents").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id);
+      setComposeDocs(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+    }, 1000);
+  };
+
+  const navGo = (v, item = null) => {
     setView(v);
-    if (idea) setActiveIdea(idea);
+    if (v === "library") setActiveIdea(item || ideas[0]);
+    if (v === "canon") setActiveDoc(item || canonDocs[0]);
+    if (v === "compose") setActiveCompose(item || composeDocs[0]);
   };
 
   const notify = (msg, type = "info") => {
     setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const searchAll = (q) => {
+    if (q.length < 2) return [];
+    return ideas.filter(i => i.text.toLowerCase().includes(q.toLowerCase())).slice(0, 5);
   };
 
   const pending = deliverables.filter(d => !d.is_complete);
-  const activeCanon = canonDocs.filter(d => d.is_active);
+  const globalResults = searchAll(globalSearch);
 
-  const DashboardView = () => (
-    <div style={{ flex: 1, padding: "40px 60px", overflowY: "auto" }}>
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: C.textPrimary, marginBottom: 4 }}>{user?.project_name || "Signal"}</div>
-        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: "'Roboto Mono', monospace" }}>{new Date().toLocaleDateString()}</div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 40 }}>
-        {[
-          { label: "Ideas", value: ideas.length, color: C.gold },
-          { label: "Tasks", value: pending.length, color: C.red },
-          { label: "Source Docs", value: canonDocs.length, color: C.purple },
-          { label: "High Signal", value: ideas.filter(i => i.signal_strength >= 4).length, color: C.green },
-        ].map(s => (
-          <div key={s.label} style={{ background: C.surface, padding: "20px", borderRadius: 12, border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 32, fontWeight: 300, color: s.color, marginBottom: 4 }}>{s.value}</div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, letterSpacing: "0.05em" }}>{s.label.toUpperCase()}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  if (isLoading) return <div style={{ background: C.bg, height: "100vh" }} />;
 
   return (
     <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, fontFamily: "'Inter', sans-serif", overflow: "hidden" }}>
-      {notification && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, padding: "10px 20px", borderRadius: 8, border: `1px solid ${C.border}`, zIndex: 1000, fontSize: 12 }}>
-          {notification.msg}
-        </div>
-      )}
-
-      {/* LEFT COLUMN: Sidebar & Search */}
+      {/* SIDEBAR */}
       <div style={{ width: 260, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "24px 20px" }}>
-          <div style={{ fontSize: 20, fontWeight: 800, fontStyle: "italic", marginBottom: 20, cursor: "pointer" }} onClick={() => navGo("dashboard")}>signal</div>
-          
-          {/* SEARCH BOX: Fixed at top of sidebar */}
+          <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 20, fontStyle: "italic", cursor: "pointer" }} onClick={() => setView("dashboard")}>signal</div>
           <div style={{ position: "relative", marginBottom: 20 }}>
-            <input 
-              placeholder="Search project..."
-              value={globalSearch}
-              onChange={e => setGlobalSearch(e.target.value)}
-              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "8px 12px 8px 32px", borderRadius: 6, fontSize: 12, outline: "none" }}
-            />
-            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.textMuted }}>⌕</span>
+            <input placeholder="Search..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: "white", padding: "10px 12px 10px 32px", borderRadius: 8, outline: "none", fontSize: 13 }} />
+            {globalResults.length > 0 && (
+              <div style={{ position: "absolute", top: "110%", background: C.surfaceHigh, width: "100%", zIndex: 10, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                {globalResults.map(r => <div key={r.id} onClick={() => navGo("library", r)} style={{ padding: 12, cursor: "pointer", borderBottom: `1px solid ${C.borderSubtle}` }}>{r.text.slice(0, 40)}</div>)}
+              </div>
+            )}
           </div>
-
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {["dashboard", "capture", "library", "canon", "deliverables"].map(v => (
-              <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold + "20" : "transparent", border: `1px solid ${view === v ? C.gold : C.border}`, color: view === v ? C.gold : C.textMuted, padding: "4px 10px", borderRadius: 4, fontSize: 10, fontFamily: "'Roboto Mono', monospace", cursor: "pointer" }}>
-                {v.toUpperCase()}
-              </button>
+            {["dashboard", "capture", "library", "canon", "compose", "connections"].map(v => (
+              <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold + "20" : "transparent", border: `1px solid ${view === v ? C.gold : C.border}`, color: view === v ? C.gold : C.textMuted, padding: "5px 10px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{v.toUpperCase()}</button>
             ))}
           </div>
         </div>
-
         <div style={{ flex: 1, overflowY: "auto", padding: "0 10px" }}>
-          {view === "library" ? (
-             <div>
-               <div style={{ fontSize: 10, color: C.textMuted, padding: "10px", fontFamily: "'Roboto Mono', monospace" }}>IDEAS</div>
-               {ideas.filter(i => !globalSearch || i.text.toLowerCase().includes(globalSearch.toLowerCase())).map(i => (
-                 <div key={i.id} onClick={() => setActiveIdea(i)} style={{ padding: "10px", borderRadius: 6, cursor: "pointer", background: activeIdea?.id === i.id ? C.surfaceHigh : "transparent", marginBottom: 2 }}>
-                   <div style={{ fontSize: 13, color: activeIdea?.id === i.id ? C.textPrimary : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{i.text}</div>
-                 </div>
-               ))}
-             </div>
-          ) : (
-            <div>
-              <div style={{ fontSize: 10, color: C.textMuted, padding: "10px", fontFamily: "'Roboto Mono', monospace" }}>SOURCES</div>
-              {canonDocs.map(doc => (
-                <div key={doc.id} onClick={() => { setActiveDoc(doc); navGo("canon"); }} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: doc.is_active ? C.textPrimary : C.textMuted, display: "flex", gap: 8 }}>
-                  <span>{doc.is_active ? "✓" : "○"}</span>
-                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{doc.title}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {view === "library" ? ideas.map(i => <div key={i.id} onClick={() => setActiveIdea(i)} style={{ padding: "10px 12px", background: activeIdea?.id === i.id ? C.surfaceHigh : "transparent", borderRadius: 8, fontSize: 13, cursor: "pointer", marginBottom: 2 }}>{i.text.slice(0, 40)}</div>) : 
+           view === "compose" ? composeDocs.map(d => <div key={d.id} onClick={() => setActiveCompose(d)} style={{ padding: "10px 12px", background: activeCompose?.id === d.id ? C.surfaceHigh : "transparent", borderRadius: 8, cursor: "pointer", fontSize: 13, marginBottom: 2 }}>{d.title}</div>) :
+           canonDocs.map(d => <div key={d.id} onClick={() => setActiveDoc(d)} style={{ padding: "10px 12px", fontSize: 13, color: d.is_active ? "white" : C.textDisabled }}>{d.title}</div>)}
         </div>
       </div>
 
-      {/* CENTER COLUMN: Main Content */}
+      {/* CENTER */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {view === "dashboard" && <DashboardView />}
+        {view === "dashboard" && <div style={{ padding: 60 }}><h1 style={{ fontSize: 24, marginBottom: 32 }}>{user?.project_name} Dashboard</h1></div>}
         {view === "capture" && (
-          <div style={{ padding: "60px 100px" }}>
-            <div style={{ fontSize: 10, color: C.gold, fontFamily: "'Roboto Mono', monospace", marginBottom: 12 }}>CAPTURE SIGNAL</div>
-            <textarea ref={captureInputRef} placeholder="What's the idea?" rows={8} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px", color: C.textPrimary, fontSize: 16, outline: "none", lineHeight: 1.6 }} />
-            <button onClick={captureIdea} disabled={isAnalyzing} style={{ marginTop: 20, width: "100%", background: C.gold, color: C.bg, border: "none", padding: "14px", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}>{isAnalyzing ? "ANALYZING..." : "SEND SIGNAL →"}</button>
+          <div style={{ padding: 60, maxWidth: 640, margin: "0 auto", width: "100%" }}>
+            <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 40, fontStyle: "italic", color: C.textSecondary }}>{todayInvitation}</div>
+            <textarea ref={captureInputRef} placeholder="Enter your signal..." rows={8} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, color: "white", fontSize: 16, lineHeight: 1.6, resize: "none", outline: "none" }} />
+            <button onClick={captureIdea} disabled={isAnalyzing} style={{ width: "100%", marginTop: 20, background: C.gold, color: C.bg, padding: 16, borderRadius: 12, fontWeight: 700, cursor: "pointer" }}>SEND SIGNAL →</button>
           </div>
         )}
-        {view === "library" && (
-          <div style={{ flex: 1, padding: "40px 60px", overflowY: "auto" }}>
-            {activeIdea ? (
-              <div style={{ maxWidth: 700 }}>
-                <div style={{ fontSize: 11, color: getCat(activeIdea.category).color, fontWeight: 600, marginBottom: 8 }}>{activeIdea.category.toUpperCase()}</div>
-                <div style={{ fontSize: 20, fontWeight: 500, lineHeight: 1.6, marginBottom: 24 }}>{activeIdea.text}</div>
-                <div style={{ fontSize: 10, color: C.gold, fontFamily: "'Roboto Mono', monospace", marginBottom: 8 }}>AI ANALYSIS</div>
-                <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.6, background: C.surface, padding: "20px", borderRadius: 12 }}>{activeIdea.ai_note}</div>
-              </div>
-            ) : <div style={{ color: C.textMuted }}>Select an idea from the list</div>}
+        {view === "library" && activeIdea && (
+          <div style={{ padding: 60, maxWidth: 800 }}>
+            <div style={{ fontSize: 11, color: C.gold, marginBottom: 12, fontWeight: 600 }}>{activeIdea.category.toUpperCase()}</div>
+            <div style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.6, marginBottom: 40 }}>{activeIdea.text}</div>
+            {activeIdea.ai_note && <div style={{ background: C.surface, padding: 24, borderRadius: 12, fontSize: 15, lineHeight: 1.7, color: C.textSecondary, border: `1px solid ${C.borderSubtle}` }}>{activeIdea.ai_note}</div>}
           </div>
         )}
-        {view === "canon" && (
-          <div style={{ flex: 1, padding: "40px 60px", overflowY: "auto" }}>
-             {activeDoc ? (
-               <div style={{ maxWidth: 700 }}>
-                 <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>{activeDoc.title}</div>
-                 <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{activeDoc.content}</div>
-               </div>
-             ) : <div style={{ color: C.textMuted }}>Select a document</div>}
+        {view === "compose" && activeCompose && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 40 }}>
+            <input value={activeCompose.title} onChange={e => saveCompose(activeCompose.id, { title: e.target.value })} style={{ background: "transparent", border: "none", color: "white", fontSize: 24, fontWeight: 700, marginBottom: 24, outline: "none" }} />
+            <textarea value={activeCompose.content} onChange={e => saveCompose(activeCompose.id, { content: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: "white", padding: 30, fontSize: 16, lineHeight: 1.8, outline: "none", resize: "none" }} />
+          </div>
+        )}
+        {view === "connections" && (
+          <div ref={mapContainerRef} style={{ flex: 1, position: "relative", background: C.bg }}>
+            <svg style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}>
+              {connections.map((c, i) => {
+                const a = mapNodes.find(n => n.id === c.idea_a), b = mapNodes.find(n => n.id === c.idea_b);
+                return a && b && <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={C.border} opacity={0.4} />;
+              })}
+            </svg>
+            {mapNodes.map(n => <div key={n.id} style={{ position: "absolute", left: n.x - 12, top: n.y - 12, width: 24, height: 24, background: n.color, borderRadius: "50%", cursor: "grab" }} />)}
           </div>
         )}
       </div>
 
-      {/* RIGHT COLUMN: Studio Tools */}
-      <div style={{ width: 280, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "20px" }}>
-          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Roboto Mono', monospace", marginBottom: 16 }}>STUDIO</div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {[
-              { label: "Insight", icon: "💡", action: () => runStudio(ideas, user) },
-              { label: "Audit Library", icon: "🧹", action: auditLibrary },
-            ].map(tool => (
-              <button key={tool.label} onClick={tool.action} style={{ display: "flex", alignItems: "center", background: C.bg, border: `1px solid ${C.border}`, padding: "12px 14px", borderRadius: 8, cursor: "pointer", color: C.textPrimary }}>
-                <span style={{ fontSize: 16, marginRight: 12 }}>{tool.icon}</span>
-                <span style={{ flex: 1, textAlign: "left", fontSize: 12, fontWeight: 500 }}>{tool.label}</span>
-                <span style={{ color: C.textDisabled, fontSize: 10 }}>→</span>
-              </button>
-            ))}
+      {/* STUDIO */}
+      <div style={{ width: 290, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "24px 20px" }}>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16 }}>STUDIO</div>
+          <div style={{ display: "grid", gap: 10 }}>
+            <button onClick={() => runStudio(ideas, user)} style={{ display: "flex", background: C.bg, border: `1px solid ${C.border}`, padding: 12, borderRadius: 8, cursor: "pointer", color: "white" }}>💡 Insight</button>
+            <button onClick={auditLibrary} style={{ display: "flex", background: C.bg, border: `1px solid ${C.border}`, padding: 12, borderRadius: 8, cursor: "pointer", color: "white" }}>🧹 Audit Library</button>
           </div>
         </div>
-        <div style={{ flex: 1, padding: "20px", overflowY: "auto", borderTop: `1px solid ${C.borderSubtle}` }}>
-          {studioLoading ? <div style={{ fontSize: 12, color: C.textMuted }}>Thinking...</div> : 
-            studio && (
-              <div>
-                <div style={{ fontSize: 10, color: C.gold, fontFamily: "'Roboto Mono', monospace", marginBottom: 8 }}>PROVOCATION</div>
-                <div style={{ fontSize: 13, lineHeight: 1.6, color: C.textSecondary, borderLeft: `2px solid ${C.gold}`, paddingLeft: 12 }}>{studio.provocation}</div>
-              </div>
-            )
-          }
-        </div>
+        {studio && <div style={{ flex: 1, padding: 20, fontSize: 13, borderTop: `1px solid ${C.border}`, lineHeight: 1.6, color: C.textSecondary }}>{studio.provocation}</div>}
       </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 10px; }
-      `}} />
-    </div>
-  );
-}
-
-function SectionHead({ label, onClick }) {
-  return (
-    <div onClick={onClick} style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Roboto Mono', monospace", letterSpacing: "0.15em", cursor: onClick ? "pointer" : "default" }}>
-      {label} {onClick && "→"}
     </div>
   );
 }
