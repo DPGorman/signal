@@ -102,6 +102,9 @@ export default function Signal() {
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
+  const contextInputRef = useRef(null);
+  const composeContentRef = useRef(null);
+  const composeTitleRef = useRef(null);
   const composeSaveTimer = useRef(null);
   const mapContainerRef = useRef(null);
 
@@ -130,16 +133,18 @@ export default function Signal() {
     const nodes = ideas.map((idea, i) => {
       const angle = (i / ideas.length) * Math.PI * 2;
       const cat = getCat(idea.category);
-      const connCount = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id).length;
-      const radius = Math.max(120, 320 - connCount * 10);
+      const nodeConnections = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id);
+      const radius = Math.max(120, 360 - nodeConnections.length * 20);
       return {
         id: idea.id, category: idea.category,
-        x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius,
-        color: cat.color, text: idea.text.slice(0, 40)
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
+        color: cat.color, text: idea.text.slice(0, 50),
+        signal: idea.signal_strength || 3, connCount: nodeConnections.length
       };
     });
     setMapNodes(nodes);
-  }, [ideas, connections]);
+  }, [ideas.length, connections.length]);
 
   const loadAll = async (uid) => {
     try {
@@ -150,7 +155,7 @@ export default function Signal() {
         supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
         supabase.from("replies").select("*").eq("user_id", uid).order("created_at", { ascending: true }),
         supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false }),
-        supabase.from("connections").select("*").eq("user_id", uid)
+        supabase.from("connections").select("*").eq("user_id", uid),
       ]);
       if (u) setUser(u);
       if (i) setIdeas(i);
@@ -159,23 +164,17 @@ export default function Signal() {
       if (r) setReplies(r);
       if (cd) setComposeDocs(cd);
       if (cn) setConnections(cn);
-    } finally { setIsLoading(false); }
+    } catch (e) { console.error("loadAll:", e); }
+    finally { setIsLoading(false); }
   };
 
   const runStudio = async (ideasList, userObj) => {
     if (!ideasList?.length || studioLoading) return;
     setStudioLoading(true);
     try {
-      const allIdeas = ideasList.map(i => `[${i.category}] ${i.text}`).join("\n");
+      const allIdeas = ideasList.map((i, n) => `#${n + 1} [${i.category}, signal ${i.signal_strength || "?"}] "${i.text}"`).join("\n");
       const result = await callAI(
-        `You are a senior creative collaborator. Respond ONLY in raw JSON:
-{
-  "provocation": "sharpest unresolved question this work raises",
-  "pattern": "underlying creative focus",
-  "urgentIdea": "single idea to develop now",
-  "blind_spot": "what work isn't grappling with",
-  "duplicates": null
-}`,
+        `You are a senior dramaturg. Analyze this project. Respond ONLY in raw JSON:\n{\n  "provocation": "one sentence unresolved drama",\n  "pattern": "underlying creative focus",\n  "urgentIdea": "what to write now"\n}`,
         `Project: ${userObj?.project_name}\nIDEAS:\n${allIdeas}`
       );
       setStudio(result);
@@ -183,30 +182,31 @@ export default function Signal() {
   };
 
   const auditLibrary = async () => {
-    if (window.location.hostname === "localhost") return notify("Vercel Required", "error");
+    if (!ideas.length || auditing) return;
+    if (window.location.hostname === "localhost") return notify("Vercel required for Audit.", "error");
     setAuditing(true); notify("Scanning library...");
     try {
-        const result = await callAI("Identify ideas to DELETE. Return JSON { toDelete: [ids] }", ideas.map(i => `${i.id}: ${i.text}`).join("\n"));
-        if (result.toDelete?.length) {
-            for (const id of result.toDelete) { await supabase.from("ideas").delete().eq("id", id); }
-            await loadAll(user.id); notify(`Deleted ${result.toDelete.length} entries.`);
-        } else notify("Library clean.");
+      const result = await callAI("Find test entries/duplicates.", ideas.map(i => `${i.id}: ${i.text}`).join("\n"));
+      if (result.toDelete?.length) {
+        for (const id of result.toDelete) { await supabase.from("ideas").delete().eq("id", id); }
+        await loadAll(user.id); notify(`Deleted ${result.toDelete.length} entries.`);
+      }
     } finally { setAuditing(false); }
   };
 
   const captureIdea = async () => {
     const text = (captureInputRef.current?.value || "").trim();
+    const ctx = (contextInputRef.current?.value || "").trim();
     if (!text || isAnalyzing) return;
-    setIsAnalyzing(true); notify("Processing signal...");
+    setIsAnalyzing(true); notify("Analyzing signal...", "processing");
     try {
-      const res = await callAI("Analyze and categorize idea. JSON: { category, aiNote }", text);
-      const { data: saved } = await supabase.from("ideas").insert([{ 
-        user_id: user.id, text, category: res.category || "premise", ai_note: res.aiNote || ""
+      const analysis = await callAI("Analyze signal. Return JSON: {category, aiNote, signalStrength}", text);
+      const { data: saved } = await supabase.from("ideas").insert([{
+        user_id: user.id, text, category: analysis.category || "premise", ai_note: analysis.aiNote || "", inspiration_question: ctx, signal_strength: analysis.signalStrength || 3
       }]).select().single();
       await loadAll(user.id);
       setActiveIdea(saved); navGo("library");
-      notify("Signal Captured.", "success");
-      generateConnections(saved.id, text, user.id);
+      notify("Captured.", "success");
     } catch(e) { notify("Error", "error"); }
     finally { setIsAnalyzing(false); }
   };
@@ -219,6 +219,13 @@ export default function Signal() {
     }, 1000);
   };
 
+  const addReply = async (ideaId, section, text) => {
+    if (!text.trim() || !user) return false;
+    const { data } = await supabase.from("replies").insert([{ user_id: user.id, idea_id: ideaId || null, target_section: section, content: text.trim() }]).select().single();
+    setReplies(prev => [...prev, data]);
+    return true;
+  };
+
   const navGo = (v, item = null) => {
     setView(v);
     if (v === "library") setActiveIdea(item || ideas[0]);
@@ -228,111 +235,112 @@ export default function Signal() {
 
   const notify = (msg, type = "info") => { setNotification({ msg, type }); setTimeout(() => setNotification(null), 3000); };
 
-  const pending = deliverables.filter(d => !d.is_complete);
-
-  const MindMapView = () => {
-    const handleMouseMove = (e) => {
-      if (!dragNode) return;
-      const rect = mapContainerRef.current.getBoundingClientRect();
-      setMapNodes(prev => prev.map(n => n.id === dragNode ? { ...n, x: e.clientX - rect.left, y: e.clientY - rect.top } : n));
-    };
-    return (
-      <div ref={mapContainerRef} onMouseMove={handleMouseMove} onMouseUp={() => setDragNode(null)} style={{ flex: 1, position: "relative", background: C.bg }}>
-        <svg style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}>
-          {connections.map((c, i) => {
-            const a = mapNodes.find(n => n.id === c.idea_a); const b = mapNodes.find(n => n.id === c.idea_b);
-            if (a && b) return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={C.border} opacity={0.4} />;
-            return null;
-          })}
-        </svg>
-        {mapNodes.map(n => (
-          <div key={n.id} onMouseDown={() => setDragNode(n.id)} onClick={() => setActiveIdea(ideas.find(i => i.id === n.id))}
-            style={{ position: "absolute", left: n.x - 12, top: n.y - 12, width: 24, height: 24, borderRadius: "50%", background: n.color, cursor: "grab", border: activeIdea?.id === n.id ? "3px solid white" : "none" }} />
-        ))}
-      </div>
-    );
+  const filterList = () => {
+    if (!globalSearch || globalSearch.length < 2) return ideas;
+    const q = globalSearch.toLowerCase();
+    return ideas.filter(i => i.text.toLowerCase().includes(q) || (i.ai_note && i.ai_note.toLowerCase().includes(q)));
   };
 
-  if (isLoading) return <div style={{ height: "100vh", background: C.bg }} />;
+  const currentIdeas = filterList();
+  const pending = deliverables.filter(d => !d.is_complete);
+
+  const sans = "'Inter', sans-serif";
+  const mono = "'Roboto Mono', monospace";
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, fontFamily: "'Inter', sans-serif" }}>
-      {notification && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, padding: "12px 24px", borderRadius: 8, border: `1px solid ${C.border}`, zIndex: 1000 }}>{notification.msg}</div>}
+    <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, fontFamily: sans, overflow: "hidden" }}>
+      {notification && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, padding: "10px 24px", borderRadius: 8, zHash: 1000 }}>{notification.msg}</div>}
 
-      {/* LEFT COLUMN */}
+      {/* SIDEBAR: SOURCES & NAVIGATION */}
       <div style={{ width: 260, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "24px 20px" }}>
-            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 20, fontStyle: "italic", cursor: "pointer" }} onClick={() => navGo("dashboard")}>signal</div>
-            <input placeholder="Search Everything..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} 
-                style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px 10px 32px", color: "white", outline: "none", marginBottom: 16 }} />
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {["dashboard", "capture", "library", "canon", "compose", "connections"].map(v => (
-                    <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold+"20" : "transparent", border: `1px solid ${view===v?C.gold:C.border}`, color: view===v?C.gold:C.textMuted, padding: "5px 12px", fontSize: 10, borderRadius: 6, fontWeight: 600 }}>{v.toUpperCase()}</button>
-                ))}
-            </div>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
-            {view === "library" ? ideas.filter(i => !globalSearch || i.text.toLowerCase().includes(globalSearch.toLowerCase())).map(i => <div key={i.id} onClick={() => setActiveIdea(i)} style={{ padding: 10, background: activeIdea?.id === i.id ? C.surfaceHigh : "transparent", cursor: "pointer", borderRadius: 8, fontSize: 13 }}>{i.text.slice(0, 45)}...</div>) : 
-             view === "compose" ? composeDocs.map(d => <div key={d.id} onClick={() => setActiveCompose(d)} style={{ padding: 10, background: activeCompose?.id === d.id ? C.surfaceHigh : "transparent", cursor: "pointer", borderRadius: 8 }}>{d.title}</div>) :
-             canonDocs.map(d => <div key={d.id} onClick={() => { setActiveDoc(d); setView("canon"); }} style={{ padding: 10, fontSize: 13, color: d.is_active ? "white" : C.textMuted, cursor: "pointer" }}>{d.title}</div>)}
-        </div>
-      </div>
-
-      {/* CENTER */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {view === "dashboard" && (
-            <div style={{ padding: 60 }}>
-                <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>{user?.project_name} Dashboard</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 40 }}>
-                   <div style={{ background: C.surface, padding: 24, borderRadius: 12 }}>
-                        <div style={{ fontSize: 32, color: C.gold }}>{ideas.length}</div>
-                        <div style={{ fontSize: 11, color: C.textMuted }}>IDEAS</div>
-                   </div>
-                   <div style={{ background: C.surface, padding: 24, borderRadius: 12 }}>
-                        <div style={{ fontSize: 32, color: C.red }}>{pending.length}</div>
-                        <div style={{ fontSize: 11, color: C.textMuted }}>INVITATIONS</div>
-                   </div>
-                </div>
-            </div>
-          )}
-          {view === "capture" && (
-              <div style={{ padding: 60, maxWidth: 700, margin: "0 auto", width: "100%" }}>
-                <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 40, fontStyle: "italic", fontSize: 18 }}>{todayInvitation}</div>
-                <textarea ref={captureInputRef} placeholder="Record the creative signal..." rows={8} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, color: "white", fontSize: 16, outline: "none", lineHeight: 1.6 }} />
-                <button onClick={captureIdea} style={{ width: "100%", marginTop: 20, padding: 16, background: C.gold, color: C.bg, fontWeight: 700, borderRadius: 12 }}>SEND SIGNAL</button>
-              </div>
-          )}
-          {view === "library" && activeIdea && (
-              <div style={{ padding: 60, maxWidth: 800 }}>
-                  <div style={{ fontSize: 11, color: getCat(activeIdea.category).color, fontWeight: 600, marginBottom: 10 }}>{activeIdea.category.toUpperCase()}</div>
-                  <div style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.6, marginBottom: 40 }}>{activeIdea.text}</div>
-                  {activeIdea.ai_note && <div style={{ background: C.surface, padding: 24, borderRadius: 12, border: `1px solid ${C.borderSubtle}`, lineHeight: 1.75 }}>{activeIdea.ai_note}</div>}
-              </div>
-          )}
-          {view === "compose" && activeCompose && (
-              <div style={{ flex: 1, padding: 40, display: "flex", flexDirection: "column" }}>
-                <input value={activeCompose.title} onChange={e => saveCompose(activeCompose.id, { title: e.target.value })} style={{ background: "transparent", border: "none", color: "white", fontSize: 24, fontWeight: 700, marginBottom: 24 }} />
-                <textarea value={activeCompose.content} onChange={e => saveCompose(activeCompose.id, { content: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 30, color: "white", fontSize: 16, lineHeight: 1.8 }} />
-              </div>
-          )}
-          {view === "connections" && <MindMapView />}
-          {view === "canon" && activeDoc && <div style={{ padding: 60 }}><h2 style={{ marginBottom: 20 }}>{activeDoc.title}</h2><div style={{ whiteSpace: "pre-wrap", color: C.textSecondary, lineHeight: 1.8 }}>{activeDoc.content}</div></div>}
-      </div>
-
-      {/* RIGHT */}
-      <div style={{ width: 290, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "24px 20px" }}>
-            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20, letterSpacing: "0.1em" }}>STUDIO TOOLS</div>
-            <div style={{ display: "grid", gap: 10 }}>
-                <button onClick={() => runStudio(ideas, user)} style={{ background: C.bg, padding: 12, border: `1px solid ${C.border}`, color: "white", cursor: "pointer", borderRadius: 10 }}>💡 Studio Insight</button>
-                <button onClick={auditLibrary} style={{ background: C.bg, padding: 12, border: `1px solid ${C.border}`, color: "white", cursor: "pointer", borderRadius: 10 }}>🧹 Audit Library</button>
-            </div>
+          <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 20, fontStyle: "italic", cursor: "pointer" }} onClick={() => navGo("dashboard")}>signal</div>
+          <div style={{ position: "relative", marginBottom: 20 }}>
+            <input placeholder="Search everywhere..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} 
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, padding: "10px 32px", borderRadius: 8, color: "white", outline: "none", fontSize: 13 }} />
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.textMuted }}>⌕</span>
           </div>
-          {studio && (
-              <div style={{ flex: 1, padding: 20, borderTop: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 13, lineHeight: 1.6, borderLeft: `2px solid ${C.gold}`, paddingLeft: 12 }}>{studio.provocation}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {["dashboard", "capture", "library", "canon", "compose", "connections"].map(v => (
+              <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold+"20" : "transparent", border: `1px solid ${view===v?C.gold:C.border}`, color: view===v?C.gold:C.textMuted, padding: "5px 10px", borderRadius: 6, fontSize: 10, fontFamily: mono, fontWeight: 600 }}>{v.toUpperCase()}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 20px" }}>
+            <div style={{ fontSize: 10, color: C.textMuted, padding: "10px", letterSpacing: "0.1em" }}>SOURCES / LIST</div>
+            {view === "library" ? currentIdeas.map(i => (
+              <div key={i.id} onClick={() => setActiveIdea(i)} style={{ padding: "10px 12px", background: activeIdea?.id === i.id ? C.surfaceHigh : "transparent", borderRadius: 8, fontSize: 13, cursor: "pointer", marginBottom: 2, borderLeft: `2px solid ${activeIdea?.id === i.id ? getCat(i.category).color : "transparent"}` }}>{i.text.slice(0, 45)}...</div>
+            )) : view === "compose" ? composeDocs.map(d => (
+              <div key={d.id} onClick={() => setActiveCompose(d)} style={{ padding: "10px 12px", background: activeCompose?.id === d.id ? C.surfaceHigh : "transparent", borderRadius: 8, cursor: "pointer", fontSize: 13, marginBottom: 2 }}>{d.title}</div>
+            )) : canonDocs.map(d => (
+              <div key={d.id} onClick={() => { setActiveDoc(d); setView("canon"); }} style={{ padding: "10px 12px", cursor: "pointer", display: "flex", gap: 8, color: d.is_active ? "white" : C.textMuted }}>
+                <span>{d.is_active ? "✓" : "○"}</span><span style={{ fontSize: 13 }}>{d.title}</span>
               </div>
-          )}
+            ))}
+        </div>
+      </div>
+
+      {/* CENTER: WORKSPACE */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {view === "dashboard" && <div style={{ padding: 60 }}><div style={{ fontSize: 24, fontWeight: 700 }}>{user?.project_name} Dashboard</div></div>}
+        {view === "capture" && (
+          <div style={{ padding: "60px 40px", maxWidth: 660, margin: "0 auto", width: "100%" }}>
+            <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 40 }}><div style={{ fontSize: 18, fontStyle: "italic", color: C.textSecondary, lineHeight: 1.6 }}>{todayInvitation}</div></div>
+            <textarea ref={captureInputRef} placeholder="What's the creative signal?" rows={10} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, fontSize: 16, color: "white", outline: "none", lineHeight: 1.6, resize: "none" }} />
+            <button onClick={captureIdea} disabled={isAnalyzing} style={{ width: "100%", marginTop: 20, background: C.gold, padding: 18, borderRadius: 12, fontWeight: 700 }}>SEND SIGNAL →</button>
+          </div>
+        )}
+        {view === "library" && activeIdea && (
+          <div style={{ padding: "60px", maxWidth: 800 }}>
+             <div style={{ fontSize: 11, color: getCat(activeIdea.category).color, fontWeight: 600, marginBottom: 10 }}>{activeIdea.category.toUpperCase()}</div>
+             <div style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.6, marginBottom: 40 }}>{activeIdea.text}</div>
+             <div style={{ background: C.surface, padding: 24, borderRadius: 12, border: `1px solid ${C.borderSubtle}` }}>
+                <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, marginBottom: 12 }}>AI INSIGHT</div>
+                <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.7 }}>{activeIdea.ai_note}</div>
+             </div>
+          </div>
+        )}
+        {view === "compose" && activeCompose && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 40 }}>
+            <input value={activeCompose.title} onChange={e => saveCompose(activeCompose.id, { title: e.target.value })} style={{ background: "transparent", border: "none", fontSize: 28, color: "white", fontWeight: 700, marginBottom: 24, outline: "none" }} />
+            <textarea value={activeCompose.content} onChange={e => saveCompose(activeCompose.id, { content: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, color: "white", padding: 30, fontSize: 16, lineHeight: 1.8, outline: "none", resize: "none" }} />
+          </div>
+        )}
+        {view === "connections" && (
+           <div ref={mapContainerRef} onMouseUp={() => setDragNode(null)} onMouseMove={(e) => {
+             if (!dragNode) return;
+             const rect = mapContainerRef.current.getBoundingClientRect();
+             setMapNodes(prev => prev.map(n => n.id === dragNode ? { ...n, x: e.clientX - rect.left, y: e.clientY - rect.top } : n));
+           }} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+             <svg style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}>
+               {connections.map((c, i) => {
+                 const a = mapNodes.find(n => n.id === c.idea_a); const b = mapNodes.find(n => n.id === c.idea_b);
+                 return a && b ? <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={C.border} opacity={0.4} /> : null;
+               })}
+             </svg>
+             {mapNodes.map(n => <div key={n.id} onMouseDown={() => setDragNode(n.id)} onClick={() => setActiveIdea(ideas.find(i => i.id === n.id))} style={{ position: "absolute", left: n.x-12, top: n.y-12, width: 24, height: 24, borderRadius: "50%", background: n.color, cursor: "grab", border: activeIdea?.id === n.id ? "3px solid white" : "none" }} />)}
+           </div>
+        )}
+        {view === "canon" && activeDoc && (
+          <div style={{ flex: 1, padding: 60, overflowY: "auto" }}>
+             <div style={{ maxWidth: 740 }}>
+                <h1 style={{ marginBottom: 24 }}>{activeDoc.title}</h1>
+                <div style={{ fontSize: 15, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{activeDoc.content}</div>
+             </div>
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT: STUDIO */}
+      <div style={{ width: 300, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "24px 20px" }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20 }}>STUDIO</div>
+            <div style={{ display: "grid", gap: 10 }}>
+               <button onClick={() => runStudio(ideas, user)} style={{ display: "flex", background: C.bg, border: `1px solid ${C.border}`, padding: 12, borderRadius: 10, cursor: "pointer", color: "white" }}>💡 Synthesis</button>
+               <button onClick={auditLibrary} style={{ display: "flex", background: C.bg, border: `1px solid ${C.border}`, padding: 12, borderRadius: 10, cursor: "pointer", color: "white" }}>🧹 Audit Library</button>
+            </div>
+        </div>
+        {studio && <div style={{ flex: 1, padding: 24, borderTop: `1px solid ${C.border}`, lineHeight: 1.7, fontSize: 14 }}>{studio.provocation}</div>}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -340,6 +348,7 @@ export default function Signal() {
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 10px; }
+        input, textarea { font-family: inherit; }
       `}} />
     </div>
   );
