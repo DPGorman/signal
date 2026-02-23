@@ -89,18 +89,27 @@ export default function Signal() {
   const [filterCat, setFilterCat] = useState(null);
   const [studio, setStudio] = useState(null);
   const [studioLoading, setStudioLoading] = useState(false);
+  const [studioTab, setStudioTab] = useState("insight");
+  const [auditing, setAuditing] = useState(false);
   const [replies, setReplies] = useState([]);
   const [composeDocs, setComposeDocs] = useState([]);
   const [activeCompose, setActiveCompose] = useState(null);
   const [connections, setConnections] = useState([]);
   const [mapNodes, setMapNodes] = useState([]);
   const [dragNode, setDragNode] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [focusedNode, setFocusedNode] = useState(null);
   const [globalSearch, setGlobalSearch] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
+  const [searchHighlight, setSearchHighlight] = useState("");
+  const [scrollToId, setScrollToId] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isAuditing, setIsAuditing] = useState(false);
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
+  const contextInputRef = useRef(null);
+  const composeContentRef = useRef(null);
+  const composeTitleRef = useRef(null);
   const composeSaveTimer = useRef(null);
   const mapContainerRef = useRef(null);
 
@@ -126,62 +135,103 @@ export default function Signal() {
   useEffect(() => {
     if (!ideas.length) return;
     const cx = 500, cy = 400;
-    setMapNodes(ideas.map((idea, i) => {
+    const nodes = ideas.map((idea, i) => {
       const angle = (i / ideas.length) * Math.PI * 2;
-      const radius = 300;
+      const cat = getCat(idea.category);
+      const connCount = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id).length;
+      const radius = Math.max(120, 350 - connCount * 40);
       return {
-        id: idea.id, color: getCat(idea.category).color,
-        x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius
+        id: idea.id, category: idea.category,
+        x: cx + Math.cos(angle) * radius + (Math.random() - 0.5) * 60,
+        y: cy + Math.sin(angle) * radius + (Math.random() - 0.5) * 60,
+        text: idea.text.slice(0, 50), fullText: idea.text,
+        color: cat.color, icon: cat.icon,
+        signal: idea.signal_strength || 3, connCount,
       };
-    }));
-  }, [ideas.length]);
+    });
+    setMapNodes(nodes);
+  }, [ideas.length, connections.length]);
 
   const loadAll = async (uid) => {
-    const [{ data: u }, { data: i }, { data: d }, { data: c }, { data: r }, { data: cd }, { data: cn }] = await Promise.all([
-      supabase.from("users").select("*").eq("id", uid).single(),
-      supabase.from("ideas").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
-      supabase.from("deliverables").select("*").eq("user_id", uid),
-      supabase.from("canon_documents").select("*").eq("user_id", uid),
-      supabase.from("replies").select("*").eq("user_id", uid),
-      supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false }),
-      supabase.from("connections").select("*").eq("user_id", uid)
-    ]);
-    if (u) setUser(u);
-    if (i) setIdeas(i);
-    if (d) setDeliverables(d);
-    if (c) setCanonDocs(c);
-    if (r) setReplies(r);
-    if (cd) setComposeDocs(cd);
-    if (cn) setConnections(cn);
-    setIsLoading(false);
+    try {
+      const [{ data: u }, { data: i }, { data: d }, { data: c }] = await Promise.all([
+        supabase.from("users").select("*").eq("id", uid).single(),
+        supabase.from("ideas").select("*, dimensions(*)").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
+      ]);
+      if (u) setUser(u);
+      if (i) setIdeas(i);
+      if (d) setDeliverables(d);
+      if (c) setCanonDocs(c);
+      
+      const { data: r } = await supabase.from("replies").select("*").eq("user_id", uid).order("created_at", { ascending: true });
+      if (r) setReplies(r);
+      const { data: cd } = await supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false });
+      if (cd) setComposeDocs(cd);
+      const { data: cn } = await supabase.from("connections").select("*").eq("user_id", uid);
+      if (cn) setConnections(cn);
+    } catch (e) { console.error("loadAll:", e); }
+    finally { setIsLoading(false); }
   };
 
   const runStudio = async (ideasList, userObj) => {
+    if (!ideasList?.length || studioLoading) return;
     setStudioLoading(true);
     try {
-      const result = await callAI("Senior dramaturg analysis.", ideasList.map(i => i.text).join("\n"));
+      const allIdeas = ideasList.map((i, n) => `#${n + 1} [${i.category}, signal ${i.signal_strength || "?"}] "${i.text}"`).join("\n");
+      const result = await callAI(
+        `You are a senior dramaturg. Analyze this corpus. Respond ONLY in raw JSON:
+{
+  "provocation": "sharp unresolved question this work raises",
+  "pattern": "underlying creative current",
+  "urgentIdea": "single idea most deserving focus",
+  "blind_spot": "what the creator is ignoring"
+}`,
+        `Project: ${userObj?.project_name}\nTotal: ${ideasList.length}\n\nIDEAS:\n${allIdeas}`
+      );
       setStudio(result);
-    } catch (e) { notify("Studio Error", "error"); }
+    } catch (e) { console.error("Studio:", e); }
     finally { setStudioLoading(false); }
   };
 
-  const captureIdea = async () => {
-    const text = captureInputRef.current?.value.trim();
-    if (!text || isAnalyzing) return;
-    setIsAnalyzing(true);
-    const { data: saved } = await supabase.from("ideas").insert([{ user_id: user.id, text, category: "premise" }]).select().single();
-    await loadAll(user.id);
-    setActiveIdea(saved);
-    navGo("library");
-    setIsAnalyzing(false);
+  const auditLibrary = async () => {
+    if (!ideas.length || !user || auditing) return;
+    if (window.location.hostname === "localhost") return notify("Audit requires Vercel.", "error");
+    setAuditing(true);
+    notify("Auditing library...", "processing");
+    try {
+      const result = await callAI(
+        "Identify duplicates or test entries to delete. Return JSON with toDelete array of IDs.",
+        `LIBRARY:\n${ideas.map(i => `${i.id}: ${i.text}`).join("\n")}`
+      );
+      if (result.toDelete?.length) {
+        for (const id of result.toDelete) {
+          await supabase.from("ideas").delete().eq("id", id);
+        }
+        await loadAll(user.id);
+        notify(`Deleted ${result.toDelete.length} entries.`, "success");
+      } else notify("Library is high signal.", "info");
+    } catch (e) { notify("Audit fail.", "error"); }
+    finally { setAuditing(false); }
   };
 
-  const auditLibrary = async () => {
-    if (window.location.hostname === "localhost") return notify("Vercel Required", "error");
-    setIsAuditing(true);
-    notify("Auditing...");
-    await callAI("Find duplicates.", ideas.map(i => i.text).join("\n"));
-    setIsAuditing(false);
+  const captureIdea = async () => {
+    const text = (captureInputRef.current?.value || "").trim();
+    if (!text || !user || isAnalyzing) return;
+    setIsAnalyzing(true);
+    notify("Processing signal...", "processing");
+    try {
+      const analysis = await callAI("Analyze and categorize idea. Return JSON.", text);
+      const { data: saved, error } = await supabase.from("ideas").insert([{
+        user_id: user.id, text, category: analysis.category || "premise", ai_note: analysis.aiNote || "", signal_strength: analysis.signalStrength || 3
+      }]).select().single();
+      if (error) throw error;
+      await loadAll(user.id);
+      setActiveIdea(saved); navGo("library");
+      notify("Captured.", "success");
+    } catch (e) { notify("Capture Error", "error"); }
+    finally { setIsAnalyzing(false); }
   };
 
   const saveCompose = async (id, updates) => {
@@ -199,96 +249,178 @@ export default function Signal() {
     if (v === "compose") setActiveCompose(item || composeDocs[0]);
   };
 
-  const notify = (msg, type = "info") => { setNotification({ msg, type }); setTimeout(() => setNotification(null), 3000); };
-
-  const pending = deliverables.filter(d => !d.is_complete);
-  const globalResults = globalSearch.length < 2 ? [] : ideas.filter(i => i.text.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 5);
-
-  const handleMapDrag = (e) => {
-    if (!dragNode) return;
-    const rect = mapContainerRef.current.getBoundingClientRect();
-    setMapNodes(prev => prev.map(n => n.id === dragNode ? { ...n, x: e.clientX - rect.left, y: e.clientY - rect.top } : n));
+  const notify = (msg, type = "info") => {
+    setNotification({ msg, type });
+    setTimeout(() => setNotification(null), 3000);
   };
 
-  if (isLoading) return <div style={{ background: C.bg, height: "100vh" }} />;
+  const searchResults = (q) => {
+    if (!q || q.length < 2) return [];
+    const term = q.toLowerCase();
+    return ideas.filter(i => i.text.toLowerCase().includes(term)).slice(0, 10);
+  };
+
+  const globalFiltered = globalSearch.length < 2 ? ideas : ideas.filter(i => i.text.toLowerCase().includes(globalSearch.toLowerCase()));
+  const pending = deliverables.filter(d => !d.is_complete);
+
+  const DashboardView = () => (
+    <div style={{ flex: 1, padding: "40px 60px", overflowY: "auto" }}>
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 24, fontWeight: 700, color: C.textPrimary }}>{user?.project_name} Dashboard</div>
+        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: "'Roboto Mono', monospace" }}>{new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        {[
+          { label: "Ideas", value: ideas.length, color: C.gold, dest: "library" },
+          { label: "Tasks", value: pending.length, color: C.red, dest: "deliverables" },
+          { label: "Sources", value: canonDocs.length, color: C.purple, dest: "canon" },
+          { label: "Compose", value: composeDocs.length, color: C.green, dest: "compose" }
+        ].map(s => (
+          <div key={s.label} onClick={() => navGo(s.dest)} style={{ background: C.surface, padding: "24px", borderRadius: 12, border: `1px solid ${C.border}`, cursor: "pointer" }}>
+            <div style={{ fontSize: 36, fontWeight: 300, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: "0.1em", marginTop: 4 }}>{s.label.toUpperCase()}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const MindMapView = () => {
+    const handleMouseDown = (e, node) => { setDragNode(node.id); };
+    const handleMouseMove = (e) => {
+      if (!dragNode) return;
+      const rect = mapContainerRef.current.getBoundingClientRect();
+      setMapNodes(prev => prev.map(n => n.id === dragNode ? { ...n, x: e.clientX - rect.left, y: e.clientY - rect.top } : n));
+    };
+    return (
+      <div ref={mapContainerRef} onMouseMove={handleMouseMove} onMouseUp={() => setDragNode(null)} style={{ flex: 1, position: "relative", background: C.bg, overflow: "hidden" }}>
+        <svg style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}>
+          {connections.map((c, i) => {
+            const a = mapNodes.find(n => n.id === c.idea_a); const b = mapNodes.find(n => n.id === c.idea_b);
+            if (a && b) return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={C.border} opacity={0.4} />;
+            return null;
+          })}
+        </svg>
+        {mapNodes.map(n => (
+          <div key={n.id} onMouseDown={(e) => handleMouseDown(e, n)} onClick={() => setActiveIdea(ideas.find(i => i.id === n.id))}
+            style={{ position: "absolute", left: n.x - 12, top: n.y - 12, width: 24, height: 24, borderRadius: "50%", background: n.color, cursor: "grab", border: activeIdea?.id === n.id ? "3px solid white" : "none", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }} />
+        ))}
+      </div>
+    );
+  };
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, fontFamily: "'Inter', sans-serif" }}>
-      {notification && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, padding: "10px 20px", borderRadius: 8, zIndex: 1000 }}>{notification.msg}</div>}
+    <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, fontFamily: "'Inter', sans-serif", overflow: "hidden" }}>
+      {notification && <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, padding: "10px 24px", borderRadius: 8, border: `1px solid ${C.border}`, zIndex: 1000, fontSize: 13 }}>{notification.msg}</div>}
 
-      {/* Sidebar */}
-      <div style={{ width: 260, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
+      {/* LEFT COLUMN: Sidebar */}
+      <div style={{ width: 260, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "24px 20px" }}>
-          <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>signal</div>
+          <div style={{ fontSize: 20, fontWeight: 900, fontStyle: "italic", marginBottom: 20, cursor: "pointer" }} onClick={() => navGo("dashboard")}>signal</div>
           <div style={{ position: "relative", marginBottom: 20 }}>
-            <input placeholder="Search..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: "white", padding: "10px 32px", borderRadius: 8 }} />
-            {globalResults.length > 0 && <div style={{ position: "absolute", top: "100%", background: C.surfaceHigh, width: "100%", zIndex: 10 }}>{globalResults.map(r => <div key={r.id} onClick={() => navGo("library", r)} style={{ padding: 12, borderBottom: `1px solid ${C.borderSubtle}` }}>{r.text.slice(0, 30)}</div>)}</div>}
+            <input placeholder="Search Everything..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} 
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px 10px 32px", color: "white", outline: "none", fontSize: 13 }} />
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.textMuted }}>⌕</span>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {["dashboard", "capture", "library", "canon", "compose", "connections"].map(v => (
-              <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold + "20" : "transparent", border: `1px solid ${view === v ? C.gold : C.border}`, color: view === v ? C.gold : C.textMuted, padding: "5px 10px", borderRadius: 4, fontSize: 10, cursor: "pointer" }}>{v.toUpperCase()}</button>
+              <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold + "20" : "transparent", border: `1px solid ${view === v ? C.gold : C.border}`, color: view === v ? C.gold : C.textMuted, padding: "5px 12px", borderRadius: 6, fontSize: 11, fontFamily: "'Roboto Mono', monospace", cursor: "pointer" }}>{v.toUpperCase()}</button>
             ))}
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
-          {view === "library" ? ideas.map(i => <div key={i.id} onClick={() => setActiveIdea(i)} style={{ padding: 10, background: activeIdea?.id === i.id ? C.surfaceHigh : "transparent", cursor: "pointer", borderRadius: 8, fontSize: 13 }}>{i.text.slice(0, 40)}</div>) : 
-           view === "compose" ? composeDocs.map(d => <div key={d.id} onClick={() => setActiveCompose(d)} style={{ padding: 10, background: activeCompose?.id === d.id ? C.surfaceHigh : "transparent", cursor: "pointer", fontSize: 13 }}>{d.title}</div>) :
-           canonDocs.map(d => <div key={d.id} onClick={() => setActiveDoc(d)} style={{ padding: 10, color: d.is_active ? "white" : "#666", fontSize: 13 }}>{d.title}</div>)}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 20px" }}>
+          <div style={{ fontSize: 10, color: C.textMuted, padding: "10px", fontFamily: "'Roboto Mono', monospace", letterSpacing: "0.1em" }}>{view.toUpperCase()} LIST</div>
+          {view === "library" ? globalFiltered.map(i => (
+            <div key={i.id} onClick={() => setActiveIdea(i)} style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", background: activeIdea?.id === i.id ? C.surfaceHigh : "transparent", fontSize: 13, marginBottom: 2, borderLeft: `2px solid ${activeIdea?.id === i.id ? getCat(i.category).color : "transparent"}` }}>{i.text.slice(0, 45)}...</div>
+          )) : view === "compose" ? composeDocs.map(d => (
+            <div key={d.id} onClick={() => setActiveCompose(d)} style={{ padding: "10px 12px", background: activeCompose?.id === d.id ? C.surfaceHigh : "transparent", borderRadius: 8, cursor: "pointer", fontSize: 13, marginBottom: 2 }}>{d.title}</div>
+          )) : canonDocs.map(doc => (
+            <div key={doc.id} onClick={() => { setActiveDoc(doc); navGo("canon"); }} style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", fontSize: 13, color: doc.is_active ? C.textPrimary : C.textMuted, display: "flex", gap: 10 }}>
+              <span>{doc.is_active ? "✓" : "○"}</span><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.title}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Workspace */}
+      {/* CENTER COLUMN: Workspace */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {view === "dashboard" && <div style={{ padding: 60 }}><h1 style={{ fontSize: 24, marginBottom: 8 }}>{user?.project_name} Dashboard</h1></div>}
+        {view === "dashboard" && <DashboardView />}
         {view === "capture" && (
-          <div style={{ padding: 60, maxWidth: 700, margin: "0 auto", width: "100%" }}>
-            <div style={{ fontSize: 18, fontStyle: "italic", marginBottom: 30, borderLeft: `3px solid ${C.gold}`, paddingLeft: 20 }}>{todayInvitation}</div>
-            <textarea ref={captureInputRef} placeholder="Your idea..." rows={10} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, color: "white", fontSize: 16 }} />
-            <button onClick={captureIdea} style={{ width: "100%", marginTop: 20, background: C.gold, padding: 15, borderRadius: 12, fontWeight: 700 }}>SEND SIGNAL →</button>
+          <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: "60px 40px" }}>
+            <div style={{ width: "100%", maxWidth: 640 }}>
+              <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 48 }}>
+                <div style={{ fontSize: 10, color: C.gold, fontFamily: "'Roboto Mono', monospace", letterSpacing: "0.1em", marginBottom: 8 }}>PROMPT OF THE DAY</div>
+                <div style={{ fontSize: 18, fontStyle: "italic", color: C.textSecondary, lineHeight: 1.6 }}>{todayInvitation}</div>
+              </div>
+              <textarea ref={captureInputRef} placeholder="Enter your creative signal..." rows={10} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px", color: C.textPrimary, fontSize: 16, outline: "none", lineHeight: 1.6, resize: "none" }} />
+              <button onClick={captureIdea} disabled={isAnalyzing} style={{ marginTop: 20, width: "100%", background: C.gold, color: C.bg, border: "none", padding: "16px", borderRadius: 12, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>{isAnalyzing ? "ANALYZING..." : "SEND SIGNAL →"}</button>
+            </div>
           </div>
         )}
         {view === "library" && activeIdea && (
-          <div style={{ padding: 60, maxWidth: 800 }}>
-            <div style={{ fontSize: 11, color: C.gold, marginBottom: 10 }}>{activeIdea.category.toUpperCase()}</div>
-            <div style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.6, marginBottom: 40 }}>{activeIdea.text}</div>
-            {activeIdea.ai_note && <div style={{ padding: 20, background: C.surface, borderRadius: 12, fontSize: 15, lineHeight: 1.7 }}>{activeIdea.ai_note}</div>}
+          <div style={{ flex: 1, padding: "60px", overflowY: "auto" }}>
+            <div style={{ maxWidth: 720 }}>
+              <div style={{ fontSize: 11, color: getCat(activeIdea.category).color, fontWeight: 600, letterSpacing: "0.05em", marginBottom: 12 }}>{activeIdea.category.toUpperCase()}</div>
+              <div style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.6, marginBottom: 40 }}>{activeIdea.text}</div>
+              <div style={{ fontSize: 10, color: C.gold, fontFamily: "'Roboto Mono', monospace", marginBottom: 12 }}>AI ANALYSIS</div>
+              <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.7, background: C.surface, padding: "24px", borderRadius: 12, border: `1px solid ${C.borderSubtle}` }}>{activeIdea.ai_note}</div>
+            </div>
           </div>
         )}
         {view === "compose" && activeCompose && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 40 }}>
-            <input value={activeCompose.title} onChange={e => saveCompose(activeCompose.id, { title: e.target.value })} style={{ background: "transparent", border: "none", color: "white", fontSize: 24, fontWeight: 700, marginBottom: 20 }} />
-            <textarea value={activeCompose.content} onChange={e => saveCompose(activeCompose.id, { content: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: "white", padding: 20, fontSize: 16, lineHeight: 1.8 }} />
+          <div style={{ flex: 1, padding: "40px", display: "flex", flexDirection: "column" }}>
+            <input value={activeCompose.title} onChange={e => saveCompose(activeCompose.id, { title: e.target.value })} style={{ background: "transparent", border: "none", color: "white", fontSize: 28, fontWeight: 700, marginBottom: 24, outline: "none" }} />
+            <textarea value={activeCompose.content} onChange={e => saveCompose(activeCompose.id, { content: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: "white", padding: 30, fontSize: 16, lineHeight: 1.9, outline: "none", resize: "none" }} />
           </div>
         )}
-        {view === "connections" && (
-          <div ref={mapContainerRef} onMouseMove={handleMapDrag} onMouseUp={() => setDragNode(null)} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-            <svg style={{ position: "absolute", width: "100%", height: "100%" }}>
-              {connections.map((c, idx) => {
-                const a = mapNodes.find(n => n.id === c.idea_a); const b = mapNodes.find(n => n.id === c.idea_b);
-                return a && b && <line key={idx} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#444" />;
-              })}
-            </svg>
-            {mapNodes.map(n => <div key={n.id} onMouseDown={() => setDragNode(n.id)} style={{ position: "absolute", left: n.x - 10, top: n.y - 10, width: 20, height: 20, background: n.color, borderRadius: "50%", cursor: "grab" }} />)}
+        {view === "connections" && <MindMapView />}
+        {view === "canon" && activeDoc && (
+          <div style={{ flex: 1, padding: "60px", overflowY: "auto" }}>
+             <div style={{ maxWidth: 740 }}>
+                <h1 style={{ marginBottom: 24 }}>{activeDoc.title}</h1>
+                <div style={{ fontSize: 15, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{activeDoc.content}</div>
+             </div>
           </div>
         )}
       </div>
 
-      {/* Studio Column */}
-      <div style={{ width: 280, background: C.surface, borderLeft: `1px solid ${C.border}`, padding: 20 }}>
-        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20 }}>STUDIO</div>
-        <div style={{ display: "grid", gap: 10 }}>
-          <button onClick={() => runStudio(ideas, user)} style={toolBtn}>💡 Synthesis</button>
-          <button onClick={auditLibrary} style={toolBtn}>🧹 Audit Library</button>
+      {/* RIGHT COLUMN: Studio */}
+      <div style={{ width: 300, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "24px 20px" }}>
+          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Roboto Mono', monospace", letterSpacing: "0.1em", marginBottom: 20 }}>STUDIO</div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {[
+              { label: "Synthesis", icon: "💡", action: () => runStudio(ideas, user) },
+              { label: "Audit Library", icon: "🧹", action: auditLibrary },
+              { label: "Mind Map", icon: "🕸", action: () => navGo("connections") },
+            ].map(tool => (
+              <button key={tool.label} onClick={tool.action} style={{ display: "flex", alignItems: "center", background: C.bg, border: `1px solid ${C.border}`, padding: "12px 16px", borderRadius: 10, cursor: "pointer", color: C.textPrimary }}>
+                <span style={{ fontSize: 18, marginRight: 14 }}>{tool.icon}</span>
+                <span style={{ flex: 1, textAlign: "left", fontSize: 13, fontWeight: 500 }}>{tool.label}</span>
+                <span>→</span>
+              </button>
+            ))}
+          </div>
         </div>
-        {studio && <div style={{ marginTop: 30, fontSize: 13, color: C.textSecondary, borderLeft: `2px solid ${C.gold}`, paddingLeft: 12 }}>{studio.provocation}</div>}
+        <div style={{ flex: 1, padding: "20px", overflowY: "auto", borderTop: `1px solid ${C.borderSubtle}` }}>
+          {studioLoading ? <div style={{ fontSize: 13, color: C.textMuted, fontStyle: "italic" }}>AI analyzing...</div> : 
+            studio && (
+              <div>
+                <div style={{ fontSize: 10, color: C.gold, fontFamily: "'Roboto Mono', monospace", marginBottom: 10 }}>PROVOCATION</div>
+                <div style={{ fontSize: 14, lineHeight: 1.7, color: C.textSecondary, borderLeft: `2px solid ${C.gold}`, paddingLeft: 14 }}>{studio.provocation}</div>
+              </div>
+            )
+          }
+        </div>
       </div>
+
       <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 4px; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Roboto+Mono&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 10px; }
+        input, textarea { font-family: inherit; }
       `}} />
     </div>
   );
 }
-const toolBtn = { display: "block", width: "100%", padding: 12, background: "#1c1b1f", border: "1px solid #48454E", color: "white", borderRadius: 8, cursor: "pointer", textAlign: "left" };
