@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// --- Database Configuration ---
+// --- Configuration & Design Tokens ---
 const SUPABASE_URL = "https://krhidwibweznwakaoxjw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable__QsWm6OyTnnGcBMxfMBX-Q_sX-asbi6";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// --- Design Tokens ---
 const C = {
   bg:           "#1C1B1F",
   surface:      "#2B2930",
@@ -49,25 +48,9 @@ const DAILY_INVITATIONS = [
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
 const todayInvitation = DAILY_INVITATIONS[new Date().getDay() % DAILY_INVITATIONS.length];
 
-const Highlight = ({ text, term }) => {
-  if (!term || term.length < 2 || !text) return <span>{text || ""}</span>;
-  try {
-    const parts = [];
-    const lower = text.toLowerCase();
-    const tLower = term.toLowerCase();
-    let last = 0;
-    let idx = lower.indexOf(tLower);
-    while (idx !== -1) {
-      if (idx > last) parts.push(text.slice(last, idx));
-      parts.push(<span key={idx} style={{ background: "#E8C54740", color: "#E8C547", borderRadius: 2 }}>{text.slice(idx, idx + term.length)}</span>);
-      last = idx + term.length;
-      idx = lower.indexOf(tLower, last);
-    }
-    if (last < text.length) parts.push(text.slice(last));
-    return <span>{parts}</span>;
-  } catch (e) { return <span>{text}</span>; }
-};
-
+/**
+ * AI Proxy Helper
+ */
 async function callAI(system, userMsg, maxTokens = 1000) {
   const res = await fetch("/api/ai", {
     method: "POST",
@@ -79,10 +62,10 @@ async function callAI(system, userMsg, maxTokens = 1000) {
 }
 
 /**
- * MASTER COMPONENT
+ * MASTER COMPONENT: SIGNAL
  */
 export default function Signal() {
-  // --- State Hooks ---
+  // --- Core State ---
   const [user, setUser] = useState(null);
   const [ideas, setIdeas] = useState([]);
   const [deliverables, setDeliverables] = useState([]);
@@ -91,14 +74,18 @@ export default function Signal() {
   const [composeDocs, setComposeDocs] = useState([]);
   const [connections, setConnections] = useState([]);
   const [mapNodes, setMapNodes] = useState([]);
-  
+
+  // --- View State ---
   const [view, setView] = useState("dashboard");
   const [activeIdea, setActiveIdea] = useState(null);
   const [activeDoc, setActiveDoc] = useState(null);
   const [activeCompose, setActiveCompose] = useState(null);
+  const [studioTab, setStudioTab] = useState("insight");
   
+  // --- Process State ---
   const [isLoading, setIsLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isAuditing, setIsAuditing] = useState(false);
   const [studio, setStudio] = useState(null);
   const [studioLoading, setStudioLoading] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -111,7 +98,7 @@ export default function Signal() {
   const mapContainerRef = useRef(null);
   const studioFired = useRef(false);
 
-  // --- Initialization ---
+  // --- Initial Load ---
   useEffect(() => {
     const uid = localStorage.getItem("signal_user_id");
     if (uid) { loadAll(uid); }
@@ -126,6 +113,7 @@ export default function Signal() {
     }
   }, []);
 
+  // --- Studio Auto-Fire ---
   useEffect(() => {
     if (ideas.length > 1 && user && !studioFired.current && !studioLoading) {
       studioFired.current = true;
@@ -133,12 +121,13 @@ export default function Signal() {
     }
   }, [ideas.length, user]);
 
+  // --- Data Loader Engine ---
   const loadAll = async (uid) => {
     try {
       const [u, i, d, c, r, cd, cn] = await Promise.all([
         supabase.from("users").select("*").eq("id", uid).single(),
         supabase.from("ideas").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
-        supabase.from("deliverables").select("*").eq("user_id", uid),
+        supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid),
         supabase.from("canon_documents").select("*").eq("user_id", uid),
         supabase.from("replies").select("*").eq("user_id", uid),
         supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false }),
@@ -151,33 +140,11 @@ export default function Signal() {
       if (r.data) setReplies(r.data);
       if (cd.data) setComposeDocs(cd.data);
       if (cn.data) setConnections(cn.data);
-    } catch (e) {
-      console.error("Load Failed:", e);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (e) { console.error("Loader Error:", e); }
+    finally { setIsLoading(false); }
   };
 
-  // --- Mind Map Engine ---
-  useEffect(() => {
-    if (!ideas.length) return;
-    const cx = 500, cy = 400;
-    const nodes = ideas.map((idea, i) => {
-      const angle = (i / ideas.length) * Math.PI * 2;
-      const cat = getCat(idea.category);
-      const connCount = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id).length;
-      const radius = Math.max(120, 340 - connCount * 15);
-      return {
-        id: idea.id, color: cat.color,
-        x: cx + Math.cos(angle) * radius,
-        y: cy + Math.sin(angle) * radius,
-        text: idea.text.slice(0, 40)
-      };
-    });
-    setMapNodes(nodes);
-  }, [ideas.length, connections.length]);
-
-  // --- Handlers ---
+  // --- Action Functions (Guaranteed Defined) ---
   const captureIdea = async () => {
     const text = (captureInputRef.current?.value || "").trim();
     const ctx = (contextInputRef.current?.value || "").trim();
@@ -185,15 +152,15 @@ export default function Signal() {
     setIsAnalyzing(true);
     notify("Processing Signal...", "processing");
     try {
-      const analysis = await callAI("Senior Dramaturg Analysis. Return JSON.", text);
+      const analysis = await callAI("Senior Dramaturg. Return JSON: {category, aiNote, signalStrength}", text);
       const { data: saved, error } = await supabase.from("ideas").insert([{
         user_id: user.id, text, category: analysis.category || "premise", ai_note: analysis.aiNote || "", inspiration_question: ctx, signal_strength: analysis.signalStrength || 3
       }]).select().single();
       if (error) throw error;
       await loadAll(user.id);
       setActiveIdea(saved); setView("library");
-      notify("Captured.", "success");
-    } catch (e) { notify("Error", "error"); }
+      notify("Signal Captured.", "success");
+    } catch (e) { notify("Error during capture.", "error"); }
     finally { setIsAnalyzing(false); }
   };
 
@@ -210,163 +177,163 @@ export default function Signal() {
     setStudioLoading(true);
     try {
       const prompt = ideas.map(i => `[${i.category}] ${i.text}`).join("\n");
-      const result = await callAI("Identify provocation and patterns. JSON.", prompt);
+      const result = await callAI("Identify provocations and patterns. JSON.", prompt);
       setStudio(result);
     } finally { setStudioLoading(false); }
   };
 
+  const auditLibrary = async () => {
+    if (window.location.hostname === "localhost") return notify("Vercel Required", "error");
+    setIsAuditing(true); notify("Auditing vault...");
+    try {
+      const res = await callAI("Find test/duplicate IDs. JSON: {toDelete:[]}", ideas.map(i => `${i.id}: ${i.text}`).join("\n"));
+      if (res.toDelete?.length) {
+        for (const id of res.toDelete) { await supabase.from("ideas").delete().eq("id", id); }
+        await loadAll(user.id); notify(`Cleaned ${res.toDelete.length} entries.`);
+      } else notify("Library is high signal.");
+    } finally { setIsAuditing(false); }
+  };
+
   const navGo = (v, item = null) => {
     setView(v);
-    if (v === "library" && item) setActiveIdea(item);
-    if (v === "canon" && item) setActiveDoc(item);
-    if (v === "compose" && item) setActiveCompose(item);
+    if (v === "library") setActiveIdea(item || ideas[0]);
+    if (v === "canon") setActiveDoc(item || canonDocs[0]);
+    if (v === "compose") setActiveCompose(item || composeDocs[0]);
   };
 
   const notify = (msg, type = "info") => {
-    setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 3000);
+    setNotification({ msg, type }); setTimeout(() => setNotification(null), 3000);
   };
 
-  const currentFiltered = globalSearch.length < 2 ? ideas : ideas.filter(i => i.text.toLowerCase().includes(globalSearch.toLowerCase()));
+  // --- Helpers ---
   const pending = deliverables.filter(d => !d.is_complete);
+  const highSignal = ideas.filter(i => i.signal_strength >= 4);
+  const filteredIdeas = globalSearch.length < 2 ? ideas : ideas.filter(i => i.text.toLowerCase().includes(globalSearch.toLowerCase()));
   const mono = "'Roboto Mono', monospace";
 
-  // --- Sub-Views ---
+  // --- Sub-Components ---
   const DashboardView = () => (
     <div style={{ flex: 1, padding: "40px 60px", overflowY: "auto" }}>
-      <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, fontStyle: "italic" }}>{user?.project_name}</div>
-      <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 40 }}>{new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 32, fontWeight: 700, fontStyle: "italic" }}>{user?.project_name}</div>
+        <div style={{ fontSize: 14, color: C.textMuted }}>{new Date().toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 40 }}>
         {[
-          { label: "Ideas", val: ideas.length, c: C.gold, dest: "library" },
-          { label: "Invitations", val: pending.length, c: C.red, dest: "deliverables" },
-          { label: "High Signal", val: ideas.filter(i => i.signal_strength >= 4).length, c: C.green, dest: "library" },
-          { label: "Canon", val: canonDocs.length, c: C.purple, dest: "canon" }
+          { label: "Ideas", val: ideas.length, sub: "vault total", color: C.gold, dest: "library" },
+          { label: "Invitations", val: pending.length, sub: "actions open", color: C.red, dest: "deliverables" },
+          { label: "High Signal", val: highSignal.length, sub: "worth pursuing", color: C.green, dest: "library" },
+          { label: "Canon Docs", val: canonDocs.length, sub: "source files", color: C.purple, dest: "canon" },
         ].map(s => (
           <div key={s.label} onClick={() => navGo(s.dest)} style={{ background: C.surface, padding: 24, borderRadius: 12, border: `1px solid ${C.border}`, cursor: "pointer" }}>
-            <div style={{ fontSize: 36, fontWeight: 300, color: s.c }}>{s.val}</div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted }}>{s.label.toUpperCase()}</div>
+            <div style={{ fontSize: 36, fontWeight: 300, color: s.color }}>{s.val}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, letterSpacing: "0.05em", marginTop: 4 }}>{s.label.toUpperCase()}</div>
+            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>{s.sub}</div>
           </div>
         ))}
       </div>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 600, color: C.textMuted }}>RECENT SIGNALS</div>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: "0.1em" }}>RECENT SIGNALS</span>
+          <span onClick={() => navGo("library")} style={{ fontSize: 11, color: C.gold, cursor: "pointer" }}>VIEW ALL →</span>
+        </div>
         {ideas.slice(0, 6).map(i => (
-          <div key={i.id} onClick={() => navGo("library", i)} style={{ padding: "16px 20px", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = C.bg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-             {i.text.slice(0, 120)}...
+          <div key={i.id} onClick={() => navGo("library", i)} style={{ padding: "14px 20px", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = C.bg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+             <span style={{ color: getCat(i.category).color, marginRight: 12 }}>⬥</span> {i.text.slice(0, 110)}...
           </div>
         ))}
       </div>
-    </div>
-  );
-
-  const MindMapView = () => (
-    <div ref={mapContainerRef} style={{ flex: 1, position: "relative", background: C.bg, overflow: "hidden" }}>
-      <svg style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}>
-        {connections.map((c, i) => {
-          const a = mapNodes.find(n => n.id === c.idea_a); const b = mapNodes.find(n => n.id === c.idea_b);
-          if (a && b) return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={C.border} opacity={0.4} />;
-          return null;
-        })}
-      </svg>
-      {mapNodes.map(n => (
-        <div key={n.id} onClick={() => { setActiveIdea(ideas.find(i => i.id === n.id)); navGo("library"); }} 
-          style={{ position: "absolute", left: n.x - 12, top: n.y - 12, width: 24, height: 24, borderRadius: "50%", background: n.color, border: activeIdea?.id === n.id ? "3px solid white" : "none", cursor: "pointer", boxShadow: "0 4px 10px rgba(0,0,0,0.3)" }} />
-      ))}
     </div>
   );
 
   if (isLoading) return <div style={{ height: "100vh", background: C.bg }} />;
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, fontFamily: "'Inter', sans-serif" }}>
-      {/* LEFT COLUMN */}
+    <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, fontFamily: "'Inter', sans-serif", overflow: "hidden" }}>
+      
+      {/* SIDEBAR */}
       <div style={{ width: 260, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "24px 20px" }}>
-            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 18, fontStyle: "italic", cursor: "pointer" }} onClick={() => navGo("dashboard")}>signal</div>
-            <div style={{ position: "relative", marginBottom: 20 }}>
-                <input placeholder="Search..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} 
-                    style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px 10px 32px", color: "white", outline: "none", fontSize: 13 }} />
-                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.textMuted }}>⌕</span>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {["dashboard", "capture", "library", "canon", "compose", "connections"].map(v => (
-                    <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold+"20" : "transparent", border: `1px solid ${view === v ? C.gold : C.border}`, color: view === v ? C.gold : C.textMuted, padding: "5px 12px", borderRadius: 6, fontSize: 10, fontWeight: 600 }}>{v.toUpperCase()}</button>
-                ))}
-            </div>
+          <div style={{ fontSize: 20, fontWeight: 900, fontStyle: "italic", marginBottom: 20, cursor: "pointer" }} onClick={() => navGo("dashboard")}>signal</div>
+          <div style={{ position: "relative", marginBottom: 20 }}>
+            <input placeholder="Search..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} 
+                style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px 10px 32px", color: "white", outline: "none", fontSize: 13 }} />
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.textMuted }}>⌕</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {["dashboard", "capture", "library", "canon", "compose", "connections"].map(v => (
+              <button key={v} onClick={() => navGo(v)} style={{ background: view === v ? C.gold+"20" : "transparent", border: `1px solid ${view === v ? C.gold : C.border}`, color: view === v ? C.gold : C.textMuted, padding: "6px", borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{v.toUpperCase()}</button>
+            ))}
+          </div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 20px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 24px" }}>
             <div style={{ fontSize: 10, color: C.textMuted, padding: "10px", fontFamily: mono, letterSpacing: "0.1em" }}>CONTEXTUAL LIST</div>
-            {view === "library" ? currentFiltered.map(i => (
+            {view === "library" ? filteredIdeas.map(i => (
                 <div key={i.id} onClick={() => setActiveIdea(i)} style={{ padding: "10px 12px", background: activeIdea?.id === i.id ? C.surfaceHigh : "transparent", borderLeft: `2px solid ${activeIdea?.id === i.id ? getCat(i.category).color : "transparent"}`, cursor: "pointer", borderRadius: 8, fontSize: 13, marginBottom: 2 }}>{i.text.slice(0, 45)}...</div>
             )) : view === "compose" ? composeDocs.map(d => (
                 <div key={d.id} onClick={() => setActiveCompose(d)} style={{ padding: "10px 12px", background: activeCompose?.id === d.id ? C.surfaceHigh : "transparent", cursor: "pointer", borderRadius: 8, fontSize: 13, marginBottom: 2 }}>{d.title}</div>
-            )) : canonDocs.map(d => (
-                <div key={d.id} onClick={() => { setActiveDoc(d); setView("canon"); }} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 13, color: d.is_active ? "white" : C.textDisabled, display: "flex", gap: 10 }}>
-                  <span style={{ color: d.is_active ? C.green : C.textDisabled }}>{d.is_active ? "✓" : "○"}</span> {d.title}
+            )) : canonDocs.map(doc => (
+                <div key={doc.id} onClick={() => { setActiveDoc(doc); navGo("canon"); }} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 13, color: doc.is_active ? "white" : C.textMuted, display: "flex", gap: 10 }}>
+                  <span style={{ color: doc.is_active ? C.green : C.textDisabled }}>{doc.is_active ? "✓" : "○"}</span> {doc.title}
                 </div>
             ))}
         </div>
       </div>
 
-      {/* CENTER WORKSPACE */}
+      {/* CENTER */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {view === "dashboard" && <DashboardView />}
-          {view === "capture" && (
-            <div style={{ flex: 1, padding: "80px 40px", display: "flex", justifyContent: "center" }}>
-                <div style={{ maxWidth: 640, width: "100%" }}>
-                  <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 40 }}><div style={{ fontSize: 19, fontStyle: "italic", color: C.textSecondary, lineHeight: 1.6 }}>{todayInvitation}</div></div>
-                  <textarea ref={captureInputRef} placeholder="Enter signal..." rows={10} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, fontSize: 16, color: "white", outline: "none", lineHeight: 1.6, resize: "none" }} />
-                  <div style={{ marginTop: 20 }}>
-                      <input ref={contextInputRef} placeholder="Context (Optional)" style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14, color: "white", marginBottom: 12 }} />
-                      <button onClick={captureIdea} disabled={isAnalyzing} style={{ width: "100%", padding: 18, background: C.gold, borderRadius: 12, fontWeight: 700, color: C.bg }}>SEND SIGNAL →</button>
-                  </div>
-                </div>
-            </div>
-          )}
-          {view === "library" && activeIdea && (
-              <div style={{ padding: 60, maxWidth: 800, overflowY: "auto" }}>
-                  <div style={{ fontSize: 11, color: getCat(activeIdea.category).color, fontWeight: 600, marginBottom: 10 }}>{activeIdea.category.toUpperCase()}</div>
-                  <div style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.6, marginBottom: 40 }}>{activeIdea.text}</div>
-                  {activeIdea.ai_note && <div style={{ background: C.surface, padding: 30, borderRadius: 12, border: `1px solid ${C.borderSubtle}`, color: C.textSecondary, lineHeight: 1.75 }}>{activeIdea.ai_note}</div>}
-              </div>
-          )}
-          {view === "compose" && activeCompose && (
-              <div style={{ flex: 1, padding: 40, display: "flex", flexDirection: "column" }}>
-                <input value={activeCompose.title} onChange={e => { const val = e.target.value; setActiveCompose(p => ({...p, title: val})); saveCompose(activeCompose.id, { title: val }); }} style={{ background: "transparent", border: "none", color: "white", fontSize: 28, fontWeight: 700, marginBottom: 24, outline: "none" }} />
-                <textarea value={activeCompose.content} onChange={e => { const val = e.target.value; setActiveCompose(p => ({...p, content: val})); saveCompose(activeCompose.id, { content: val }); }} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: "white", padding: 30, fontSize: 16, lineHeight: 1.8, outline: "none", resize: "none" }} />
-              </div>
-          )}
-          {view === "connections" && <MindMapView />}
-          {view === "canon" && activeDoc && <div style={{ padding: 60, overflowY: "auto" }}><h1 style={{ marginBottom: 24 }}>{activeDoc.title}</h1><div style={{ fontSize: 15, lineHeight: 1.85, whiteSpace: "pre-wrap" }}>{activeDoc.content}</div></div>}
-      </div>
-
-      {/* RIGHT STUDIO */}
-      <div style={{ width: 300, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "24px 20px" }}>
-            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20, letterSpacing: "0.15em" }}>STUDIO</div>
-            <div style={{ display: "grid", gap: 10 }}>
-                <button onClick={runStudio} style={{ display: "flex", alignItems: "center", background: C.bg, border: `1px solid ${C.border}`, padding: "12px 14px", borderRadius: 10, cursor: "pointer", color: "white" }}>
-                    <span style={{ marginRight: 12 }}>💡</span> Synthesis Insight
-                </button>
-                <button onClick={auditLibrary} style={{ display: "flex", alignItems: "center", background: C.bg, border: `1px solid ${C.border}`, padding: "12px 14px", borderRadius: 10, cursor: "pointer", color: "white" }}>
-                    <span style={{ marginRight: 12 }}>🧹</span> Audit Library
-                </button>
+        {view === "dashboard" && <DashboardView />}
+        {view === "capture" && (
+          <div style={{ flex: 1, padding: "60px 40px", display: "flex", justifyContent: "center" }}>
+            <div style={{ maxWidth: 640, width: "100%" }}>
+              <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 40 }}><div style={{ fontSize: 18, fontStyle: "italic", color: C.textSecondary, lineHeight: 1.6 }}>{todayInvitation}</div></div>
+              <textarea ref={captureInputRef} placeholder="Enter signal..." rows={10} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, fontSize: 16, color: "white", outline: "none", lineHeight: 1.6, resize: "none" }} />
+              <button onClick={captureIdea} disabled={isAnalyzing} style={{ width: "100%", marginTop: 20, padding: 18, background: C.gold, borderRadius: 12, fontWeight: 700, color: C.bg }}>SEND SIGNAL →</button>
             </div>
           </div>
-          {studio && (
-              <div style={{ flex: 1, padding: 24, borderTop: `1px solid ${C.border}`, overflowY: "auto" }}>
-                  <div style={{ fontSize: 10, color: C.gold, fontWeight: 600, marginBottom: 12 }}>AI PROVOCATION</div>
-                  <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7, borderLeft: `2px solid ${C.gold}`, paddingLeft: 14 }}>{studio.provocation}</div>
-              </div>
-          )}
+        )}
+        {view === "library" && activeIdea && (
+          <div style={{ padding: "60px", maxWidth: 800, overflowY: "auto" }}>
+             <div style={{ fontSize: 11, color: getCat(activeIdea.category).color, fontWeight: 700, marginBottom: 12 }}>{activeIdea.category.toUpperCase()}</div>
+             <div style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.6, marginBottom: 40 }}>{activeIdea.text}</div>
+             {activeIdea.ai_note && <div style={{ background: C.surface, padding: 30, borderRadius: 12, border: `1px solid ${C.borderSubtle}`, lineHeight: 1.7, color: C.textSecondary }}>{activeIdea.ai_note}</div>}
+          </div>
+        )}
+        {view === "compose" && activeCompose && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 40 }}>
+            <input value={activeCompose.title} onChange={e => { const val = e.target.value; setActiveCompose(p => ({...p, title: val})); saveCompose(activeCompose.id, { title: val }); }} style={{ background: "transparent", border: "none", color: "white", fontSize: 28, fontWeight: 700, marginBottom: 24, outline: "none" }} />
+            <textarea value={activeCompose.content} onChange={e => { const val = e.target.value; setActiveCompose(p => ({...p, content: val})); saveCompose(activeCompose.id, { content: val }); }} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: "white", padding: 30, fontSize: 16, lineHeight: 1.8, outline: "none", resize: "none" }} />
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT */}
+      <div style={{ width: 290, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "24px 20px" }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20, letterSpacing: "0.15em" }}>STUDIO TOOLS</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+                {[
+                  { l: "Insight", i: "💡", a: runStudio },
+                  { l: "Audit", i: "🧹", a: auditLibrary },
+                  { l: "Connections", i: "🕸", a: () => setView("connections") },
+                  { l: "Patterns", i: "⌬", a: () => setStudioTab("patterns") }
+                ].map(tool => (
+                    <button key={tool.l} onClick={tool.a} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px", color: "white", cursor: "pointer", textAlign: "center" }}>
+                        <div style={{ fontSize: 18, marginBottom: 4 }}>{tool.i}</div>
+                        <div style={{ fontSize: 9, fontWeight: 700 }}>{tool.l.toUpperCase()}</div>
+                    </button>
+                ))}
+            </div>
+        </div>
+        {studio && <div style={{ flex: 1, padding: 24, borderTop: `1px solid ${C.border}`, fontSize: 14, lineHeight: 1.7, color: C.textSecondary }}>{studio.provocation}</div>}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Roboto+Mono&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=Roboto+Mono&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 10px; }
+        input, textarea { font-family: inherit; }
       `}} />
     </div>
   );
