@@ -547,6 +547,9 @@ If no meaningful connections exist, return {"connections": []}`,
     setLocalSearch("");
     if (localSearchRef.current) localSearchRef.current.value = "";
     if (idea) { setActiveIdea(idea); }
+    else if (v === "library" && !activeIdea && filtered.length) { setActiveIdea(filtered[0]); }
+    else if (v === "canon" && !activeDoc && canonDocs.length) { setActiveDoc(canonDocs[0]); }
+    else if (v === "compose" && !activeCompose && composeDocs.length) { setActiveCompose(composeDocs[0]); }
     else if (v !== "library" && v !== "canon" && v !== "compose") { setActiveIdea(null); setActiveDoc(null); }
   };
 
@@ -1534,7 +1537,11 @@ If no meaningful connections exist, return {"connections": []}`,
         <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
           {studioTab === "insight" && (
             studioLoading
-              ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12, lineHeight: 1.8 }}>Reading your project...</div>
+              ? <div style={{ padding: "20px 0", textAlign: "center" }}>
+                  <div style={{ fontSize: 14, color: C.gold, marginBottom: 8, animation: "pulse 1.5s infinite" }}>✦</div>
+                  <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.8 }}>Analyzing your project...</div>
+                  <div style={{ color: C.textDisabled, fontSize: 10, marginTop: 4 }}>This can take 10-15 seconds</div>
+                </div>
               : studio ? (
                 <div>
                   <div style={{ marginBottom: 18 }}>
@@ -1645,6 +1652,7 @@ If no meaningful connections exist, return {"connections": []}`,
         textarea::placeholder, input::placeholder { color: #49454F; }
         select option { background: #2B2930; color: #E6E1E5; }
         button { transition: opacity 0.15s; }
+        @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
       ` }} />
     </div>
   );
