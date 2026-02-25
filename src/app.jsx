@@ -138,6 +138,11 @@ export default function Signal() {
   const searchTimer = useRef(null);
 
   useEffect(() => {
+    document.documentElement.lang = "en";
+    const meta = document.createElement("meta");
+    meta.name = "google";
+    meta.content = "notranslate";
+    document.head.appendChild(meta);
     const uid = localStorage.getItem("signal_user_id");
     if (uid) {
       loadAll(uid);
@@ -518,6 +523,20 @@ If no meaningful connections exist, return {"connections": []}`,
     finally { setIsUploading(false); }
   };
 
+  const deleteIdea = async (id) => {
+    if (!confirm("Delete this idea? This also removes its deliverables and dimensions.")) return;
+    try {
+      await supabase.from("deliverables").delete().eq("idea_id", id);
+      await supabase.from("dimensions").delete().eq("idea_id", id);
+      await supabase.from("replies").delete().eq("idea_id", id);
+      await supabase.from("ideas").delete().eq("id", id);
+      setIdeas(prev => prev.filter(i => i.id !== id));
+      setDeliverables(prev => prev.filter(d => d.idea_id !== id));
+      if (activeIdea?.id === id) setActiveIdea(null);
+      notify("Idea deleted.", "success");
+    } catch (e) { console.error("Delete idea:", e); notify("Delete failed.", "error"); }
+  };
+
   const toggleDeliverable = async (id, current) => {
     await supabase.from("deliverables")
       .update({ is_complete: !current, completed_at: !current ? new Date().toISOString() : null })
@@ -547,11 +566,15 @@ If no meaningful connections exist, return {"connections": []}`,
     setLocalSearch("");
     if (localSearchRef.current) localSearchRef.current.value = "";
     if (idea) { setActiveIdea(idea); }
-    else if (v === "library" && !activeIdea && filtered.length) { setActiveIdea(filtered[0]); }
-    else if (v === "canon" && !activeDoc && canonDocs.length) { setActiveDoc(canonDocs[0]); }
-    else if (v === "compose" && !activeCompose && composeDocs.length) { setActiveCompose(composeDocs[0]); }
     else if (v !== "library" && v !== "canon" && v !== "compose") { setActiveIdea(null); setActiveDoc(null); }
   };
+
+  // Auto-select first item when entering list views with nothing selected
+  useEffect(() => {
+    if (view === "library" && !activeIdea && ideas.length) setActiveIdea(ideas[0]);
+    if (view === "canon" && !activeDoc && canonDocs.length) setActiveDoc(canonDocs[0]);
+    if (view === "compose" && !activeCompose && composeDocs.length) setActiveCompose(composeDocs[0]);
+  }, [view, ideas.length, canonDocs.length, composeDocs.length]);
 
   const searchAll = (q) => {
     if (!q || q.length < 2) return [];
@@ -816,7 +839,14 @@ If no meaningful connections exist, return {"connections": []}`,
                       <span style={{ fontSize: 11, color: cat.color, fontFamily: mono, letterSpacing: "0.1em" }}>{cat.icon} {cat.label.toUpperCase()}</span>
                       {displayIdea.signal_strength >= 4 && <span style={{ fontSize: 10, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px" }}>HIGH SIGNAL</span>}
                       {searchHighlight && <span onClick={() => setSearchHighlight("")} style={{ fontSize: 9, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer" }}>✕ CLEAR HIGHLIGHT</span>}
-                      <span style={{ fontSize: 11, color: C.textDisabled, fontFamily: mono, marginLeft: "auto" }}>
+                      <span style={{ flex: 1 }} />
+                      <button onClick={() => deleteIdea(displayIdea.id)}
+                        style={{ fontSize: 10, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "3px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4, opacity: 0.6 }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                        onMouseLeave={e => e.currentTarget.style.opacity = 0.6}>
+                        DELETE
+                      </button>
+                      <span style={{ fontSize: 11, color: C.textDisabled, fontFamily: mono }}>
                         {new Date(displayIdea.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </span>
                     </div>
