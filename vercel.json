@@ -1,1 +1,16 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/recrawl?token=signal-recrawl-2024",
+      "schedule": "0 9,14,20 * * *"
+    },
+    {
+      "path": "/api/pulse?mode=checkin",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/pulse?mode=nudge",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

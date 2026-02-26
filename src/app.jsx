@@ -1659,6 +1659,15 @@ If no meaningful connections exist, return {"connections": []}`,
               { label: "Audit",        icon: "⚑",  color: C.red,    action: () => { if (!auditing) auditLibrary(); } },
               { label: "Compose",      icon: "✎",  color: C.green,  action: () => navGo("compose") },
               { label: "Stats",        icon: "▦",  color: C.textMuted, action: () => setStudioTab("stats") },
+              { label: "Pulse",        icon: "↯",  color: C.gold,      action: async () => {
+                notify("Sending pulse to WhatsApp...", "processing");
+                try {
+                  const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nudge" }) });
+                  const d = await r.json();
+                  if (d.sent) notify("Pulse sent to WhatsApp.", "success");
+                  else notify("Pulse failed: " + (d.error || "unknown"), "error");
+                } catch (e) { notify("Pulse failed.", "error"); }
+              }},
             ].map(tool => (
               <button key={tool.label} onClick={tool.action}
                 style={{
