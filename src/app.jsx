@@ -1370,21 +1370,22 @@ If no meaningful connections exist, return {"connections": []}`,
   // Studio panel content is now inline in the return JSX
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: C.bg, color: C.textPrimary, overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100vh", background: "#131316", color: C.textPrimary, overflow: "hidden", padding: "8px", gap: 6 }}>
       {notification && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, border: `1px solid ${notification.type === "success" ? C.green : notification.type === "error" ? C.red : C.border}`, color: C.textPrimary, padding: "10px 22px", fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", zIndex: 1000 }}>
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, border: `1px solid ${notification.type === "success" ? C.green : notification.type === "error" ? C.red : C.border}`, color: C.textPrimary, padding: "10px 22px", fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", zIndex: 1000, borderRadius: 8 }}>
           {notification.msg}
         </div>
       )}
 
       {/* ─── LEFT COLUMN: Sources + Navigation ─── */}
-      <div style={{ width: leftW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+      <div style={{ width: leftW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12, position: "relative" }}>
         <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ cursor: "pointer" }} onClick={() => navGo("dashboard")}>
               <div style={{ fontSize: 18, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em" }}>signal</div>
               <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginTop: 2 }}>{user.project_name?.toUpperCase()}</div>
             </div>
+            <button onClick={() => setLeftW(prev => prev <= 60 ? 260 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 13, cursor: "pointer", padding: 4 }} title="Toggle panel">◧</button>
           </div>
           <div style={{ position: "relative" }}>
             <input
@@ -1602,14 +1603,14 @@ If no meaningful connections exist, return {"connections": []}`,
             </div>
           </>
         )}
+        {/* Drag handle at right edge */}
+        <div onMouseDown={startDrag("left")} style={{ position: "absolute", top: 0, right: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 10 }}
+          onMouseEnter={e => e.currentTarget.style.background = C.gold + "40"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
       </div>
-      {/* Left drag gutter */}
-      <div onMouseDown={startDrag("left")} style={{ width: 5, cursor: "col-resize", background: "transparent", flexShrink: 0, position: "relative" }}
-        onMouseEnter={e => e.currentTarget.style.background = C.border}
-        onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
 
       {/* ─── CENTER COLUMN: Main Content ─── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: C.bg, borderRadius: 12 }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
             {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
@@ -1631,15 +1632,17 @@ If no meaningful connections exist, return {"connections": []}`,
         </div>
       </div>
 
-      {/* Right drag gutter */}
-      <div onMouseDown={startDrag("right")} style={{ width: 5, cursor: "col-resize", background: "transparent", flexShrink: 0 }}
-        onMouseEnter={e => e.currentTarget.style.background = C.border}
-        onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
-
       {/* ─── RIGHT COLUMN: Studio + Tools ─── */}
-      <div style={{ width: rightW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+      <div style={{ width: rightW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12, position: "relative" }}>
+        {/* Drag handle at left edge */}
+        <div onMouseDown={startDrag("right")} style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 10 }}
+          onMouseEnter={e => e.currentTarget.style.background = C.gold + "40"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
         <div style={{ padding: "12px 14px 14px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500, marginBottom: 14 }}>Studio</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500 }}>Studio</span>
+            <button onClick={() => setRightW(prev => prev <= 60 ? 290 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 13, cursor: "pointer", padding: 4 }} title="Toggle panel">◨</button>
+          </div>
 
           {/* Tool cards grid — NotebookLM style */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
