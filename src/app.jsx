@@ -6,15 +6,15 @@ const SUPABASE_ANON_KEY = "sb_publishable__QsWm6OyTnnGcBMxfMBX-Q_sX-asbi6";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const C = {
-  bg:           "#1C1B1F",
-  surface:      "#2B2930",
-  surfaceHigh:  "#36333D",
-  border:       "#48454E",
-  borderSubtle: "#3A3740",
-  textPrimary:  "#E6E1E5",
-  textSecondary:"#CAC4D0",
-  textMuted:    "#938F99",
-  textDisabled: "#49454F",
+  bg:           "#1B1B1F",
+  surface:      "#232328",
+  surfaceHigh:  "#2C2C32",
+  border:       "#3A3A42",
+  borderSubtle: "#2F2F36",
+  textPrimary:  "#E3E3E8",
+  textSecondary:"#C4C4CC",
+  textMuted:    "#8E8E96",
+  textDisabled: "#4A4A52",
   gold:         "#E8C547",
   green:        "#6DD58C",
   red:          "#FF8A80",
@@ -125,6 +125,8 @@ export default function Signal() {
   const [scrollToId,    setScrollToId]    = useState(null);
   const [mapFilter,     setMapFilter]     = useState("all");
   const [actionsView,   setActionsView]   = useState("focus");
+  const [leftCollapsed, setLeftCollapsed]  = useState(false);
+  const [rightCollapsed,setRightCollapsed] = useState(false);
   const [centerView,    setCenterView]    = useState("capture");
   const [leftTab,       setLeftTab]       = useState("ideas");
 
@@ -1358,13 +1360,30 @@ If no meaningful connections exist, return {"connections": []}`,
       )}
 
       {/* ─── LEFT COLUMN: Sources + Navigation ─── */}
-      <div style={{ width: 260, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
-        <div style={{ padding: "20px 18px 14px", borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ width: leftCollapsed ? 48 : 260, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, transition: "width 0.2s ease" }}>
+        {leftCollapsed ? (
+          <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            <button onClick={() => setLeftCollapsed(false)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 16, cursor: "pointer" }} title="Expand">☰</button>
+            {[
+              { id: "dashboard", icon: "◉" }, { id: "capture", icon: "◈" }, { id: "library", icon: "▤" },
+              { id: "canon", icon: "◇" }, { id: "deliverables", icon: "☐" }, { id: "compose", icon: "✎" }, { id: "connections", icon: "◎" },
+            ].map(n => (
+              <button key={n.id} onClick={() => navGo(n.id)}
+                style={{ background: view === n.id ? C.gold + "20" : "transparent", border: "none", color: view === n.id ? C.gold : C.textMuted, fontSize: 14, cursor: "pointer", padding: "6px 8px", borderRadius: 4 }}
+                title={n.id.charAt(0).toUpperCase() + n.id.slice(1)}>
+                {n.icon}
+              </button>
+            ))}
+          </div>
+        ) : (
+        <>
+        <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ cursor: "pointer" }} onClick={() => navGo("dashboard")}>
               <div style={{ fontSize: 18, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em" }}>signal</div>
               <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginTop: 2 }}>{user.project_name?.toUpperCase()}</div>
             </div>
+            <button onClick={() => setLeftCollapsed(true)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer", padding: 4 }} title="Collapse panel">◧</button>
           </div>
           <div style={{ position: "relative" }}>
             <input
@@ -1582,10 +1601,12 @@ If no meaningful connections exist, return {"connections": []}`,
             </div>
           </>
         )}
+        </>
+        )}
       </div>
 
       {/* ─── CENTER COLUMN: Main Content ─── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", margin: "0 1px" }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
             {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
@@ -1608,9 +1629,18 @@ If no meaningful connections exist, return {"connections": []}`,
       </div>
 
       {/* ─── RIGHT COLUMN: Studio + Tools ─── */}
-      <div style={{ width: 280, background: C.surface, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
-        <div style={{ padding: "16px 14px 14px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500, marginBottom: 14 }}>Studio</div>
+      <div style={{ width: rightCollapsed ? 48 : 290, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, transition: "width 0.2s ease" }}>
+        {rightCollapsed ? (
+          <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <button onClick={() => setRightCollapsed(false)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer" }} title="Expand Studio">◨</button>
+          </div>
+        ) : (
+        <>
+        <div style={{ padding: "12px 14px 14px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500 }}>Studio</span>
+            <button onClick={() => setRightCollapsed(true)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer", padding: 4 }} title="Collapse panel">◨</button>
+          </div>
 
           {/* Tool cards grid — NotebookLM style */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -1760,6 +1790,8 @@ If no meaningful connections exist, return {"connections": []}`,
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -1768,9 +1800,9 @@ If no meaningful connections exist, return {"connections": []}`,
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #48454E; border-radius: 2px; }
-        textarea::placeholder, input::placeholder { color: #49454F; }
-        select option { background: #2B2930; color: #E6E1E5; }
+        ::-webkit-scrollbar-thumb { background: #3A3A42; border-radius: 2px; }
+        textarea::placeholder, input::placeholder { color: #4A4A52; }
+        select option { background: #232328; color: #E3E3E8; }
         button { transition: opacity 0.15s; }
         @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
       ` }} />
