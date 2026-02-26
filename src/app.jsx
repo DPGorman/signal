@@ -123,6 +123,8 @@ export default function Signal() {
   const [localSearch,   setLocalSearch]   = useState("");
   const [searchHighlight, setSearchHighlight] = useState("");
   const [scrollToId,    setScrollToId]    = useState(null);
+  const [mapFilter,     setMapFilter]     = useState("all");
+  const [actionsView,   setActionsView]   = useState("focus");
   const [centerView,    setCenterView]    = useState("capture");
   const [leftTab,       setLeftTab]       = useState("ideas");
 
@@ -960,7 +962,6 @@ If no meaningful connections exist, return {"connections": []}`,
     const completed = deliverables.filter(d => d.is_complete);
     const pct = deliverables.length ? Math.round((completed.length / deliverables.length) * 100) : 0;
     const byCategory = CATEGORIES.map(cat => ({ ...cat, items: pending.filter(d => d.idea?.category === cat.id) })).filter(cat => cat.items.length > 0);
-    const [actionsView, setActionsView] = useState("focus");
     const next5 = pending.slice(0, 5);
     return (
       <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
@@ -1163,8 +1164,6 @@ If no meaningful connections exist, return {"connections": []}`,
     const handleMouseUp = () => setDragNode(null);
 
     const nodeRadius = (node) => Math.max(6, 4 + node.signal * 2 + node.connCount);
-
-    const [mapFilter, setMapFilter] = useState("all");
 
     const filteredNodes = mapFilter === "all" ? mapNodes : mapNodes.filter(n => n.category === mapFilter);
     const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
