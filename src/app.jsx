@@ -125,8 +125,9 @@ export default function Signal() {
   const [scrollToId,    setScrollToId]    = useState(null);
   const [mapFilter,     setMapFilter]     = useState("all");
   const [actionsView,   setActionsView]   = useState("focus");
-  const [leftCollapsed, setLeftCollapsed]  = useState(false);
-  const [rightCollapsed,setRightCollapsed] = useState(false);
+  const [leftW,         setLeftW]         = useState(260);
+  const [rightW,        setRightW]        = useState(290);
+  const dragRef = useRef(null);
   const [centerView,    setCenterView]    = useState("capture");
   const [leftTab,       setLeftTab]       = useState("ideas");
 
@@ -574,6 +575,23 @@ If no meaningful connections exist, return {"connections": []}`,
     if (localSearchRef.current) localSearchRef.current.value = "";
     if (idea) { setActiveIdea(idea); }
     else if (v !== "library" && v !== "canon" && v !== "compose") { setActiveIdea(null); setActiveDoc(null); }
+  };
+
+  // Drag-to-resize gutters
+  const startDrag = (side) => (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = side === "left" ? leftW : rightW;
+    const onMove = (ev) => {
+      const delta = side === "left" ? ev.clientX - startX : startX - ev.clientX;
+      const newW = Math.max(180, Math.min(450, startW + delta));
+      if (side === "left") setLeftW(newW); else setRightW(newW);
+    };
+    const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); document.body.style.cursor = ""; document.body.style.userSelect = ""; };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
   };
 
   // Auto-select first item when entering list views with nothing selected
@@ -1360,30 +1378,13 @@ If no meaningful connections exist, return {"connections": []}`,
       )}
 
       {/* ─── LEFT COLUMN: Sources + Navigation ─── */}
-      <div style={{ width: leftCollapsed ? 48 : 260, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, transition: "width 0.2s ease" }}>
-        {leftCollapsed ? (
-          <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            <button onClick={() => setLeftCollapsed(false)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 16, cursor: "pointer" }} title="Expand">☰</button>
-            {[
-              { id: "dashboard", icon: "◉" }, { id: "capture", icon: "◈" }, { id: "library", icon: "▤" },
-              { id: "canon", icon: "◇" }, { id: "deliverables", icon: "☐" }, { id: "compose", icon: "✎" }, { id: "connections", icon: "◎" },
-            ].map(n => (
-              <button key={n.id} onClick={() => navGo(n.id)}
-                style={{ background: view === n.id ? C.gold + "20" : "transparent", border: "none", color: view === n.id ? C.gold : C.textMuted, fontSize: 14, cursor: "pointer", padding: "6px 8px", borderRadius: 4 }}
-                title={n.id.charAt(0).toUpperCase() + n.id.slice(1)}>
-                {n.icon}
-              </button>
-            ))}
-          </div>
-        ) : (
-        <>
+      <div style={{ width: leftW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
         <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ cursor: "pointer" }} onClick={() => navGo("dashboard")}>
               <div style={{ fontSize: 18, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em" }}>signal</div>
               <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginTop: 2 }}>{user.project_name?.toUpperCase()}</div>
             </div>
-            <button onClick={() => setLeftCollapsed(true)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer", padding: 4 }} title="Collapse panel">◧</button>
           </div>
           <div style={{ position: "relative" }}>
             <input
@@ -1601,12 +1602,14 @@ If no meaningful connections exist, return {"connections": []}`,
             </div>
           </>
         )}
-        </>
-        )}
       </div>
+      {/* Left drag gutter */}
+      <div onMouseDown={startDrag("left")} style={{ width: 5, cursor: "col-resize", background: "transparent", flexShrink: 0, position: "relative" }}
+        onMouseEnter={e => e.currentTarget.style.background = C.border}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
 
       {/* ─── CENTER COLUMN: Main Content ─── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", margin: "0 1px" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
             {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
@@ -1628,19 +1631,15 @@ If no meaningful connections exist, return {"connections": []}`,
         </div>
       </div>
 
+      {/* Right drag gutter */}
+      <div onMouseDown={startDrag("right")} style={{ width: 5, cursor: "col-resize", background: "transparent", flexShrink: 0 }}
+        onMouseEnter={e => e.currentTarget.style.background = C.border}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
+
       {/* ─── RIGHT COLUMN: Studio + Tools ─── */}
-      <div style={{ width: rightCollapsed ? 48 : 290, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, transition: "width 0.2s ease" }}>
-        {rightCollapsed ? (
-          <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <button onClick={() => setRightCollapsed(false)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer" }} title="Expand Studio">◨</button>
-          </div>
-        ) : (
-        <>
+      <div style={{ width: rightW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
         <div style={{ padding: "12px 14px 14px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <span style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500 }}>Studio</span>
-            <button onClick={() => setRightCollapsed(true)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 14, cursor: "pointer", padding: 4 }} title="Collapse panel">◨</button>
-          </div>
+          <div style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500, marginBottom: 14 }}>Studio</div>
 
           {/* Tool cards grid — NotebookLM style */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -1790,8 +1789,6 @@ If no meaningful connections exist, return {"connections": []}`,
             </div>
           )}
         </div>
-        </>
-        )}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
