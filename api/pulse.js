@@ -1,6 +1,6 @@
 // ============================================
 // SIGNAL: Pulse — Daily Creative Nudge Engine
-// api/pulse.js
+// api/pulse.js — Telegram Edition
 // ============================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -11,27 +11,22 @@ const supabase = createClient(
 );
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM;
+const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
 
-async function sendWhatsApp(to, body) {
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`;
-  const auth = Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString("base64");
+async function sendTelegram(text) {
+  const url = `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Authorization": `Basic ${auth}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      From: `whatsapp:${TWILIO_FROM}`,
-      To: `whatsapp:${to}`,
-      Body: body,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: TG_CHAT,
+      text,
+      parse_mode: "Markdown",
     }),
   });
   const data = await res.json();
-  if (!res.ok) console.error("Twilio error:", data);
+  if (!data.ok) console.error("Telegram error:", data);
   return data;
 }
 
@@ -55,12 +50,10 @@ async function callAI(system, message) {
 }
 
 export default async function handler(req, res) {
-  // Allow GET (cron) and POST (manual trigger)
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Optional: check for cron secret or manual mode
   const mode = req.query?.mode || req.body?.mode || "nudge";
 
   try {
@@ -72,8 +65,8 @@ export default async function handler(req, res) {
       .limit(1)
       .single();
 
-    if (!user?.whatsapp_number) {
-      return res.status(400).json({ error: "No WhatsApp number configured" });
+    if (!user) {
+      return res.status(400).json({ error: "No user found" });
     }
 
     // Load project state
@@ -92,7 +85,7 @@ export default async function handler(req, res) {
     const pending = (deliverables || []).filter(d => !d.is_complete);
     const completed = (deliverables || []).filter(d => d.is_complete);
     const recentIdeas = (ideas || []).filter(i => Date.now() - new Date(i.created_at) < 3 * 86400000);
-    
+
     // Connection density per idea
     const connCounts = {};
     (connections || []).forEach(c => {
@@ -113,9 +106,8 @@ export default async function handler(req, res) {
     const staleCats = Object.entries(catActivity).filter(([, age]) => age > 7 * 86400000).map(([cat]) => cat);
 
     if (mode === "checkin") {
-      // Morning check-in: ask what's on the agenda
-      const msg = `Good morning Daniel. Before I tell you what I think matters today — what's on your agenda? What feels most pressing right now?`;
-      await sendWhatsApp(user.whatsapp_number, msg);
+      const msg = `Good morning Daniel. Before I crack the whip — what's on your agenda today? What feels most pressing right now?`;
+      await sendTelegram(msg);
       return res.status(200).json({ sent: true, mode: "checkin", message: msg });
     }
 
@@ -129,9 +121,9 @@ OPEN ACTIONS (first 10): ${pending.slice(0, 10).map(d => `[${d.idea?.category ||
 CANON SOURCES: ${(canonDocs || []).filter(d => d.is_active).map(d => d.title).join(", ") || "none"}`;
 
     const nudge = await callAI(
-      `You are Daniel's creative partner on a film/TV project. You know his entire idea library, every connection, every open action.
+      `You are Daniel's creative partner on a film/TV project called "${user.project_name}". You know his entire idea library, every connection, every open action.
 
-Your job: send ONE WhatsApp message that is direct, specific, and actionable. You are not a to-do app. You are a collaborator who sees the whole board.
+Your job: send ONE Telegram message that is direct, specific, and actionable. You are not a to-do app. You are a collaborator who sees the whole board.
 
 Rules:
 - Address him as Daniel
@@ -139,13 +131,14 @@ Rules:
 - Tell him the ONE thing that matters most right now and WHY based on connection density and project momentum
 - If recent captures connect to existing nerve centers, surface that
 - If a category is stale, flag it only if it's blocking progress
-- Keep it under 300 words
+- Keep it under 250 words
 - End with one clear ask: what to do RIGHT NOW
-- Tone: direct creative collaborator, not a manager. Think showrunner, not Jira.`,
+- Tone: direct creative collaborator, not a manager. Think showrunner who respects the writer.
+- Use Telegram markdown: *bold* for emphasis, no headers`,
       context
     );
 
-    await sendWhatsApp(user.whatsapp_number, nudge);
+    await sendTelegram(nudge);
     return res.status(200).json({ sent: true, mode: "nudge", message: nudge });
 
   } catch (error) {
