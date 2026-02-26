@@ -525,14 +525,17 @@ If no meaningful connections exist, return {"connections": []}`,
   };
 
   const deleteIdea = async (id) => {
-    if (!confirm("Delete this idea? This also removes its deliverables and dimensions.")) return;
+    if (!confirm("Delete this idea? This also removes its deliverables and connections.")) return;
     try {
+      await supabase.from("connections").delete().or(`idea_id_a.eq.${id},idea_id_b.eq.${id}`);
       await supabase.from("deliverables").delete().eq("idea_id", id);
       await supabase.from("dimensions").delete().eq("idea_id", id);
       await supabase.from("replies").delete().eq("idea_id", id);
-      await supabase.from("ideas").delete().eq("id", id);
+      const { error } = await supabase.from("ideas").delete().eq("id", id);
+      if (error) throw error;
       setIdeas(prev => prev.filter(i => i.id !== id));
       setDeliverables(prev => prev.filter(d => d.idea_id !== id));
+      setConnections(prev => prev.filter(c => c.idea_id_a !== id && c.idea_id_b !== id));
       if (activeIdea?.id === id) setActiveIdea(null);
       notify("Idea deleted.", "success");
     } catch (e) { console.error("Delete idea:", e); notify("Delete failed.", "error"); }
