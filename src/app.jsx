@@ -169,7 +169,7 @@ export default function Signal() {
     const nodes = ideas.map((idea, i) => {
       const angle = (i / ideas.length) * Math.PI * 2;
       const cat = getCat(idea.category);
-      const connCount = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id).length;
+      const connCount = connections.filter(c => c.idea_id_a === idea.id || c.idea_id_b === idea.id).length;
       const radius = Math.max(120, 350 - connCount * 40);
       return {
         id: idea.id, category: idea.category,
@@ -207,7 +207,7 @@ export default function Signal() {
       if (cd) setComposeDocs(cd);
     } catch (e) { console.warn("Compose:", e); }
     try {
-      const { data: cn } = await supabase.from("connections").select("*").eq("user_id", uid);
+      const { data: cn } = await supabase.from("connections").select("*");
       if (cn) setConnections(cn);
     } catch (e) { console.warn("Connections:", e); }
   };
@@ -389,10 +389,9 @@ If no meaningful connections exist, return {"connections": []}`,
       const newConns = (result.connections || [])
         .filter(c => c.index >= 0 && c.index < otherIdeas.length && c.strength >= 2)
         .map(c => ({
-          user_id: userId,
-          idea_a: newIdeaId,
-          idea_b: otherIdeas[c.index].id,
-          relationship: c.relationship,
+          idea_id_a: newIdeaId,
+          idea_id_b: otherIdeas[c.index].id,
+          reason: c.relationship,
           strength: c.strength,
         }));
       if (newConns.length > 0) {
@@ -961,10 +960,12 @@ If no meaningful connections exist, return {"connections": []}`,
     const completed = deliverables.filter(d => d.is_complete);
     const pct = deliverables.length ? Math.round((completed.length / deliverables.length) * 100) : 0;
     const byCategory = CATEGORIES.map(cat => ({ ...cat, items: pending.filter(d => d.idea?.category === cat.id) })).filter(cat => cat.items.length > 0);
+    const [actionsView, setActionsView] = useState("focus");
+    const next5 = pending.slice(0, 5);
     return (
-      <div style={{ flex: 1, overflowY: "auto", padding: "44px 52px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
         <div style={{ maxWidth: 700 }}>
-          <div style={{ marginBottom: 36 }}>
+          <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 13, color: C.textSecondary }}>{pending.length} open · {completed.length} complete</span>
               <span style={{ fontSize: 13, color: C.gold, fontFamily: mono }}>{pct}%</span>
@@ -973,27 +974,86 @@ If no meaningful connections exist, return {"connections": []}`,
               <div style={{ height: "100%", background: C.gold, width: `${pct}%`, borderRadius: 2, transition: "width 0.4s" }} />
             </div>
           </div>
-          {pending.length === 0
-            ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 16 }}>All invitations complete.</div>
-            : byCategory.map(cat => (
-                <div key={cat.id} style={{ marginBottom: 36 }}>
-                  <div style={{ fontSize: 10, color: cat.color, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 14 }}>{cat.icon} {cat.label.toUpperCase()}</div>
-                  {cat.items.map(d => (
+          <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+            {[{ id: "focus", label: "Next Up" }, { id: "workshops", label: "Workshops" }, { id: "all", label: "All Open" }].map(t => (
+              <button key={t.id} onClick={() => setActionsView(t.id)}
+                style={{ background: actionsView === t.id ? C.gold + "20" : "transparent", border: `1px solid ${actionsView === t.id ? C.gold + "60" : C.border}`, color: actionsView === t.id ? C.gold : C.textMuted, padding: "5px 12px", fontSize: 11, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {actionsView === "focus" && (
+            <div>
+              <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 12 }}>YOUR NEXT 5 ACTIONS</div>
+              {next5.length === 0
+                ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 14 }}>All caught up.</div>
+                : next5.map(d => {
+                    const cat = getCat(d.idea?.category);
+                    return (
+                      <div key={d.id} id={`del-${d.id}`}
+                        style={{ padding: "14px 16px", marginBottom: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, borderLeft: `3px solid ${cat.color}`, cursor: "pointer" }}
+                        onClick={() => toggleDeliverable(d.id, d.is_complete)}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = cat.color}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+                        <div style={{ fontSize: 14, color: C.textPrimary, lineHeight: 1.6, marginBottom: 6 }}><Highlight text={d.text} term={searchHighlight} /></div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontSize: 9, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
+                          {d.idea?.text && <span style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>· {d.idea.text.slice(0, 40)}...</span>}
+                        </div>
+                      </div>
+                    );
+                  })
+              }
+            </div>
+          )}
+
+          {actionsView === "workshops" && (
+            <div>
+              {byCategory.map(cat => (
+                <div key={cat.id} style={{ marginBottom: 28, padding: "16px 18px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, borderTop: `3px solid ${cat.color}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <span style={{ fontSize: 11, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label.toUpperCase()} WORKSHOP</span>
+                    <span style={{ fontSize: 10, color: C.textMuted, fontFamily: mono }}>{cat.items.length} tasks</span>
+                  </div>
+                  {cat.items.slice(0, 5).map(d => (
                     <div key={d.id} id={`del-${d.id}`}
                       onClick={() => toggleDeliverable(d.id, d.is_complete)}
-                      style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", background: scrollToId === d.id ? C.surfaceHigh : "transparent", transition: "background 0.5s" }}
+                      style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
                       onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                      onMouseLeave={e => scrollToId !== d.id && (e.currentTarget.style.background = "transparent")}>
-                      <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 4 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, color: C.textSecondary, lineHeight: 1.75 }}><Highlight text={d.text} term={searchHighlight} /></div>
-                        {d.idea?.text && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, marginTop: 5 }}>from: "{d.idea.text.slice(0, 70)}..."</div>}
-                      </div>
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 3 }} />
+                      <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
                     </div>
                   ))}
+                  {cat.items.length > 5 && <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, marginTop: 8 }}>+{cat.items.length - 5} more</div>}
                 </div>
-              ))
-          }
+              ))}
+            </div>
+          )}
+
+          {actionsView === "all" && (
+            pending.length === 0
+              ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 14 }}>All invitations complete.</div>
+              : byCategory.map(cat => (
+                  <div key={cat.id} style={{ marginBottom: 28 }}>
+                    <div style={{ fontSize: 10, color: cat.color, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>{cat.icon} {cat.label.toUpperCase()}</div>
+                    {cat.items.map(d => (
+                      <div key={d.id} id={`del-${d.id}`}
+                        onClick={() => toggleDeliverable(d.id, d.is_complete)}
+                        style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", background: scrollToId === d.id ? C.surfaceHigh : "transparent" }}
+                        onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
+                        onMouseLeave={e => scrollToId !== d.id && (e.currentTarget.style.background = "transparent")}>
+                        <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 3 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
+                          {d.idea?.text && <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, marginTop: 4 }}>from: {d.idea.text.slice(0, 60)}...</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))
+          )}
         </div>
       </div>
     );
@@ -1104,15 +1164,30 @@ If no meaningful connections exist, return {"connections": []}`,
 
     const nodeRadius = (node) => Math.max(6, 4 + node.signal * 2 + node.connCount);
 
+    const [mapFilter, setMapFilter] = useState("all");
+
+    const filteredNodes = mapFilter === "all" ? mapNodes : mapNodes.filter(n => n.category === mapFilter);
+    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    const filteredConns = connections.filter(c =>
+      filteredNodeIds.has(c.idea_id_a) && filteredNodeIds.has(c.idea_id_b)
+    );
+
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ padding: "12px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono }}>{ideas.length} ideas · {connections.length} connections</span>
+        <div style={{ padding: "10px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono }}>{filteredNodes.length} ideas · {filteredConns.length} connections</span>
+          <select value={mapFilter} onChange={e => { setMapFilter(e.target.value); setFocusedNode(null); }}
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "4px 8px", fontSize: 11, fontFamily: sans, borderRadius: 4, outline: "none" }}>
+            <option value="all">All Categories</option>
+            {CATEGORIES.filter(cat => ideas.some(i => i.category === cat.id)).map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.icon} {cat.label}</option>
+            ))}
+          </select>
           <button onClick={async () => {
             if (!user || ideas.length < 2) return;
-            notify("Mapping all connections...", "processing");
+            notify("Mapping connections...", "processing");
             for (const idea of ideas) {
-              const existing = connections.filter(c => c.idea_a === idea.id || c.idea_b === idea.id);
+              const existing = connections.filter(c => c.idea_id_a === idea.id || c.idea_id_b === idea.id);
               if (existing.length < 2) {
                 await generateConnections(idea.id, idea.text, user.id);
               }
@@ -1120,8 +1195,8 @@ If no meaningful connections exist, return {"connections": []}`,
             await loadAll(user.id);
             notify("Connections mapped.", "success");
           }}
-            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "6px 14px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", cursor: "pointer" }}>
-            MAP ALL CONNECTIONS
+            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "5px 12px", fontFamily: mono, fontSize: 9, letterSpacing: "0.08em", cursor: "pointer", borderRadius: 4, flexShrink: 0 }}>
+            MAP ALL
           </button>
         </div>
         <div ref={mapContainerRef}
@@ -1132,36 +1207,48 @@ If no meaningful connections exist, return {"connections": []}`,
           style={{ flex: 1, position: "relative", overflow: "hidden", background: C.bg, cursor: dragNode ? "grabbing" : "default" }}>
           {focusedNode && (() => {
             const fi = ideas.find(i => i.id === focusedNode);
-            const fc = connections.filter(c => c.idea_a === focusedNode || c.idea_b === focusedNode);
+            const fc = connections.filter(c => c.idea_id_a === focusedNode || c.idea_id_b === focusedNode)
+              .sort((a, b) => (b.strength || 3) - (a.strength || 3))
+              .slice(0, 8);
             if (!fi) return null;
+            const cat = getCat(fi.category);
             return (
-              <div style={{ position: "absolute", top: 16, left: 24, zIndex: 50, background: C.surface, border: `1px solid ${C.border}`, padding: "14px 18px", maxWidth: 340 }}>
+              <div style={{ position: "absolute", top: 12, left: 16, zIndex: 50, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "14px 16px", maxWidth: 360, maxHeight: "80vh", overflowY: "auto" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, color: getCat(fi.category).color, fontFamily: mono }}>{getCat(fi.category).icon} {fi.category.toUpperCase()}</span>
+                  <span style={{ fontSize: 10, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label.toUpperCase()}</span>
                   <span onClick={() => { setActiveIdea(fi); navGo("library"); }}
                     style={{ fontSize: 9, color: C.gold, fontFamily: mono, cursor: "pointer" }}>OPEN IN LIBRARY →</span>
                 </div>
-                <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.6, marginBottom: fc.length ? 10 : 0 }}>{fi.text.slice(0, 150)}{fi.text.length > 150 ? "..." : ""}</div>
+                <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.5, marginBottom: 12 }}>{fi.text.slice(0, 120)}{fi.text.length > 120 ? "..." : ""}</div>
                 {fc.length > 0 && (
-                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                    <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 6 }}>{fc.length} CONNECTION{fc.length > 1 ? "S" : ""}</div>
-                    {fc.map((c, ci) => (
-                      <div key={ci} style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.5, marginBottom: 4 }}>→ {c.relationship}</div>
-                    ))}
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                    <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 8 }}>TOP {fc.length} CONNECTION{fc.length > 1 ? "S" : ""}</div>
+                    {fc.map((c, ci) => {
+                      const otherId = c.idea_id_a === focusedNode ? c.idea_id_b : c.idea_id_a;
+                      const other = ideas.find(i => i.id === otherId);
+                      const otherCat = other ? getCat(other.category) : null;
+                      return (
+                        <div key={ci} style={{ padding: "8px 10px", marginBottom: 4, background: C.bg, borderRadius: 6, border: `1px solid ${C.borderSubtle}` }}>
+                          {other && <div style={{ fontSize: 9, color: otherCat?.color || C.textMuted, fontFamily: mono, marginBottom: 3 }}>{otherCat?.icon} {other.text.slice(0, 50)}...</div>}
+                          <div style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.45 }}>{(c.reason || "").slice(0, 100)}{(c.reason || "").length > 100 ? "..." : ""}</div>
+                          {c.strength >= 4 && <div style={{ fontSize: 8, color: C.gold, fontFamily: mono, marginTop: 3 }}>◈ STRONG</div>}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <div onClick={() => setFocusedNode(null)}
-                  style={{ marginTop: 10, fontSize: 9, color: C.textMuted, fontFamily: mono, cursor: "pointer" }}>✕ SHOW ALL</div>
+                  style={{ marginTop: 10, fontSize: 9, color: C.textMuted, fontFamily: mono, cursor: "pointer", textAlign: "center" }}>✕ CLOSE</div>
               </div>
             );
           })()}
           <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-            {connections.map((conn, i) => {
-              const a = getNode(conn.idea_a);
-              const b = getNode(conn.idea_b);
+            {filteredConns.map((conn, i) => {
+              const a = getNode(conn.idea_id_a);
+              const b = getNode(conn.idea_id_b);
               if (!a || !b) return null;
-              const isHovered = hoveredNode && (conn.idea_a === hoveredNode || conn.idea_b === hoveredNode);
-              const isFocusConn = focusedNode && (conn.idea_a === focusedNode || conn.idea_b === focusedNode);
+              const isHovered = hoveredNode && (conn.idea_id_a === hoveredNode || conn.idea_id_b === hoveredNode);
+              const isFocusConn = focusedNode && (conn.idea_id_a === focusedNode || conn.idea_id_b === focusedNode);
               const hidden = focusedNode && !isFocusConn;
               return (
                 <line key={i}
@@ -1173,12 +1260,12 @@ If no meaningful connections exist, return {"connections": []}`,
               );
             })}
           </svg>
-          {mapNodes.map(node => {
+          {mapNodes.filter(n => filteredNodeIds.has(n.id)).map(node => {
             const r = nodeRadius(node);
             const isHovered = hoveredNode === node.id;
-            const nodeConns = connections.filter(c => c.idea_a === node.id || c.idea_b === node.id);
+            const nodeConns = connections.filter(c => c.idea_id_a === node.id || c.idea_id_b === node.id);
             const isFocused = focusedNode === node.id;
-            const isConnectedToFocus = focusedNode && nodeConns.some(c => c.idea_a === focusedNode || c.idea_b === focusedNode);
+            const isConnectedToFocus = focusedNode && nodeConns.some(c => c.idea_id_a === focusedNode || c.idea_id_b === focusedNode);
             const isFaded = focusedNode && !isFocused && !isConnectedToFocus;
             return (
               <div key={node.id}
@@ -1242,7 +1329,7 @@ If no meaningful connections exist, return {"connections": []}`,
                         <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 6 }}>{nodeConns.length} CONNECTION{nodeConns.length > 1 ? "S" : ""}</div>
                         {nodeConns.slice(0, 3).map((c, ci) => (
                           <div key={ci} style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.5, marginBottom: 4 }}>
-                            → {c.relationship}
+                            → {c.reason}
                           </div>
                         ))}
                       </div>
