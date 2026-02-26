@@ -1,6 +1,6 @@
 // ============================================
 // SIGNAL: Pulse — Daily Creative Nudge Engine
-// api/pulse.js — Telegram Edition
+// api/pulse.js — Telegram + Canon-aware
 // ============================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -19,11 +19,7 @@ async function sendTelegram(text) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: TG_CHAT,
-      text,
-      parse_mode: "Markdown",
-    }),
+    body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: "Markdown" }),
   });
   const data = await res.json();
   if (!data.ok) console.error("Telegram error:", data);
@@ -57,19 +53,13 @@ export default async function handler(req, res) {
   const mode = req.query?.mode || req.body?.mode || "nudge";
 
   try {
-    // Load user
     const { data: user } = await supabase
-      .from("users")
-      .select("*")
+      .from("users").select("*")
       .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1).single();
 
-    if (!user) {
-      return res.status(400).json({ error: "No user found" });
-    }
+    if (!user) return res.status(400).json({ error: "No user found" });
 
-    // Load project state
     const [
       { data: ideas },
       { data: deliverables },
@@ -78,7 +68,7 @@ export default async function handler(req, res) {
     ] = await Promise.all([
       supabase.from("ideas").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("deliverables").select("*, idea:ideas(text, category)").eq("user_id", user.id),
-      supabase.from("canon_documents").select("id, title, is_active").eq("user_id", user.id),
+      supabase.from("canon_documents").select("id, title, content, is_active").eq("user_id", user.id).eq("is_active", true),
       supabase.from("connections").select("*"),
     ]);
 
@@ -86,7 +76,6 @@ export default async function handler(req, res) {
     const completed = (deliverables || []).filter(d => d.is_complete);
     const recentIdeas = (ideas || []).filter(i => Date.now() - new Date(i.created_at) < 3 * 86400000);
 
-    // Connection density per idea
     const connCounts = {};
     (connections || []).forEach(c => {
       connCounts[c.idea_id_a] = (connCounts[c.idea_id_a] || 0) + 1;
@@ -97,7 +86,6 @@ export default async function handler(req, res) {
       .sort((a, b) => b.connCount - a.connCount)
       .slice(0, 5);
 
-    // Categories with no activity in 7+ days
     const catActivity = {};
     (ideas || []).forEach(i => {
       const age = Date.now() - new Date(i.created_at);
@@ -105,36 +93,46 @@ export default async function handler(req, res) {
     });
     const staleCats = Object.entries(catActivity).filter(([, age]) => age > 7 * 86400000).map(([cat]) => cat);
 
+    // Canon summaries — first 800 chars of each active doc
+    const canonSummaries = (canonDocs || []).map(d => 
+      `[${d.title}]: ${(d.content || "").slice(0, 800)}`
+    ).join("\n\n");
+
     if (mode === "checkin") {
-      const msg = `Good morning Daniel. Before I crack the whip — what's on your agenda today? What feels most pressing right now?`;
+      const msg = `Good morning Daniel. Before I crack the whip — what's on your agenda today? What feels most pressing right now?\n\nReply here. Or type /status for a project snapshot.`;
       await sendTelegram(msg);
       return res.status(200).json({ sent: true, mode: "checkin", message: msg });
     }
 
-    // Build context for AI
     const context = `PROJECT: ${user.project_name}
 STATS: ${(ideas || []).length} ideas, ${pending.length} open actions, ${completed.length} completed, ${(connections || []).length} connections
+
+CANON DOCUMENTS (established story material — DO NOT ask questions that are answered here):
+${canonSummaries || "none"}
+
 RECENT IDEAS (last 72h): ${recentIdeas.map(i => `[${i.category}] "${i.text.slice(0, 80)}"`).join(" | ") || "none"}
 NERVE CENTERS (most connected): ${nerveCenters.map(i => `"${i.text.slice(0, 60)}" (${i.connCount} connections)`).join(" | ")}
-STALE CATEGORIES (no new ideas in 7+ days): ${staleCats.join(", ") || "none"}
-OPEN ACTIONS (first 10): ${pending.slice(0, 10).map(d => `[${d.idea?.category || "?"}] ${d.text.slice(0, 60)}`).join(" | ") || "all caught up"}
-CANON SOURCES: ${(canonDocs || []).filter(d => d.is_active).map(d => d.title).join(", ") || "none"}`;
+STALE CATEGORIES (7+ days idle): ${staleCats.join(", ") || "none"}
+
+OPEN ACTIONS (these are the actual deliverables — pick the most important one):
+${pending.slice(0, 15).map((d, i) => `${i + 1}. [${d.idea?.category || "?"}] ${d.text}`).join("\n") || "all caught up"}`;
 
     const nudge = await callAI(
-      `You are Daniel's creative partner on a film/TV project called "${user.project_name}". You know his entire idea library, every connection, every open action.
+      `You are Daniel's creative partner on "${user.project_name}". You know his idea library, canon documents, connections, and open actions.
 
-Your job: send ONE Telegram message that is direct, specific, and actionable. You are not a to-do app. You are a collaborator who sees the whole board.
+CRITICAL: Read the CANON DOCUMENTS carefully. Do NOT ask Daniel questions that are already answered in canon. If a character's motivation, a plot point, or a story element is defined in canon, treat it as established fact.
+
+Your job: send ONE Telegram message. Direct, specific, actionable.
 
 Rules:
 - Address him as Daniel
-- Reference specific ideas, connections, or patterns by name
-- Tell him the ONE thing that matters most right now and WHY based on connection density and project momentum
-- If recent captures connect to existing nerve centers, surface that
-- If a category is stale, flag it only if it's blocking progress
-- Keep it under 250 words
-- End with one clear ask: what to do RIGHT NOW
-- Tone: direct creative collaborator, not a manager. Think showrunner who respects the writer.
-- Use Telegram markdown: *bold* for emphasis, no headers`,
+- Pick the single most important open action from the list and tell him to do it NOW
+- Explain WHY this action matters based on connection density, dependencies, or momentum
+- If a recent capture connects to a nerve center, surface that
+- Keep it under 200 words — this is a text message, not an essay
+- End with: "Reply /done [keyword] when it's handled."
+- Tone: showrunner texting his lead writer. Direct. Warm but no bullshit.
+- Use Telegram markdown: *bold* for key phrases only`,
       context
     );
 

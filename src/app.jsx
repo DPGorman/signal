@@ -1660,7 +1660,7 @@ If no meaningful connections exist, return {"connections": []}`,
               { label: "Compose",      icon: "✎",  color: C.green,  action: () => navGo("compose") },
               { label: "Stats",        icon: "▦",  color: C.textMuted, action: () => setStudioTab("stats") },
               { label: "Pulse",        icon: "↯",  color: C.gold,      action: async () => {
-                notify("Sending pulse to WhatsApp...", "processing");
+                notify("Sending pulse...", "processing");
                 try {
                   const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nudge" }) });
                   const d = await r.json();
