@@ -1378,7 +1378,7 @@ If no meaningful connections exist, return {"connections": []}`,
       )}
 
       {/* ─── LEFT COLUMN: Sources + Navigation ─── */}
-      <div style={{ width: leftW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12, position: "relative" }}>
+      <div style={{ width: leftW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12 }}>
         <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ cursor: "pointer" }} onClick={() => navGo("dashboard")}>
@@ -1603,10 +1603,13 @@ If no meaningful connections exist, return {"connections": []}`,
             </div>
           </>
         )}
-        {/* Drag handle at right edge */}
-        <div onMouseDown={startDrag("left")} style={{ position: "absolute", top: 0, right: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 10 }}
-          onMouseEnter={e => e.currentTarget.style.background = C.gold + "40"}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
+      </div>
+
+      {/* Left gutter - wide, centered in the gap */}
+      <div onMouseDown={startDrag("left")} style={{ width: 10, cursor: "col-resize", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 3, height: 40, borderRadius: 2, background: C.border, opacity: 0.4, transition: "opacity 0.15s, background 0.15s" }}
+          onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = C.gold; }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = 0.4; e.currentTarget.style.background = C.border; }} />
       </div>
 
       {/* ─── CENTER COLUMN: Main Content ─── */}
@@ -1632,12 +1635,15 @@ If no meaningful connections exist, return {"connections": []}`,
         </div>
       </div>
 
+      {/* Right gutter - wide, centered in the gap */}
+      <div onMouseDown={startDrag("right")} style={{ width: 10, cursor: "col-resize", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 3, height: 40, borderRadius: 2, background: C.border, opacity: 0.4, transition: "opacity 0.15s, background 0.15s" }}
+          onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = C.gold; }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = 0.4; e.currentTarget.style.background = C.border; }} />
+      </div>
+
       {/* ─── RIGHT COLUMN: Studio + Tools ─── */}
-      <div style={{ width: rightW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12, position: "relative" }}>
-        {/* Drag handle at left edge */}
-        <div onMouseDown={startDrag("right")} style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 10 }}
-          onMouseEnter={e => e.currentTarget.style.background = C.gold + "40"}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"} />
+      <div style={{ width: rightW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12 }}>
         <div style={{ padding: "12px 14px 14px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <span style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500 }}>Studio</span>
