@@ -531,6 +531,7 @@ If no meaningful connections exist, return {"connections": []}`,
       await supabase.from("deliverables").delete().eq("idea_id", id);
       await supabase.from("dimensions").delete().eq("idea_id", id);
       await supabase.from("replies").delete().eq("idea_id", id);
+      await supabase.from("whatsapp_messages").delete().eq("idea_id", id);
       const { error } = await supabase.from("ideas").delete().eq("id", id);
       if (error) throw error;
       setIdeas(prev => prev.filter(i => i.id !== id));
