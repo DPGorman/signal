@@ -1,8 +1,6 @@
 // ============================================
 // SIGNAL: Telegram Webhook
 // api/telegram.js
-// Receives replies from Telegram, captures as
-// ideas, and can mark deliverables complete.
 // ============================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -14,15 +12,17 @@ const supabase = createClient(
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
 
-async function sendTelegram(text) {
+async function sendTelegram(chatId, text) {
   const url = `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
-  await fetch(url, {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: "Markdown" }),
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }),
   });
+  const data = await res.json();
+  if (!data.ok) console.error("Telegram send error:", JSON.stringify(data));
+  return data;
 }
 
 async function callAI(system, message) {
@@ -50,17 +50,20 @@ export default async function handler(req, res) {
   try {
     const update = req.body;
     const msg = update?.message;
-    if (!msg?.text || String(msg.chat?.id) !== TG_CHAT) {
-      return res.status(200).json({ ok: true });
+    const chatId = msg?.chat?.id;
+    const text = msg?.text?.trim();
+
+    console.log("Telegram webhook received:", JSON.stringify({ chatId, text, hasTgToken: !!TG_TOKEN }));
+
+    if (!text || !chatId) {
+      return res.status(200).json({ ok: true, reason: "no text or chat id" });
     }
 
-    const text = msg.text.trim();
-
-    // Command: /done <search term> — marks a deliverable complete
+    // Command: /done <search term>
     if (text.startsWith("/done")) {
       const search = text.replace("/done", "").trim();
       if (!search) {
-        await sendTelegram("Usage: /done <keyword from deliverable>");
+        await sendTelegram(chatId, "Usage: /done <keyword from deliverable>");
         return res.status(200).json({ ok: true });
       }
       const { data: user } = await supabase.from("users").select("id").order("created_at", { ascending: false }).limit(1).single();
@@ -68,89 +71,65 @@ export default async function handler(req, res) {
       const match = (delivs || []).find(d => d.text.toLowerCase().includes(search.toLowerCase()));
       if (match) {
         await supabase.from("deliverables").update({ is_complete: true }).eq("id", match.id);
-        await sendTelegram(`✓ Done: "${match.text.slice(0, 80)}"\n\n${(delivs.length - 1)} actions remaining.`);
+        await sendTelegram(chatId, `✓ Done: "${match.text.slice(0, 80)}"\n\n${(delivs.length - 1)} actions remaining.`);
       } else {
-        await sendTelegram(`No open deliverable matching "${search}". Try a different keyword.`);
+        await sendTelegram(chatId, `No open deliverable matching "${search}". Try a different keyword.`);
       }
       return res.status(200).json({ ok: true });
     }
 
-    // Command: /status — quick project status
+    // Command: /status
     if (text === "/status") {
       const { data: user } = await supabase.from("users").select("id, project_name").order("created_at", { ascending: false }).limit(1).single();
       const { data: ideas } = await supabase.from("ideas").select("id").eq("user_id", user.id);
       const { data: delivs } = await supabase.from("deliverables").select("id, is_complete").eq("user_id", user.id);
       const pending = (delivs || []).filter(d => !d.is_complete).length;
       const done = (delivs || []).filter(d => d.is_complete).length;
-      await sendTelegram(`*${user.project_name}*\n${(ideas || []).length} ideas · ${pending} open actions · ${done} completed`);
+      await sendTelegram(chatId, `*${user.project_name}*\n${(ideas || []).length} ideas · ${pending} open actions · ${done} completed`);
       return res.status(200).json({ ok: true });
     }
 
-    // Command: /pulse — trigger a nudge
+    // Command: /pulse
     if (text === "/pulse") {
-      const pulseUrl = `https://signal-navy-five.vercel.app/api/pulse?mode=nudge`;
-      await fetch(pulseUrl);
+      await sendTelegram(chatId, "Generating pulse...");
+      const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://signal-navy-five.vercel.app";
+      await fetch(`${baseUrl}/api/pulse?mode=nudge`);
       return res.status(200).json({ ok: true });
     }
 
-    // Default: capture as idea (same as WhatsApp flow)
+    // Default: capture as idea
     const { data: user } = await supabase.from("users").select("*").order("created_at", { ascending: false }).limit(1).single();
     if (!user) {
-      await sendTelegram("No user found. Set up Signal first.");
+      await sendTelegram(chatId, "No user found. Set up Signal first.");
       return res.status(200).json({ ok: true });
     }
 
-    // AI analysis
     const analysis = await callAI(
-      `You are a brilliant script editor and dramaturg. Analyze ideas across MULTIPLE dimensions simultaneously.
-Respond ONLY with a raw JSON object — no markdown, no backticks, no explanation:
-{
-  "category": one of [premise,character,scene,dialogue,arc,production,research,business],
-  "dimensions": array of 2-4 strings,
-  "aiNote": "1-2 sentences of genuine dramaturgical insight",
-  "deliverables": array of 2-3 next steps as invitations,
-  "signalStrength": integer 1-5
-}`,
+      `You are a script editor. Analyze this idea. Respond ONLY with raw JSON, no markdown:
+{"category":"one of premise/character/scene/dialogue/arc/production/research/business","aiNote":"1-2 sentences of insight","deliverables":["next step 1","next step 2"],"signalStrength":3}`,
       `Project: ${user.project_name}\n\nIdea: "${text}"`
     );
 
     let parsed;
-    try {
-      parsed = JSON.parse(analysis.replace(/```json|```/g, "").trim());
-    } catch {
-      parsed = { category: "premise", dimensions: ["story"], aiNote: "Captured.", deliverables: [], signalStrength: 3 };
-    }
+    try { parsed = JSON.parse(analysis.replace(/```json|```/g, "").trim()); }
+    catch { parsed = { category: "premise", aiNote: "Captured.", deliverables: [], signalStrength: 3 }; }
 
-    // Save idea
     const { data: newIdea } = await supabase.from("ideas").insert([{
-      user_id: user.id,
-      text,
-      category: parsed.category,
-      ai_note: parsed.aiNote,
-      signal_strength: parsed.signalStrength,
-      source: "telegram",
+      user_id: user.id, text, category: parsed.category,
+      ai_note: parsed.aiNote, signal_strength: parsed.signalStrength, source: "telegram",
     }]).select().single();
 
-    // Save deliverables
     if (parsed.deliverables?.length && newIdea) {
       await supabase.from("deliverables").insert(
         parsed.deliverables.map(d => ({ user_id: user.id, idea_id: newIdea.id, text: d }))
       );
     }
 
-    // Save dimensions
-    if (parsed.dimensions?.length && newIdea) {
-      await supabase.from("dimensions").insert(
-        parsed.dimensions.map(d => ({ idea_id: newIdea.id, dimension: d }))
-      );
-    }
-
-    await sendTelegram(`◈ *Signal captured.*\n${parsed.aiNote}\n\nCategory: ${parsed.category}\nSignal: ${"◈".repeat(parsed.signalStrength)}\n\n_${parsed.deliverables?.[0] || "Sit with this idea."}_`);
-
+    await sendTelegram(chatId, `◈ *Signal captured.*\n${parsed.aiNote}\n\nCategory: ${parsed.category}\nSignal: ${"◈".repeat(parsed.signalStrength)}`);
     return res.status(200).json({ ok: true });
 
   } catch (error) {
-    console.error("Telegram webhook error:", error);
-    return res.status(200).json({ ok: true }); // Always 200 for Telegram
+    console.error("Telegram webhook error:", error.message, error.stack);
+    return res.status(200).json({ ok: true, error: error.message });
   }
 }
