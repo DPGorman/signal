@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     ] = await Promise.all([
       supabase.from("ideas").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("deliverables").select("*, idea:ideas(text, category)").eq("user_id", user.id),
-      supabase.from("canon_documents").select("id, title, content, is_active").eq("user_id", user.id).eq("is_active", true),
+      supabase.from("canon_documents").select("id, title, content, summary, is_active").eq("user_id", user.id).eq("is_active", true),
       supabase.from("connections").select("*"),
     ]);
 
@@ -93,10 +93,18 @@ export default async function handler(req, res) {
     });
     const staleCats = Object.entries(catActivity).filter(([, age]) => age > 7 * 86400000).map(([cat]) => cat);
 
-    // Canon summaries — first 800 chars of each active doc
-    const canonSummaries = (canonDocs || []).map(d => 
-      `[${d.title}]: ${(d.content || "").slice(0, 800)}`
-    ).join("\n\n");
+    // Canon: feed short docs fully, summaries for big ones
+    const FULL_CONTENT_LIMIT = 12000; // ~3K tokens
+    const canonFeed = (canonDocs || []).map(d => {
+      const content = d.content || "";
+      if (content.length <= FULL_CONTENT_LIMIT) {
+        return `[${d.title}] (FULL):\n${content}`;
+      } else if (d.summary) {
+        return `[${d.title}] (SUMMARY of ${Math.round(content.length/1000)}K doc):\n${d.summary}`;
+      } else {
+        return `[${d.title}] (${Math.round(content.length/1000)}K doc, no summary available): ${content.slice(0, 800)}`;
+      }
+    }).join("\n\n---\n\n");
 
     if (mode === "checkin") {
       const msg = `Good morning Daniel. Before I crack the whip — what's on your agenda today? What feels most pressing right now?\n\nReply here. Or type /status for a project snapshot.`;
@@ -108,7 +116,7 @@ export default async function handler(req, res) {
 STATS: ${(ideas || []).length} ideas, ${pending.length} open actions, ${completed.length} completed, ${(connections || []).length} connections
 
 CANON DOCUMENTS (established story material — DO NOT ask questions that are answered here):
-${canonSummaries || "none"}
+${canonFeed || "none"}
 
 RECENT IDEAS (last 72h): ${recentIdeas.map(i => `[${i.category}] "${i.text.slice(0, 80)}"`).join(" | ") || "none"}
 NERVE CENTERS (most connected): ${nerveCenters.map(i => `"${i.text.slice(0, 60)}" (${i.connCount} connections)`).join(" | ")}
