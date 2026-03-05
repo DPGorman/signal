@@ -130,6 +130,11 @@ export default function Signal() {
   const dragRef = useRef(null);
   const [centerView,    setCenterView]    = useState("capture");
   const [leftTab,       setLeftTab]       = useState("ideas");
+  const [projects,      setProjects]      = useState([]);
+  const [currentProject, setCurrentProject] = useState(null);
+  const [newTaskText,   setNewTaskText]   = useState("");
+  const [newTaskDue,    setNewTaskDue]    = useState("");
+  const [taskAdding,    setTaskAdding]    = useState(false);
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
@@ -188,15 +193,33 @@ export default function Signal() {
     setMapNodes(nodes);
   }, [ideas.length, connections.length]); // eslint-disable-line
 
-  const loadAll = async (uid) => {
+  const loadAll = async (uid, projId = null) => {
     try {
-      const [{ data: u }, { data: i }, { data: d }, { data: c }] = await Promise.all([
+      // Load user + projects first
+      const [{ data: u }, { data: projs }] = await Promise.all([
         supabase.from("users").select("*").eq("id", uid).single(),
-        supabase.from("ideas").select("*, dimensions(*)").eq("user_id", uid).order("created_at", { ascending: false }),
-        supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid).order("created_at", { ascending: false }),
-        supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("projects").select("*").eq("user_id", uid).order("created_at", { ascending: true }),
       ]);
       if (u) setUser(u);
+      const projList = projs || [];
+      setProjects(projList);
+
+      // Determine active project
+      let activeProj = projId ? projList.find(p => p.id === projId) : null;
+      if (!activeProj && projList.length > 0) activeProj = projList[0];
+      if (activeProj) setCurrentProject(activeProj);
+
+      // Load data scoped to project
+      const pid = activeProj?.id;
+      let ideasQ = supabase.from("ideas").select("*, dimensions(*)").eq("user_id", uid).order("created_at", { ascending: false });
+      let delsQ = supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid).order("created_at", { ascending: false });
+      let canonQ = supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false });
+      if (pid) {
+        ideasQ = ideasQ.eq("project_id", pid);
+        delsQ = delsQ.eq("project_id", pid);
+        canonQ = canonQ.eq("project_id", pid);
+      }
+      const [{ data: i }, { data: d }, { data: c }] = await Promise.all([ideasQ, delsQ, canonQ]);
       if (i) setIdeas(i);
       if (d) setDeliverables(d);
       if (c) setCanonDocs(c);
@@ -341,6 +364,7 @@ Raw JSON only:
         inspiration_question: ctx                     || null,
         signal_strength:      analysis.signalStrength || 3,
         canon_resonance:      analysis.canonResonance || "",
+        project_id:           currentProject?.id      || null,
       }]).select().single();
 
       if (error) { notify("Failed to save.", "error"); return; }
@@ -351,7 +375,7 @@ Raw JSON only:
         );
       if (analysis.invitations?.length)
         await supabase.from("deliverables").insert(
-          analysis.invitations.map(t => ({ idea_id: saved.id, user_id: user.id, text: t }))
+          analysis.invitations.map(t => ({ idea_id: saved.id, user_id: user.id, text: t, project_id: currentProject?.id || null }))
         );
 
       await loadAll(user.id);
@@ -516,6 +540,7 @@ If no meaningful connections exist, return {"connections": []}`,
       const { data, error } = await supabase.from("canon_documents").insert([{
         user_id: user.id, title: canonUpload.title,
         doc_type: canonUpload.type, content: canonUpload.content, is_active: true,
+        project_id: currentProject?.id || null,
       }]).select().single();
       if (error) throw error;
       setCanonDocs(prev => [data, ...prev]);
@@ -574,7 +599,7 @@ If no meaningful connections exist, return {"connections": []}`,
     setLocalSearch("");
     if (localSearchRef.current) localSearchRef.current.value = "";
     if (idea) { setActiveIdea(idea); }
-    else if (v !== "library" && v !== "canon" && v !== "compose") { setActiveIdea(null); setActiveDoc(null); }
+    else if (v !== "library" && v !== "canon" && v !== "compose" && v !== "tasks") { setActiveIdea(null); setActiveDoc(null); }
   };
 
   // Drag-to-resize gutters
@@ -633,7 +658,35 @@ If no meaningful connections exist, return {"connections": []}`,
 
   const globalResults = searchAll(globalSearch);
 
-  const pending     = deliverables.filter(d => !d.is_complete);
+  const switchProject = async (projId) => {
+    const proj = projects.find(p => p.id === projId);
+    if (proj && user) {
+      setCurrentProject(proj);
+      setIsLoading(true);
+      await loadAll(user.id, proj.id);
+    }
+  };
+
+  const addTask = async () => {
+    const text = newTaskText.trim();
+    if (!text || !user || taskAdding) return;
+    setTaskAdding(true);
+    const insertData = { user_id: user.id, text, type: "task", priority: 2, project_id: currentProject?.id || null };
+    if (newTaskDue && /^\d{4}-\d{2}-\d{2}$/.test(newTaskDue)) insertData.due_date = newTaskDue;
+    await supabase.from("deliverables").insert([insertData]);
+    setNewTaskText("");
+    setNewTaskDue("");
+    setTaskAdding(false);
+    await loadAll(user.id, currentProject?.id);
+  };
+
+  const deleteTask = async (id) => {
+    if (!confirm("Delete this task?")) return;
+    await supabase.from("deliverables").delete().eq("id", id);
+    setDeliverables(prev => prev.filter(d => d.id !== id));
+  };
+
+  const pending     = deliverables.filter(d => !d.is_complete && d.type !== "task");
   const activeCanon = canonDocs.filter(d => d.is_active);
   const filtered    = (() => {
     let f = filterCat ? ideas.filter(i => i.category === filterCat) : ideas;
@@ -692,8 +745,8 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 36 }}>
         {[
           { label: "Ideas",       value: ideas.length,   color: C.gold,   sub: `${ideas.filter(i => Date.now() - new Date(i.created_at) < 7*864e5).length} this week`, dest: "library" },
-          { label: "Invitations", value: pending.length, color: C.red,    sub: `${deliverables.filter(d => d.is_complete).length} completed`, dest: "deliverables" },
-          { label: "High Signal", value: ideas.filter(i => i.signal_strength >= 4).length, color: C.green, sub: "worth pursuing", dest: "library" },
+          { label: "Invitations", value: pending.length, color: C.red,    sub: `${deliverables.filter(d => d.is_complete && d.type !== "task").length} completed`, dest: "deliverables" },
+          { label: "Tasks",       value: deliverables.filter(d => d.type === "task" && !d.is_complete).length, color: C.blue, sub: `${deliverables.filter(d => d.type === "task" && d.is_complete).length} done`, dest: "tasks" },
           { label: "Canon",       value: activeCanon.length, color: C.purple, sub: "active sources", dest: "canon" },
         ].map(s => (
           <div key={s.label} onClick={() => navGo(s.dest)}
@@ -1084,6 +1137,80 @@ If no meaningful connections exist, return {"connections": []}`,
     );
   };
 
+  const TasksView = () => {
+    const tasks = deliverables.filter(d => d.type === "task");
+    const openTasks = tasks.filter(d => !d.is_complete);
+    const doneTasks = tasks.filter(d => d.is_complete);
+    const formatDue = (d) => {
+      const date = new Date(d);
+      const diff = Math.ceil((date.getTime() - Date.now()) / 864e5);
+      if (diff < 0) return { text: `${Math.abs(diff)}d overdue`, color: C.red };
+      if (diff === 0) return { text: "today", color: C.gold };
+      if (diff === 1) return { text: "tomorrow", color: C.gold };
+      return { text: `in ${diff}d`, color: C.textMuted };
+    };
+    return (
+      <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
+        <div style={{ maxWidth: 700 }}>
+          <div style={{ fontSize: 20, color: C.textPrimary, fontWeight: 500, marginBottom: 8 }}>Tasks</div>
+          <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28 }}>Simple to-dos. No AI analysis.</div>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 18, marginBottom: 32 }}>
+            <input value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && newTaskText.trim()) addTask(); }}
+              placeholder="What needs to get done?"
+              style={{ width: "100%", background: "transparent", border: "none", color: C.textPrimary, fontSize: 15, outline: "none", marginBottom: 12, fontFamily: sans }} />
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)}
+                placeholder="Due date (YYYY-MM-DD)"
+                style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 4, color: C.textPrimary, fontSize: 12, padding: "8px 12px", outline: "none", fontFamily: mono }} />
+              <button onClick={addTask} disabled={!newTaskText.trim() || taskAdding}
+                style={{ background: newTaskText.trim() ? C.gold : C.surfaceHigh, color: newTaskText.trim() ? C.bg : C.textMuted, border: "none", borderRadius: 4, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: newTaskText.trim() ? "pointer" : "default", fontFamily: sans }}>
+                {taskAdding ? "..." : "Add"}
+              </button>
+            </div>
+          </div>
+          {openTasks.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>OPEN ({openTasks.length})</div>
+              {openTasks.map(t => {
+                const due = t.due_date ? formatDue(t.due_date) : null;
+                return (
+                  <div key={t.id} style={{ display: "flex", alignItems: "flex-start", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 6, cursor: "pointer" }}>
+                    <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
+                      style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.border}`, marginTop: 2, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>
+                      <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.6 }}>{t.text}</div>
+                      {due && <div style={{ fontSize: 10, color: due.color, marginTop: 6, fontFamily: mono }}>Due {due.text}</div>}
+                    </div>
+                    <div onClick={() => deleteTask(t.id)} style={{ fontSize: 10, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}
+                      onMouseEnter={e => e.currentTarget.style.color = C.red}
+                      onMouseLeave={e => e.currentTarget.style.color = C.textDisabled}>✕</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {doneTasks.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>DONE ({doneTasks.length})</div>
+              {doneTasks.slice(0, 15).map(t => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 6, opacity: 0.4, cursor: "pointer" }}>
+                  <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
+                    style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.green}`, background: C.green + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: C.green, flexShrink: 0 }}>✓</div>
+                  <div style={{ flex: 1, fontSize: 14, color: C.textDisabled, textDecoration: "line-through" }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>{t.text}</div>
+                  <div onClick={() => deleteTask(t.id)} style={{ fontSize: 10, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}>✕</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {tasks.length === 0 && (
+            <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 14, textAlign: "center", padding: "40px 0" }}>No tasks yet. Add one above.</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const createComposeDoc = async () => {
     if (!user) return;
     try {
@@ -1387,6 +1514,12 @@ If no meaningful connections exist, return {"connections": []}`,
             </div>
             <button onClick={() => setLeftW(prev => prev <= 60 ? 260 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 13, cursor: "pointer", padding: 4 }} title="Toggle panel">◧</button>
           </div>
+          {projects.length > 1 && (
+            <select value={currentProject?.id || ""} onChange={e => switchProject(e.target.value)}
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textSecondary, padding: "6px 8px", fontSize: 11, fontFamily: mono, outline: "none", borderRadius: 4, marginBottom: 10, cursor: "pointer" }}>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
           <div style={{ position: "relative" }}>
             <input
               ref={globalSearchRef}
@@ -1445,6 +1578,7 @@ If no meaningful connections exist, return {"connections": []}`,
             { id: "library",      icon: "▤", label: "Library" },
             { id: "canon",        icon: "◆", label: "Canon" },
             { id: "deliverables", icon: "☐", label: "Actions" },
+            { id: "tasks",        icon: "✓", label: "Tasks" },
             { id: "compose",      icon: "✎", label: "Compose" },
             { id: "connections",  icon: "⬡", label: "Map" },
           ].map(item => (
@@ -1616,7 +1750,7 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: C.bg, borderRadius: 12 }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
-            {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
+            {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", tasks: "TASKS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
             <span style={{ fontSize: 10, color: C.textDisabled, fontFamily: mono }}>{ideas.length} ideas</span>
@@ -1630,6 +1764,7 @@ If no meaningful connections exist, return {"connections": []}`,
           {view === "library"      && LibraryView()}
           {view === "canon"        && CanonView()}
           {view === "deliverables" && DeliverablesView()}
+          {view === "tasks"        && TasksView()}
           {view === "compose"      && ComposeView()}
           {view === "connections"  && MindMapView()}
         </div>
