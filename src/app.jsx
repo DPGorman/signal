@@ -147,24 +147,130 @@ export default function Signal() {
   const localSearchRef = useRef(null);
   const searchTimer = useRef(null);
 
+  const [authUser, setAuthUser] = useState(null);
+  const [authScreen, setAuthScreen] = useState("login"); // "login" | "signup"
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPass, setAuthPass] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
+  const [onboardName, setOnboardName] = useState("");
+
   useEffect(() => {
     document.documentElement.lang = "en";
     const meta = document.createElement("meta");
     meta.name = "google";
     meta.content = "notranslate";
     document.head.appendChild(meta);
-    const uid = localStorage.getItem("signal_user_id");
-    if (uid) {
-      loadAll(uid);
-    } else {
-      supabase.from("users").select("id").order("created_at", { ascending: false }).limit(1).single()
-        .then(({ data }) => {
-          if (data?.id) { localStorage.setItem("signal_user_id", data.id); loadAll(data.id); }
-          else setIsLoading(false);
-        })
-        .catch(() => setIsLoading(false));
-    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setAuthUser(session.user);
+        initFromAuth(session.user);
+      } else {
+        setIsLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setAuthUser(session.user);
+      } else {
+        setAuthUser(null);
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
+
+  const initFromAuth = async (au) => {
+    try {
+      // Find existing user record linked to this auth account
+      const { data: existingUser } = await supabase
+        .from("users").select("id").eq("auth_id", au.id).single();
+      if (existingUser) {
+        await loadAll(existingUser.id);
+      } else {
+        // New user — show onboarding
+        setOnboarding(true);
+        setIsLoading(false);
+      }
+    } catch {
+      // No user record found → onboarding
+      setOnboarding(true);
+      setIsLoading(false);
+    }
+  };
+
+  const handleAuth = async (mode) => {
+    setAuthError("");
+    setAuthLoading(true);
+    try {
+      let result;
+      if (mode === "signup") {
+        result = await supabase.auth.signUp({ email: authEmail, password: authPass });
+        // If email confirmation is enabled in Supabase, handle it
+        if (result.data?.user && !result.data.session) {
+          setAuthError("Check your email to confirm your account, then log in.");
+          setAuthLoading(false);
+          return;
+        }
+      } else {
+        result = await supabase.auth.signInWithPassword({ email: authEmail, password: authPass });
+      }
+      if (result.error) throw result.error;
+      if (result.data?.user) {
+        setAuthUser(result.data.user);
+        await initFromAuth(result.data.user);
+      }
+    } catch (e) {
+      setAuthError(e.message || "Authentication failed.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const completeOnboarding = async () => {
+    if (!onboardName.trim() || !authUser) return;
+    setAuthLoading(true);
+    try {
+      // Create user record
+      const { data: newUser, error: ue } = await supabase.from("users").insert([{
+        display_name: onboardName.trim(),
+        project_name: onboardName.trim(),
+        auth_id: authUser.id,
+      }]).select().single();
+      if (ue) throw ue;
+
+      // Create first project
+      const { error: pe } = await supabase.from("projects").insert([{
+        user_id: newUser.id,
+        name: onboardName.trim(),
+      }]);
+      if (pe) throw pe;
+
+      setOnboarding(false);
+      await loadAll(newUser.id);
+    } catch (e) {
+      setAuthError(e.message || "Failed to create account.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setAuthUser(null);
+    setIdeas([]);
+    setDeliverables([]);
+    setCanonDocs([]);
+    setProjects([]);
+    setCurrentProject(null);
+    setOnboarding(false);
+    localStorage.removeItem("signal_user_id");
+  };
 
   useEffect(() => {
     if (ideas.length > 1 && user && !studioFired.current && !studioLoading) {
@@ -720,17 +826,81 @@ If no meaningful connections exist, return {"connections": []}`,
     </div>
   );
 
+  if (!authUser) return (
+    <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans }}>
+      <div style={{ width: 340, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ textAlign: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 28, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.03em", marginBottom: 6 }}>Signal</div>
+          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>
+            {authScreen === "login" ? "WELCOME BACK" : "CREATE ACCOUNT"}
+          </div>
+        </div>
+        <input
+          type="email" placeholder="Email" value={authEmail}
+          onChange={e => setAuthEmail(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && authPass && handleAuth(authScreen)}
+          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 14, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
+        />
+        <input
+          type="password" placeholder="Password" value={authPass}
+          onChange={e => setAuthPass(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && authEmail && handleAuth(authScreen)}
+          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 14, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
+        />
+        {authError && (
+          <div style={{ fontSize: 12, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
+        )}
+        <button
+          onClick={() => handleAuth(authScreen)}
+          disabled={authLoading || !authEmail || !authPass}
+          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 11, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
+          {authLoading ? "..." : authScreen === "login" ? "LOG IN →" : "SIGN UP →"}
+        </button>
+        <div style={{ textAlign: "center" }}>
+          <button
+            onClick={() => { setAuthScreen(authScreen === "login" ? "signup" : "login"); setAuthError(""); }}
+            style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: sans }}>
+            {authScreen === "login" ? "Don't have an account? Sign up" : "Already have an account? Log in"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (onboarding) return (
+    <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans }}>
+      <div style={{ width: 380, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ textAlign: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 28, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.03em", marginBottom: 6 }}>Signal</div>
+          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>NAME YOUR PROJECT</div>
+        </div>
+        <div style={{ fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.6 }}>
+          What are you working on? This becomes your workspace.
+        </div>
+        <input
+          type="text" placeholder="e.g. CRISPR, Untitled Pilot, The Descent..."
+          value={onboardName}
+          onChange={e => setOnboardName(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && onboardName.trim() && completeOnboarding()}
+          autoFocus
+          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "14px 16px", fontSize: 15, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box", textAlign: "center" }}
+        />
+        {authError && (
+          <div style={{ fontSize: 12, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
+        )}
+        <button
+          onClick={completeOnboarding}
+          disabled={authLoading || !onboardName.trim()}
+          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 11, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
+          {authLoading ? "CREATING..." : "START →"}
+        </button>
+      </div>
+    </div>
+  );
+
   if (!user) return (
-    <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20 }}>
-      <div style={{ color: C.textPrimary, fontFamily: sans, fontSize: 26, fontStyle: "italic" }}>Signal</div>
-      <button onClick={() => {
-        supabase.from("users").select("id").order("created_at", { ascending: false }).limit(1).single()
-          .then(({ data }) => {
-            if (data?.id) { localStorage.setItem("signal_user_id", data.id); window.location.reload(); }
-          });
-      }} style={{ background: C.gold, border: "none", color: C.bg, padding: "12px 28px", fontFamily: mono, fontSize: 11, cursor: "pointer", letterSpacing: "0.1em" }}>
-        RECOVER SESSION →
-      </button>
+    <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: C.textMuted, fontFamily: sans, fontSize: 22, fontStyle: "italic" }}>Signal</div>
     </div>
   );
 
@@ -1512,7 +1682,10 @@ If no meaningful connections exist, return {"connections": []}`,
               <div style={{ fontSize: 18, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em" }}>signal</div>
               <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginTop: 2 }}>{user.project_name?.toUpperCase()}</div>
             </div>
-            <button onClick={() => setLeftW(prev => prev <= 60 ? 260 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 13, cursor: "pointer", padding: 4 }} title="Toggle panel">◧</button>
+            <div style={{ display: "flex", gap: 4 }}>
+              <button onClick={handleSignOut} style={{ background: "transparent", border: "none", color: C.textDisabled, fontSize: 10, cursor: "pointer", padding: 4, fontFamily: mono }} title="Sign out">⏻</button>
+              <button onClick={() => setLeftW(prev => prev <= 60 ? 260 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 13, cursor: "pointer", padding: 4 }} title="Toggle panel">◧</button>
+            </div>
           </div>
           {projects.length > 1 && (
             <select value={currentProject?.id || ""} onChange={e => switchProject(e.target.value)}
