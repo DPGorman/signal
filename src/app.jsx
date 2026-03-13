@@ -184,20 +184,23 @@ export default function Signal() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── FIX: was using .single() which 406s when multiple user rows exist ──
   const initFromAuth = async (au) => {
     try {
-      // Find existing user record linked to this auth account
-      const { data: existingUser } = await supabase
-        .from("users").select("id").eq("auth_id", au.id).single();
-      if (existingUser) {
-        await loadAll(existingUser.id);
+      const { data: userRecords, error } = await supabase
+        .from("users").select("id, display_name, project_name")
+        .eq("auth_id", au.id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      if (userRecords && userRecords.length > 0) {
+        // Load the first (oldest) workspace
+        await loadAll(userRecords[0].id);
       } else {
-        // New user — show onboarding
+        // No workspaces — new user, show onboarding
         setOnboarding(true);
         setIsLoading(false);
       }
     } catch {
-      // No user record found → onboarding
       setOnboarding(true);
       setIsLoading(false);
     }
