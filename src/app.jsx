@@ -1760,12 +1760,13 @@ If no meaningful connections exist, return {"connections": []}`,
           ].map(item => (
             <button key={item.id} onClick={() => navGo(item.id)}
               style={{
-                background: view === item.id ? C.gold + "20" : "transparent",
-                border: `1px solid ${view === item.id ? C.gold + "60" : C.border}`,
-                color: view === item.id ? C.gold : C.textMuted,
-                padding: "5px 10px",
-                fontSize: 15,
+                background: view === item.id ? C.gold + "20" : C.surface,
+                border: `1px solid ${view === item.id ? C.gold : C.border}`,
+                color: view === item.id ? C.gold : C.textSecondary,
+                padding: item.id === "dashboard" ? "7px 14px" : "5px 10px",
+                fontSize: item.id === "dashboard" ? 16 : 15,
                 fontFamily: mono,
+                fontWeight: item.id === "dashboard" ? 600 : 400,
                 letterSpacing: "0.05em",
                 cursor: "pointer",
                 borderRadius: 4,
