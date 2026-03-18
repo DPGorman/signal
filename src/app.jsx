@@ -1916,7 +1916,7 @@ If no meaningful connections exist, return {"connections": []}`,
       </div>
 
       {/* Left gutter - wide, centered in the gap */}
-      <div onMouseDown={startDrag("left")} style={{ width: 10, cursor: "col-resize", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onMouseDown={startDrag("left")} style={{ width: 4, cursor: "col-resize", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 3, height: 40, borderRadius: 2, background: C.border, opacity: 0.4, transition: "opacity 0.15s, background 0.15s" }}
           onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = C.gold; }}
           onMouseLeave={e => { e.currentTarget.style.opacity = 0.4; e.currentTarget.style.background = C.border; }} />
@@ -1947,7 +1947,7 @@ If no meaningful connections exist, return {"connections": []}`,
       </div>
 
       {/* Right gutter - wide, centered in the gap */}
-      <div onMouseDown={startDrag("right")} style={{ width: 10, cursor: "col-resize", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onMouseDown={startDrag("right")} style={{ width: 4, cursor: "col-resize", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 3, height: 40, borderRadius: 2, background: C.border, opacity: 0.4, transition: "opacity 0.15s, background 0.15s" }}
           onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = C.gold; }}
           onMouseLeave={e => { e.currentTarget.style.opacity = 0.4; e.currentTarget.style.background = C.border; }} />
