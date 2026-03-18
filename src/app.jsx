@@ -1747,32 +1747,34 @@ If no meaningful connections exist, return {"connections": []}`,
         </div>
 
         {/* Nav pills */}
-        <div style={{ padding: "12px 12px 6px", display: "flex", flexWrap: "wrap", gap: 4 }}>
+        <div style={{ padding: "12px 12px 6px", display: "flex", flexDirection: "column", gap: 4 }}>
           {[
-            { id: "dashboard",    icon: "◉", label: "Overview" },
-            { id: "capture",      icon: "◈", label: "Capture" },
-            { id: "library",      icon: "▤", label: "Library" },
-            { id: "canon",        icon: "◆", label: "Canon" },
-            { id: "deliverables", icon: "☐", label: "Actions" },
-            { id: "tasks",        icon: "✓", label: "Tasks" },
-            { id: "compose",      icon: "✎", label: "Compose" },
-            { id: "connections",  icon: "⬡", label: "Map" },
+            { id: "dashboard",    icon: "◉", label: "Overview",  color: C.gold },
+            { id: "capture",      icon: "◈", label: "Capture",   color: C.blue },
+            { id: "library",      icon: "▤", label: "Library",   color: C.textSecondary },
+            { id: "canon",        icon: "◆", label: "Canon",     color: C.green },
+            { id: "deliverables", icon: "☐", label: "Actions",   color: C.gold },
+            { id: "tasks",        icon: "✓", label: "Tasks",     color: C.textSecondary },
+            { id: "compose",      icon: "✎", label: "Compose",   color: C.purple },
+            { id: "connections",  icon: "⬡", label: "Map",       color: C.blue },
           ].map(item => (
             <button key={item.id} onClick={() => navGo(item.id)}
               style={{
-                background: view === item.id ? C.gold + "20" : C.surface,
-                border: `1px solid ${view === item.id ? C.gold : C.border}`,
-                color: view === item.id ? C.gold : C.textSecondary,
-                padding: item.id === "dashboard" ? "7px 14px" : "5px 10px",
-                fontSize: item.id === "dashboard" ? 16 : 15,
-                fontFamily: mono,
-                fontWeight: item.id === "dashboard" ? 600 : 400,
-                letterSpacing: "0.05em",
+                background: view === item.id ? item.color + "15" : C.bg,
+                border: `1px solid ${view === item.id ? item.color : C.border}`,
+                borderRadius: 8,
+                padding: "7px 10px",
                 cursor: "pointer",
-                borderRadius: 4,
-                transition: "all 0.15s",
-              }}>
-              {item.icon} {item.label}
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                transition: "border-color 0.15s, background 0.15s",
+              }}
+              onMouseEnter={e => { if (view !== item.id) { e.currentTarget.style.borderColor = item.color; e.currentTarget.style.background = item.color + "10"; }}}
+              onMouseLeave={e => { if (view !== item.id) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bg; }}}>
+              <span style={{ fontSize: 14, color: view === item.id ? item.color : C.textSecondary, flexShrink: 0 }}>{item.icon}</span>
+              <span style={{ fontSize: 14, color: view === item.id ? item.color : C.textSecondary, flex: 1, textAlign: "left" }}>{item.label}</span>
+              <span style={{ fontSize: 14, color: C.textDisabled }}>›</span>
             </button>
           ))}
         </div>
