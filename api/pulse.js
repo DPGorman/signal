@@ -51,12 +51,16 @@ export default async function handler(req, res) {
   }
 
   const mode = req.query?.mode || req.body?.mode || "nudge";
+  const userId = req.body?.user_id || req.query?.user_id || null;
 
   try {
-    const { data: user } = await supabase
-      .from("users").select("*")
-      .order("created_at", { ascending: false })
-      .limit(1).single();
+    let userQuery = supabase.from("users").select("*");
+    if (userId) {
+      userQuery = userQuery.eq("id", userId);
+    } else {
+      userQuery = userQuery.order("created_at", { ascending: true });
+    }
+    const { data: user } = await userQuery.limit(1).single();
 
     if (!user) return res.status(400).json({ error: "No user found" });
 
@@ -93,8 +97,7 @@ export default async function handler(req, res) {
     });
     const staleCats = Object.entries(catActivity).filter(([, age]) => age > 7 * 86400000).map(([cat]) => cat);
 
-    // Canon: feed short docs fully, summaries for big ones
-    const FULL_CONTENT_LIMIT = 12000; // ~3K tokens
+    const FULL_CONTENT_LIMIT = 12000;
     const canonFeed = (canonDocs || []).map(d => {
       const content = d.content || "";
       if (content.length <= FULL_CONTENT_LIMIT) {

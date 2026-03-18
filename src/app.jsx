@@ -1973,7 +1973,7 @@ If no meaningful connections exist, return {"connections": []}`,
               { label: "Pulse",        icon: "↯",  color: C.gold,      action: async () => {
                 notify("Sending pulse...", "processing");
                 try {
-                  const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nudge" }) });
+                  const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nudge", user_id: user?.id }) });
                   const d = await r.json();
                   if (d.sent) notify("Pulse sent to Telegram.", "success");
                   else notify("Pulse failed: " + (d.error || "unknown"), "error");
