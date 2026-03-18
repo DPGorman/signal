@@ -1975,7 +1975,7 @@ If no meaningful connections exist, return {"connections": []}`,
                 try {
                   const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nudge" }) });
                   const d = await r.json();
-                  if (d.sent) notify("Pulse sent to WhatsApp.", "success");
+                  if (d.sent) notify("Pulse sent to Telegram.", "success");
                   else notify("Pulse failed: " + (d.error || "unknown"), "error");
                 } catch (e) { notify("Pulse failed.", "error"); }
               }},
@@ -2103,7 +2103,7 @@ If no meaningful connections exist, return {"connections": []}`,
                 { label: "Total Ideas",  value: ideas.length,   color: C.gold,   dest: "library"      },
                 { label: "This Week",    value: ideas.filter(i => Date.now() - new Date(i.created_at) < 7*864e5).length, color: C.blue, dest: "library" },
                 { label: "High Signal",  value: ideas.filter(i => i.signal_strength >= 4).length, color: C.green, dest: "library" },
-                { label: "Via WhatsApp", value: ideas.filter(i => i.source === "whatsapp").length, color: C.purple, dest: "library" },
+                { label: "Via Telegram", value: ideas.filter(i => i.source === "whatsapp").length, color: C.purple, dest: "library" },
                 { label: "Open Actions", value: pending.length, color: C.red,    dest: "deliverables" },
                 { label: "Canon Docs",   value: activeCanon.length, color: C.green, dest: "canon"     },
               ].map(s => (
