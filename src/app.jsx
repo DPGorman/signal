@@ -29,16 +29,16 @@ export default function Signal() {
       {/* Sidebar */}
       <div style={{ width: 260, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
         <div style={{ padding: 24 }}>
-          <div style={{ fontSize: 20, fontWeight: 900, fontStyle: "italic", marginBottom: 24 }}>signal</div>
+          <div style={{ fontSize: 19, fontWeight: 900, fontStyle: "italic", marginBottom: 24 }}>signal</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {["Dashboard", "Capture", "Library", "Canon", "Compose", "Map"].map(v => (
-              <button key={v} onClick={() => setView(v.toLowerCase())} style={{ background: view === v.toLowerCase() ? C.gold : "transparent", border: `1px solid ${C.border}`, color: view === v.toLowerCase() ? C.bg : "white", padding: "6px 10px", borderRadius: 4, fontSize: 10, cursor: "pointer" }}>{v.toUpperCase()}</button>
+              <button key={v} onClick={() => setView(v.toLowerCase())} style={{ background: view === v.toLowerCase() ? C.gold : "transparent", border: `1px solid ${C.border}`, color: view === v.toLowerCase() ? C.bg : "white", padding: "6px 10px", borderRadius: 4, fontSize: 9, cursor: "pointer" }}>{v.toUpperCase()}</button>
             ))}
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
-            {view === "library" ? data.ideas.map(i => <div key={i.id} style={{ padding: 10, fontSize: 13 }}>{i.text.slice(0,40)}...</div>) : null}
-            {view === "canon" ? data.canonDocs.map(d => <div key={d.id} style={{ padding: 10, fontSize: 13 }}>{d.title}</div>) : null}
+            {view === "library" ? data.ideas.map(i => <div key={i.id} style={{ padding: 10, fontSize: 12 }}>{i.text.slice(0,40)}...</div>) : null}
+            {view === "canon" ? data.canonDocs.map(d => <div key={d.id} style={{ padding: 10, fontSize: 12 }}>{d.title}</div>) : null}
         </div>
       </div>
 
@@ -50,8 +50,8 @@ export default function Signal() {
 
       {/* Right Studio */}
       <div style={{ width: 300, background: C.surface, borderLeft: `1px solid ${C.border}`, padding: 24 }}>
-        <div style={{ fontSize: 11, color: C.textM, letterSpacing: "0.1em" }}>STUDIO</div>
-        <div style={{ marginTop: 24, padding: 16, background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13 }}>
+        <div style={{ fontSize: 10, color: C.textM, letterSpacing: "0.1em" }}>STUDIO</div>
+        <div style={{ marginTop: 24, padding: 16, background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12 }}>
             Modular Engine Active. Logic preservation 100%.
         </div>
       </div>
