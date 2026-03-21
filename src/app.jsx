@@ -567,7 +567,7 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ marginTop: 10 }}>
         {existing.map(r => (
           <div key={r.id} style={{ padding: "10px 14px", background: C.bg, borderLeft: `3px solid ${C.blue}`, marginBottom: 8 }}>
-            <div style={{ fontSize: 7, color: C.blue, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 4 }}>
+            <div style={{ fontSize: 9, color: C.blue, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 4 }}>
               YOU · {new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </div>
             <div style={{ fontSize: compact ? 12 : 14, color: C.textPrimary, lineHeight: 1.65 }}>{r.content}</div>
@@ -581,7 +581,7 @@ If no meaningful connections exist, return {"connections": []}`,
           />
           {draft.trim() && (
             <button onClick={send}
-              style={{ background: C.blue, border: "none", color: C.bg, padding: "7px 12px", fontFamily: mono, fontSize: 7, cursor: "pointer", flexShrink: 0 }}>
+              style={{ background: C.blue, border: "none", color: C.bg, padding: "7px 12px", fontFamily: mono, fontSize: 9, cursor: "pointer", flexShrink: 0 }}>
               ↵
             </button>
           )}
@@ -811,15 +811,15 @@ If no meaningful connections exist, return {"connections": []}`,
   const inputBase = {
     width: "100%", background: C.surfaceHigh, border: `1px solid ${C.border}`,
     color: C.textPrimary, padding: "11px 14px", fontFamily: sans,
-    fontSize: 7, outline: "none", boxSizing: "border-box",
+    fontSize: 9, outline: "none", boxSizing: "border-box",
   };
 
   const SectionHead = ({ label, onClick }) => (
     <div onClick={onClick}
-      style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", cursor: onClick ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 5, transition: "color 0.15s" }}
+      style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", cursor: onClick ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 5, transition: "color 0.15s" }}
       onMouseEnter={e => onClick && (e.currentTarget.style.color = C.gold)}
       onMouseLeave={e => (e.currentTarget.style.color = C.textMuted)}>
-      {label}{onClick && <span style={{ fontSize: 7 }}>→</span>}
+      {label}{onClick && <span style={{ fontSize: 9 }}>→</span>}
     </div>
   );
 
@@ -834,7 +834,7 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ width: 340, display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ textAlign: "center", marginBottom: 8 }}>
           <div style={{ fontSize: 27, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.03em", marginBottom: 6 }}>Signal</div>
-          <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>
+          <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>
             {authScreen === "login" ? "WELCOME BACK" : "CREATE ACCOUNT"}
           </div>
         </div>
@@ -842,27 +842,27 @@ If no meaningful connections exist, return {"connections": []}`,
           type="email" placeholder="Email" value={authEmail}
           onChange={e => setAuthEmail(e.target.value)}
           onKeyDown={e => e.key === "Enter" && authPass && handleAuth(authScreen)}
-          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 7, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
+          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 9, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
         />
         <input
           type="password" placeholder="Password" value={authPass}
           onChange={e => setAuthPass(e.target.value)}
           onKeyDown={e => e.key === "Enter" && authEmail && handleAuth(authScreen)}
-          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 7, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
+          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 9, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
         />
         {authError && (
-          <div style={{ fontSize: 7, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
+          <div style={{ fontSize: 9, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
         )}
         <button
           onClick={() => handleAuth(authScreen)}
           disabled={authLoading || !authEmail || !authPass}
-          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 7, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
+          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 9, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
           {authLoading ? "..." : authScreen === "login" ? "LOG IN →" : "SIGN UP →"}
         </button>
         <div style={{ textAlign: "center" }}>
           <button
             onClick={() => { setAuthScreen(authScreen === "login" ? "signup" : "login"); setAuthError(""); }}
-            style={{ background: "none", border: "none", color: C.textMuted, fontSize: 7, cursor: "pointer", fontFamily: sans }}>
+            style={{ background: "none", border: "none", color: C.textMuted, fontSize: 9, cursor: "pointer", fontFamily: sans }}>
             {authScreen === "login" ? "Don't have an account? Sign up" : "Already have an account? Log in"}
           </button>
         </div>
@@ -875,9 +875,9 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ width: 380, display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ textAlign: "center", marginBottom: 8 }}>
           <div style={{ fontSize: 27, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.03em", marginBottom: 6 }}>Signal</div>
-          <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>NAME YOUR PROJECT</div>
+          <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>NAME YOUR PROJECT</div>
         </div>
-        <div style={{ fontSize: 7, color: C.textSecondary, textAlign: "center", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 9, color: C.textSecondary, textAlign: "center", lineHeight: 1.6 }}>
           What are you working on? This becomes your workspace.
         </div>
         <input
@@ -886,15 +886,15 @@ If no meaningful connections exist, return {"connections": []}`,
           onChange={e => setOnboardName(e.target.value)}
           onKeyDown={e => e.key === "Enter" && onboardName.trim() && completeOnboarding()}
           autoFocus
-          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "14px 16px", fontSize: 7, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box", textAlign: "center" }}
+          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "14px 16px", fontSize: 9, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box", textAlign: "center" }}
         />
         {authError && (
-          <div style={{ fontSize: 7, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
+          <div style={{ fontSize: 9, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
         )}
         <button
           onClick={completeOnboarding}
           disabled={authLoading || !onboardName.trim()}
-          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 7, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
+          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 9, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
           {authLoading ? "CREATING..." : "START →"}
         </button>
       </div>
@@ -910,8 +910,8 @@ If no meaningful connections exist, return {"connections": []}`,
   const DashboardView = () => (
     <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "36px 44px" }}>
       <div style={{ marginBottom: 32 }}>
-        <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 500, letterSpacing: "-0.01em", marginBottom: 4 }}>{user.project_name}</div>
-        <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono }}>
+        <div style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500, letterSpacing: "-0.01em", marginBottom: 4 }}>{user.project_name}</div>
+        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
         </div>
       </div>
@@ -927,18 +927,18 @@ If no meaningful connections exist, return {"connections": []}`,
             onMouseEnter={e => e.currentTarget.style.borderColor = s.color}
             onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
             <div style={{ fontSize: 27, color: s.color, fontWeight: 300, lineHeight: 1, marginBottom: 6 }}>{s.value}</div>
-            <div style={{ fontSize: 7, color: C.textPrimary, fontWeight: 500, marginBottom: 2 }}>{s.label}</div>
-            <div style={{ fontSize: 7, color: C.textMuted }}>{s.sub}</div>
+            <div style={{ fontSize: 9, color: C.textPrimary, fontWeight: 500, marginBottom: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 9, color: C.textMuted }}>{s.sub}</div>
           </div>
         ))}
       </div>
       <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}` }}>
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <SectionHead label="RECENT CAPTURES" onClick={() => navGo("library")} />
-          <span onClick={() => navGo("library")} style={{ fontSize: 7, color: C.gold, cursor: "pointer", fontFamily: mono }}>VIEW ALL →</span>
+          <span onClick={() => navGo("library")} style={{ fontSize: 9, color: C.gold, cursor: "pointer", fontFamily: mono }}>VIEW ALL →</span>
         </div>
         {ideas.length === 0
-          ? <div style={{ padding: "24px 20px", color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>No ideas yet.</div>
+          ? <div style={{ padding: "24px 20px", color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>No ideas yet.</div>
           : ideas.slice(0, 6).map((idea, idx) => {
               const cat = getCat(idea.category);
               const daysAgo = Math.floor((Date.now() - new Date(idea.created_at)) / 864e5);
@@ -947,10 +947,10 @@ If no meaningful connections exist, return {"connections": []}`,
                   style={{ padding: "13px 18px", borderBottom: idx < 5 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12 }}
                   onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <span style={{ fontSize: 7, color: cat.color, marginTop: 2, flexShrink: 0 }}>{cat.icon}</span>
+                  <span style={{ fontSize: 9, color: cat.color, marginTop: 2, flexShrink: 0 }}>{cat.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>{idea.text}</div>
-                    <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, marginTop: 3 }}>
+                    <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>{idea.text}</div>
+                    <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginTop: 3 }}>
                       {cat.label} · {daysAgo === 0 ? "today" : `${daysAgo}d ago`}
                       {idea.signal_strength >= 4 && <span style={{ color: C.gold, marginLeft: 6 }}>◈</span>}
                     </div>
@@ -963,10 +963,10 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}` }}>
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <SectionHead label="OPEN INVITATIONS" onClick={() => navGo("deliverables")} />
-          <span onClick={() => navGo("deliverables")} style={{ fontSize: 7, color: C.gold, cursor: "pointer", fontFamily: mono }}>VIEW ALL →</span>
+          <span onClick={() => navGo("deliverables")} style={{ fontSize: 9, color: C.gold, cursor: "pointer", fontFamily: mono }}>VIEW ALL →</span>
         </div>
         {pending.length === 0
-          ? <div style={{ padding: "24px 20px", color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>All caught up.</div>
+          ? <div style={{ padding: "24px 20px", color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>All caught up.</div>
           : pending.slice(0, 5).map((task, idx, arr) => {
               const cat = getCat(task.idea?.category);
               return (
@@ -976,8 +976,8 @@ If no meaningful connections exist, return {"connections": []}`,
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 4 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>{task.text}</div>
-                    <div style={{ fontSize: 7, color: cat.color, fontFamily: mono, marginTop: 3 }}>{cat.icon} {cat.label}</div>
+                    <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>{task.text}</div>
+                    <div style={{ fontSize: 9, color: cat.color, fontFamily: mono, marginTop: 3 }}>{cat.icon} {cat.label}</div>
                   </div>
                 </div>
               );
@@ -997,7 +997,7 @@ If no meaningful connections exist, return {"connections": []}`,
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             {CATEGORIES.filter(cat => ideas.some(i => i.category === cat.id)).map(cat => (
               <span key={cat.id} onClick={() => { setFilterCat(cat.id); navGo("library"); }}
-                style={{ fontSize: 7, color: C.textMuted, cursor: "pointer", transition: "color 0.15s" }}
+                style={{ fontSize: 9, color: C.textMuted, cursor: "pointer", transition: "color 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.color = cat.color}
                 onMouseLeave={e => e.currentTarget.style.color = C.textMuted}>
                 <span style={{ color: cat.color }}>{cat.icon}</span> {cat.label} {ideas.filter(i => i.category === cat.id).length}
@@ -1010,7 +1010,7 @@ If no meaningful connections exist, return {"connections": []}`,
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, padding: "16px 18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <SectionHead label="CANON LAYER" onClick={() => navGo("canon")} />
-            <span onClick={() => navGo("canon")} style={{ fontSize: 7, color: C.gold, cursor: "pointer", fontFamily: mono }}>MANAGE →</span>
+            <span onClick={() => navGo("canon")} style={{ fontSize: 9, color: C.gold, cursor: "pointer", fontFamily: mono }}>MANAGE →</span>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {canonDocs.map(doc => (
@@ -1020,8 +1020,8 @@ If no meaningful connections exist, return {"connections": []}`,
                 onMouseLeave={e => e.currentTarget.style.borderColor = doc.is_active ? C.green + "50" : C.border}>
                 <span style={{ color: doc.is_active ? C.green : C.textDisabled }}>◈</span>
                 <div>
-                  <div style={{ fontSize: 7, color: doc.is_active ? C.textPrimary : C.textDisabled }}>{doc.title}</div>
-                  <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono }}>{doc.is_active ? "active" : "inactive"}</div>
+                  <div style={{ fontSize: 9, color: doc.is_active ? C.textPrimary : C.textDisabled }}>{doc.title}</div>
+                  <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>{doc.is_active ? "active" : "inactive"}</div>
                 </div>
               </div>
             ))}
@@ -1035,17 +1035,17 @@ If no meaningful connections exist, return {"connections": []}`,
     <div style={{ flex: 1, overflowY: "auto", padding: "52px 56px" }}>
       <div style={{ maxWidth: 660 }}>
         <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 48 }}>
-          <div style={{ fontSize: 7, color: C.gold, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 10 }}>TODAY'S INVITATION</div>
-          <div style={{ fontSize: 17, lineHeight: 1.9, color: C.textMuted, fontStyle: "italic" }}>{todayInvitation}</div>
+          <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 10 }}>TODAY'S INVITATION</div>
+          <div style={{ fontSize: 19, lineHeight: 1.9, color: C.textMuted, fontStyle: "italic" }}>{todayInvitation}</div>
         </div>
-        <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
+        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
         <textarea ref={captureInputRef}
           onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }}
           placeholder="Don't edit. Don't qualify. Just send the signal."
           rows={5}
-          style={{ ...inputBase, fontSize: 12, lineHeight: 1.9, resize: "vertical", marginBottom: 16 }}
+          style={{ ...inputBase, fontSize: 14, lineHeight: 1.9, resize: "vertical", marginBottom: 16 }}
         />
-        <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>
+        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>
           WHY DOES THIS FEEL IMPORTANT? <span style={{ color: C.textDisabled }}>(optional)</span>
         </div>
         <input ref={contextInputRef}
@@ -1053,9 +1053,9 @@ If no meaningful connections exist, return {"connections": []}`,
           style={{ ...inputBase, marginBottom: 24 }}
         />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 7, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
+          <span style={{ fontSize: 9, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
           <button onClick={captureIdea} disabled={isAnalyzing}
-            style={{ background: isAnalyzing ? C.surfaceHigh : C.gold, color: isAnalyzing ? C.textMuted : C.bg, border: "none", padding: "12px 32px", fontFamily: mono, fontSize: 7, letterSpacing: "0.1em", cursor: isAnalyzing ? "default" : "pointer" }}>
+            style={{ background: isAnalyzing ? C.surfaceHigh : C.gold, color: isAnalyzing ? C.textMuted : C.bg, border: "none", padding: "12px 32px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", cursor: isAnalyzing ? "default" : "pointer" }}>
             {isAnalyzing ? "ANALYZING..." : "SEND THE SIGNAL →"}
           </button>
         </div>
@@ -1067,7 +1067,7 @@ If no meaningful connections exist, return {"connections": []}`,
           ].map(s => (
             <div key={s.l} onClick={() => navGo(s.dest)} style={{ cursor: "pointer" }}>
               <div style={{ fontSize: 42, color: C.textPrimary, fontStyle: "italic", lineHeight: 1 }}>{s.v}</div>
-              <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginTop: 8 }}>{s.l}</div>
+              <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginTop: 8 }}>{s.l}</div>
             </div>
           ))}
         </div>
@@ -1080,68 +1080,68 @@ If no meaningful connections exist, return {"connections": []}`,
     return (
       <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
         {!displayIdea
-          ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>No ideas yet.</div>
+          ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>No ideas yet.</div>
             : (() => {
                 const cat = getCat(displayIdea.category);
                 const ideaDels = deliverables.filter(d => d.idea_id === displayIdea.id);
                 return (
                   <div style={{ maxWidth: 640 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-                      <span style={{ fontSize: 7, color: cat.color, fontFamily: mono, letterSpacing: "0.1em" }}>{cat.icon} {cat.label.toUpperCase()}</span>
-                      {displayIdea.signal_strength >= 4 && <span style={{ fontSize: 7, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px" }}>HIGH SIGNAL</span>}
-                      {searchHighlight && <span onClick={() => setSearchHighlight("")} style={{ fontSize: 7, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer" }}>✕ CLEAR HIGHLIGHT</span>}
+                      <span style={{ fontSize: 9, color: cat.color, fontFamily: mono, letterSpacing: "0.1em" }}>{cat.icon} {cat.label.toUpperCase()}</span>
+                      {displayIdea.signal_strength >= 4 && <span style={{ fontSize: 9, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px" }}>HIGH SIGNAL</span>}
+                      {searchHighlight && <span onClick={() => setSearchHighlight("")} style={{ fontSize: 9, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer" }}>✕ CLEAR HIGHLIGHT</span>}
                       <span style={{ flex: 1 }} />
                       <button onClick={() => deleteIdea(displayIdea.id)}
-                        style={{ fontSize: 7, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "3px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4, opacity: 0.6 }}
+                        style={{ fontSize: 9, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "3px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4, opacity: 0.6 }}
                         onMouseEnter={e => e.currentTarget.style.opacity = 1}
                         onMouseLeave={e => e.currentTarget.style.opacity = 0.6}>
                         DELETE
                       </button>
-                      <span style={{ fontSize: 7, color: C.textDisabled, fontFamily: mono }}>
+                      <span style={{ fontSize: 9, color: C.textDisabled, fontFamily: mono }}>
                         {new Date(displayIdea.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </span>
                     </div>
-                    <div style={{ fontSize: 7, color: C.textPrimary, lineHeight: 1.65, marginBottom: 28, fontFamily: sans }}><Highlight text={displayIdea.text} term={searchHighlight} /></div>
+                    <div style={{ fontSize: 9, color: C.textPrimary, lineHeight: 1.65, marginBottom: 28, fontFamily: sans }}><Highlight text={displayIdea.text} term={searchHighlight} /></div>
                     {displayIdea.inspiration_question && (
                       <div style={{ marginBottom: 32, padding: "16px 20px", background: C.surfaceHigh, borderLeft: `3px solid ${C.textMuted}` }}>
-                        <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>WHY IT FELT IMPORTANT</div>
-                        <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.65, fontStyle: "italic" }}><Highlight text={displayIdea.inspiration_question} term={searchHighlight} /></div>
+                        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>WHY IT FELT IMPORTANT</div>
+                        <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.65, fontStyle: "italic" }}><Highlight text={displayIdea.inspiration_question} term={searchHighlight} /></div>
                       </div>
                     )}
                     {displayIdea.ai_note && (
                       <div style={{ marginBottom: 32 }}>
-                        <div style={{ fontSize: 7, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
-                        <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.ai_note} term={searchHighlight} /></div>
+                        <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
+                        <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.ai_note} term={searchHighlight} /></div>
                         <ReplyBox ideaId={displayIdea.id} section="ai_note" />
                       </div>
                     )}
                     {displayIdea.canon_resonance && (
                       <div style={{ marginBottom: 32 }}>
-                        <div style={{ fontSize: 7, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
-                        <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
+                        <div style={{ fontSize: 9, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
+                        <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
                         <ReplyBox ideaId={displayIdea.id} section="canon_resonance" />
                       </div>
                     )}
                     {displayIdea.dimensions?.length > 0 && (
                       <div style={{ marginBottom: 32 }}>
-                        <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 12 }}>DIMENSIONS</div>
+                        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 12 }}>DIMENSIONS</div>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           {displayIdea.dimensions.map((d, i) => (
-                            <span key={i} style={{ fontSize: 7, color: C.textSecondary, border: `1px solid ${C.border}`, padding: "5px 14px", fontFamily: mono }}>{d.label}</span>
+                            <span key={i} style={{ fontSize: 9, color: C.textSecondary, border: `1px solid ${C.border}`, padding: "5px 14px", fontFamily: mono }}>{d.label}</span>
                           ))}
                         </div>
                       </div>
                     )}
                     {ideaDels.length > 0 && (
                       <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 28 }}>
-                        <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 16 }}>INVITATIONS TO ACTION</div>
+                        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 16 }}>INVITATIONS TO ACTION</div>
                         {ideaDels.map(d => (
                           <div key={d.id} onClick={() => toggleDeliverable(d.id, d.is_complete)}
                             style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
                             onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                             onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                             <div style={{ width: 17, height: 17, border: `2px solid ${d.is_complete ? C.green : C.border}`, background: d.is_complete ? C.green + "25" : "transparent", flexShrink: 0, marginTop: 3 }} />
-                            <div style={{ fontSize: 7, color: d.is_complete ? C.textDisabled : C.textSecondary, lineHeight: 1.75, textDecoration: d.is_complete ? "line-through" : "none" }}>{d.text}</div>
+                            <div style={{ fontSize: 9, color: d.is_complete ? C.textDisabled : C.textSecondary, lineHeight: 1.75, textDecoration: d.is_complete ? "line-through" : "none" }}>{d.text}</div>
                           </div>
                         ))}
                       </div>
@@ -1160,48 +1160,48 @@ If no meaningful connections exist, return {"connections": []}`,
         <div style={{ maxWidth: 500, marginBottom: 32, padding: "20px 24px", background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 6 }}>
           <input value={canonUpload.title} onChange={e => setCanonUpload(p => ({ ...p, title: e.target.value }))}
             placeholder="Document title"
-            style={{ ...inputBase, marginBottom: 10, fontSize: 7 }} />
+            style={{ ...inputBase, marginBottom: 10, fontSize: 9 }} />
           <select value={canonUpload.type} onChange={e => setCanonUpload(p => ({ ...p, type: e.target.value }))}
-            style={{ ...inputBase, marginBottom: 10, fontSize: 7 }}>
+            style={{ ...inputBase, marginBottom: 10, fontSize: 9 }}>
             {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
-          <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 6, fontWeight: 500 }}>UPLOAD FILE</div>
+          <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 6, fontWeight: 500 }}>UPLOAD FILE</div>
           <label style={{ display: "block", marginBottom: 10 }}>
             <input type="file" accept=".pdf,.doc,.docx,.txt,.md" style={{ display: "none" }} disabled={isProcessing}
               onChange={async (e) => { const file = e.target.files[0]; if (file) await processFile(file); e.target.value = ""; }} />
-            <div style={{ background: isProcessing ? C.border : C.bg, border: `1px solid ${isProcessing ? C.gold : uploadedName ? C.green : C.border}`, color: isProcessing ? C.gold : uploadedName ? C.green : C.textSecondary, padding: "10px 14px", fontFamily: mono, fontSize: 7, cursor: isProcessing ? "default" : "pointer", borderRadius: 4 }}>
+            <div style={{ background: isProcessing ? C.border : C.bg, border: `1px solid ${isProcessing ? C.gold : uploadedName ? C.green : C.border}`, color: isProcessing ? C.gold : uploadedName ? C.green : C.textSecondary, padding: "10px 14px", fontFamily: mono, fontSize: 9, cursor: isProcessing ? "default" : "pointer", borderRadius: 4 }}>
               {isProcessing ? "READING FILE..." : uploadedName ? `✓ ${uploadedName}` : "CHOOSE FILE →"}
             </div>
           </label>
-          <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 6, fontWeight: 500 }}>OR PASTE TEXT</div>
+          <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 6, fontWeight: 500 }}>OR PASTE TEXT</div>
           <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
             placeholder="Paste document text here..." rows={5}
-            style={{ ...inputBase, fontSize: 7, resize: "vertical", marginBottom: 8 }} />
+            style={{ ...inputBase, fontSize: 9, resize: "vertical", marginBottom: 8 }} />
           <button onClick={uploadCanon} disabled={isUploading || !canonUpload.title || !canonUpload.content}
-            style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: sans, fontSize: 7, fontWeight: 500, letterSpacing: "0.05em", cursor: "pointer", borderRadius: 4 }}>
+            style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: sans, fontSize: 9, fontWeight: 500, letterSpacing: "0.05em", cursor: "pointer", borderRadius: 4 }}>
             {isUploading ? "SAVING..." : "ADD TO CANON →"}
           </button>
         </div>
       )}
       {!activeDoc
-        ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>Select a document from the sidebar.</div>
+        ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>Select a document from the sidebar.</div>
         : (
           <div style={{ maxWidth: 680 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 500 }}><Highlight text={activeDoc.title} term={searchHighlight} /></div>
+              <div style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500 }}><Highlight text={activeDoc.title} term={searchHighlight} /></div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => toggleCanon(activeDoc.id, activeDoc.is_active)}
-                  style={{ fontSize: 7, color: activeDoc.is_active ? C.textMuted : C.green, background: "transparent", border: `1px solid ${C.border}`, padding: "4px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}>
+                  style={{ fontSize: 9, color: activeDoc.is_active ? C.textMuted : C.green, background: "transparent", border: `1px solid ${C.border}`, padding: "4px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}>
                   {activeDoc.is_active ? "DEACTIVATE" : "ACTIVATE"}
                 </button>
                 <button onClick={() => deleteCanon(activeDoc.id)}
-                  style={{ fontSize: 7, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "4px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}>
+                  style={{ fontSize: 9, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "4px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}>
                   DELETE
                 </button>
               </div>
             </div>
-            <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, marginBottom: 32 }}>{activeDoc.content?.length?.toLocaleString()} chars · {activeDoc.is_active ? "active" : "inactive"}</div>
-            <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: sans }}><Highlight text={activeDoc.content} term={searchHighlight} /></div>
+            <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 32 }}>{activeDoc.content?.length?.toLocaleString()} chars · {activeDoc.is_active ? "active" : "inactive"}</div>
+            <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: sans }}><Highlight text={activeDoc.content} term={searchHighlight} /></div>
           </div>
         )
       }
@@ -1218,8 +1218,8 @@ If no meaningful connections exist, return {"connections": []}`,
         <div style={{ maxWidth: 700 }}>
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 7, color: C.textSecondary }}>{pending.length} open · {completed.length} complete</span>
-              <span style={{ fontSize: 7, color: C.gold, fontFamily: mono }}>{pct}%</span>
+              <span style={{ fontSize: 9, color: C.textSecondary }}>{pending.length} open · {completed.length} complete</span>
+              <span style={{ fontSize: 9, color: C.gold, fontFamily: mono }}>{pct}%</span>
             </div>
             <div style={{ height: 3, background: C.border, borderRadius: 2 }}>
               <div style={{ height: "100%", background: C.gold, width: `${pct}%`, borderRadius: 2, transition: "width 0.4s" }} />
@@ -1228,7 +1228,7 @@ If no meaningful connections exist, return {"connections": []}`,
           <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
             {[{ id: "focus", label: "Next Up" }, { id: "workshops", label: "Workshops" }, { id: "all", label: "All Open" }].map(t => (
               <button key={t.id} onClick={() => setActionsView(t.id)}
-                style={{ background: actionsView === t.id ? C.gold + "20" : "transparent", border: `1px solid ${actionsView === t.id ? C.gold + "60" : C.border}`, color: actionsView === t.id ? C.gold : C.textMuted, padding: "5px 12px", fontSize: 7, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
+                style={{ background: actionsView === t.id ? C.gold + "20" : "transparent", border: `1px solid ${actionsView === t.id ? C.gold + "60" : C.border}`, color: actionsView === t.id ? C.gold : C.textMuted, padding: "5px 12px", fontSize: 9, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
                 {t.label}
               </button>
             ))}
@@ -1236,9 +1236,9 @@ If no meaningful connections exist, return {"connections": []}`,
 
           {actionsView === "focus" && (
             <div>
-              <div style={{ fontSize: 7, color: C.gold, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 12 }}>YOUR NEXT 5 ACTIONS</div>
+              <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 12 }}>YOUR NEXT 5 ACTIONS</div>
               {next5.length === 0
-                ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>All caught up.</div>
+                ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>All caught up.</div>
                 : next5.map(d => {
                     const cat = getCat(d.idea?.category);
                     return (
@@ -1247,10 +1247,10 @@ If no meaningful connections exist, return {"connections": []}`,
                         onClick={() => toggleDeliverable(d.id, d.is_complete)}
                         onMouseEnter={e => e.currentTarget.style.borderColor = cat.color}
                         onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-                        <div style={{ fontSize: 7, color: C.textPrimary, lineHeight: 1.6, marginBottom: 6 }}><Highlight text={d.text} term={searchHighlight} /></div>
+                        <div style={{ fontSize: 9, color: C.textPrimary, lineHeight: 1.6, marginBottom: 6 }}><Highlight text={d.text} term={searchHighlight} /></div>
                         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <span style={{ fontSize: 7, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
-                          {d.idea?.text && <span style={{ fontSize: 7, color: C.textMuted, fontFamily: mono }}>· {d.idea.text.slice(0, 40)}...</span>}
+                          <span style={{ fontSize: 9, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
+                          {d.idea?.text && <span style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>· {d.idea.text.slice(0, 40)}...</span>}
                         </div>
                       </div>
                     );
@@ -1264,8 +1264,8 @@ If no meaningful connections exist, return {"connections": []}`,
               {byCategory.map(cat => (
                 <div key={cat.id} style={{ marginBottom: 28, padding: "16px 18px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, borderTop: `3px solid ${cat.color}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <span style={{ fontSize: 7, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label.toUpperCase()} WORKSHOP</span>
-                    <span style={{ fontSize: 7, color: C.textMuted, fontFamily: mono }}>{cat.items.length} tasks</span>
+                    <span style={{ fontSize: 9, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label.toUpperCase()} WORKSHOP</span>
+                    <span style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>{cat.items.length} tasks</span>
                   </div>
                   {cat.items.slice(0, 5).map(d => (
                     <div key={d.id} id={`del-${d.id}`}
@@ -1274,10 +1274,10 @@ If no meaningful connections exist, return {"connections": []}`,
                       onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 3 }} />
-                      <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
+                      <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
                     </div>
                   ))}
-                  {cat.items.length > 5 && <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, marginTop: 8 }}>+{cat.items.length - 5} more</div>}
+                  {cat.items.length > 5 && <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginTop: 8 }}>+{cat.items.length - 5} more</div>}
                 </div>
               ))}
             </div>
@@ -1285,10 +1285,10 @@ If no meaningful connections exist, return {"connections": []}`,
 
           {actionsView === "all" && (
             pending.length === 0
-              ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>All invitations complete.</div>
+              ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>All invitations complete.</div>
               : byCategory.map(cat => (
                   <div key={cat.id} style={{ marginBottom: 28 }}>
-                    <div style={{ fontSize: 7, color: cat.color, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>{cat.icon} {cat.label.toUpperCase()}</div>
+                    <div style={{ fontSize: 9, color: cat.color, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>{cat.icon} {cat.label.toUpperCase()}</div>
                     {cat.items.map(d => (
                       <div key={d.id} id={`del-${d.id}`}
                         onClick={() => toggleDeliverable(d.id, d.is_complete)}
@@ -1297,8 +1297,8 @@ If no meaningful connections exist, return {"connections": []}`,
                         onMouseLeave={e => scrollToId !== d.id && (e.currentTarget.style.background = "transparent")}>
                         <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 3 }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
-                          {d.idea?.text && <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, marginTop: 4 }}>from: {d.idea.text.slice(0, 60)}...</div>}
+                          <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
+                          {d.idea?.text && <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginTop: 4 }}>from: {d.idea.text.slice(0, 60)}...</div>}
                         </div>
                       </div>
                     ))}
@@ -1325,26 +1325,26 @@ If no meaningful connections exist, return {"connections": []}`,
     return (
       <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
         <div style={{ maxWidth: 700 }}>
-          <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 500, marginBottom: 8 }}>Tasks</div>
-          <div style={{ fontSize: 7, color: C.textMuted, marginBottom: 28 }}>Simple to-dos. No AI analysis.</div>
+          <div style={{ fontSize: 14, color: C.textPrimary, fontWeight: 500, marginBottom: 8 }}>Tasks</div>
+          <div style={{ fontSize: 9, color: C.textMuted, marginBottom: 28 }}>Simple to-dos. No AI analysis.</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 18, marginBottom: 32 }}>
             <input value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && newTaskText.trim()) addTask(); }}
               placeholder="What needs to get done?"
-              style={{ width: "100%", background: "transparent", border: "none", color: C.textPrimary, fontSize: 7, outline: "none", marginBottom: 12, fontFamily: sans }} />
+              style={{ width: "100%", background: "transparent", border: "none", color: C.textPrimary, fontSize: 9, outline: "none", marginBottom: 12, fontFamily: sans }} />
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <input value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)}
                 placeholder="Due date (YYYY-MM-DD)"
-                style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 4, color: C.textPrimary, fontSize: 7, padding: "8px 12px", outline: "none", fontFamily: mono }} />
+                style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 4, color: C.textPrimary, fontSize: 9, padding: "8px 12px", outline: "none", fontFamily: mono }} />
               <button onClick={addTask} disabled={!newTaskText.trim() || taskAdding}
-                style={{ background: newTaskText.trim() ? C.gold : C.surfaceHigh, color: newTaskText.trim() ? C.bg : C.textMuted, border: "none", borderRadius: 4, padding: "8px 18px", fontSize: 7, fontWeight: 600, cursor: newTaskText.trim() ? "pointer" : "default", fontFamily: sans }}>
+                style={{ background: newTaskText.trim() ? C.gold : C.surfaceHigh, color: newTaskText.trim() ? C.bg : C.textMuted, border: "none", borderRadius: 4, padding: "8px 18px", fontSize: 9, fontWeight: 600, cursor: newTaskText.trim() ? "pointer" : "default", fontFamily: sans }}>
                 {taskAdding ? "..." : "Add"}
               </button>
             </div>
           </div>
           {openTasks.length > 0 && (
             <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>OPEN ({openTasks.length})</div>
+              <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>OPEN ({openTasks.length})</div>
               {openTasks.map(t => {
                 const due = t.due_date ? formatDue(t.due_date) : null;
                 return (
@@ -1352,10 +1352,10 @@ If no meaningful connections exist, return {"connections": []}`,
                     <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
                       style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.border}`, marginTop: 2, flexShrink: 0 }} />
                     <div style={{ flex: 1 }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>
-                      <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.6 }}>{t.text}</div>
-                      {due && <div style={{ fontSize: 7, color: due.color, marginTop: 6, fontFamily: mono }}>Due {due.text}</div>}
+                      <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.6 }}>{t.text}</div>
+                      {due && <div style={{ fontSize: 9, color: due.color, marginTop: 6, fontFamily: mono }}>Due {due.text}</div>}
                     </div>
-                    <div onClick={() => deleteTask(t.id)} style={{ fontSize: 7, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}
+                    <div onClick={() => deleteTask(t.id)} style={{ fontSize: 9, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}
                       onMouseEnter={e => e.currentTarget.style.color = C.red}
                       onMouseLeave={e => e.currentTarget.style.color = C.textDisabled}>✕</div>
                   </div>
@@ -1365,19 +1365,19 @@ If no meaningful connections exist, return {"connections": []}`,
           )}
           {doneTasks.length > 0 && (
             <div>
-              <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>DONE ({doneTasks.length})</div>
+              <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>DONE ({doneTasks.length})</div>
               {doneTasks.slice(0, 15).map(t => (
                 <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 6, opacity: 0.4, cursor: "pointer" }}>
                   <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
-                    style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.green}`, background: C.green + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, color: C.green, flexShrink: 0 }}>✓</div>
-                  <div style={{ flex: 1, fontSize: 7, color: C.textDisabled, textDecoration: "line-through" }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>{t.text}</div>
-                  <div onClick={() => deleteTask(t.id)} style={{ fontSize: 7, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}>✕</div>
+                    style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.green}`, background: C.green + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: C.green, flexShrink: 0 }}>✓</div>
+                  <div style={{ flex: 1, fontSize: 9, color: C.textDisabled, textDecoration: "line-through" }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>{t.text}</div>
+                  <div onClick={() => deleteTask(t.id)} style={{ fontSize: 9, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}>✕</div>
                 </div>
               ))}
             </div>
           )}
           {tasks.length === 0 && (
-            <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 7, textAlign: "center", padding: "40px 0" }}>No tasks yet. Add one above.</div>
+            <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 9, textAlign: "center", padding: "40px 0" }}>No tasks yet. Add one above.</div>
           )}
         </div>
       </div>
@@ -1427,7 +1427,7 @@ If no meaningful connections exist, return {"connections": []}`,
   const ComposeView = () => (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {!activeCompose
-        ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>Select or create a document.</div>
+        ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>Select or create a document.</div>
         : (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "36px 48px", overflow: "hidden" }}>
             <input
@@ -1436,7 +1436,7 @@ If no meaningful connections exist, return {"connections": []}`,
               defaultValue={activeCompose.title}
               placeholder="Document title..."
               onChange={() => autoSaveCompose(activeCompose.id)}
-              style={{ background: "transparent", border: "none", color: C.textPrimary, fontSize: 12, fontWeight: 500, outline: "none", marginBottom: 20, fontFamily: sans }}
+              style={{ background: "transparent", border: "none", color: C.textPrimary, fontSize: 14, fontWeight: 500, outline: "none", marginBottom: 20, fontFamily: sans }}
             />
             <textarea
               ref={composeContentRef}
@@ -1444,17 +1444,17 @@ If no meaningful connections exist, return {"connections": []}`,
               defaultValue={activeCompose.content}
               placeholder="Start writing, or paste content here..."
               onChange={() => autoSaveCompose(activeCompose.id)}
-              style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "20px 24px", fontFamily: sans, fontSize: 7, lineHeight: 1.9, outline: "none", resize: "none", overflowY: "auto", borderRadius: 6 }}
+              style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "20px 24px", fontFamily: sans, fontSize: 9, lineHeight: 1.9, outline: "none", resize: "none", overflowY: "auto", borderRadius: 6 }}
             />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-              <span style={{ fontSize: 7, color: C.textMuted, fontFamily: mono }}>Auto-saves as you type</span>
+              <span style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>Auto-saves as you type</span>
               <button onClick={() => {
                 const content = composeContentRef.current?.value || "";
                 const title = composeTitleRef.current?.value || "Untitled";
                 saveComposeDoc(activeCompose.id, { title, content });
                 notify("Saved.", "success");
               }}
-                style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "6px 14px", fontFamily: mono, fontSize: 7, cursor: "pointer", borderRadius: 4 }}>
+                style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "6px 14px", fontFamily: mono, fontSize: 9, cursor: "pointer", borderRadius: 4 }}>
                 SAVE NOW
               </button>
             </div>
@@ -1498,9 +1498,9 @@ If no meaningful connections exist, return {"connections": []}`,
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "10px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 7, color: C.textMuted, fontFamily: mono }}>{filteredNodes.length} ideas · {filteredConns.length} connections</span>
+          <span style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>{filteredNodes.length} ideas · {filteredConns.length} connections</span>
           <select value={mapFilter} onChange={e => { setMapFilter(e.target.value); setFocusedNode(null); }}
-            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "4px 8px", fontSize: 7, fontFamily: sans, borderRadius: 4, outline: "none" }}>
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "4px 8px", fontSize: 9, fontFamily: sans, borderRadius: 4, outline: "none" }}>
             <option value="all">All Categories</option>
             {CATEGORIES.filter(cat => ideas.some(i => i.category === cat.id)).map(cat => (
               <option key={cat.id} value={cat.id}>{cat.icon} {cat.label}</option>
@@ -1518,7 +1518,7 @@ If no meaningful connections exist, return {"connections": []}`,
             await loadAll(user.id);
             notify("Connections mapped.", "success");
           }}
-            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "5px 12px", fontFamily: mono, fontSize: 7, letterSpacing: "0.08em", cursor: "pointer", borderRadius: 4, flexShrink: 0 }}>
+            style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "5px 12px", fontFamily: mono, fontSize: 9, letterSpacing: "0.08em", cursor: "pointer", borderRadius: 4, flexShrink: 0 }}>
             MAP ALL
           </button>
         </div>
@@ -1538,30 +1538,30 @@ If no meaningful connections exist, return {"connections": []}`,
             return (
               <div style={{ position: "absolute", top: 12, left: 16, zIndex: 50, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "14px 16px", maxWidth: 360, maxHeight: "80vh", overflowY: "auto" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 7, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label.toUpperCase()}</span>
+                  <span style={{ fontSize: 9, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label.toUpperCase()}</span>
                   <span onClick={() => { setActiveIdea(fi); navGo("library"); }}
-                    style={{ fontSize: 7, color: C.gold, fontFamily: mono, cursor: "pointer" }}>OPEN IN LIBRARY →</span>
+                    style={{ fontSize: 9, color: C.gold, fontFamily: mono, cursor: "pointer" }}>OPEN IN LIBRARY →</span>
                 </div>
-                <div style={{ fontSize: 7, color: C.textPrimary, lineHeight: 1.5, marginBottom: 12 }}>{fi.text.slice(0, 120)}{fi.text.length > 120 ? "..." : ""}</div>
+                <div style={{ fontSize: 9, color: C.textPrimary, lineHeight: 1.5, marginBottom: 12 }}>{fi.text.slice(0, 120)}{fi.text.length > 120 ? "..." : ""}</div>
                 {fc.length > 0 && (
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
-                    <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, marginBottom: 8 }}>TOP {fc.length} CONNECTION{fc.length > 1 ? "S" : ""}</div>
+                    <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 8 }}>TOP {fc.length} CONNECTION{fc.length > 1 ? "S" : ""}</div>
                     {fc.map((c, ci) => {
                       const otherId = c.idea_id_a === focusedNode ? c.idea_id_b : c.idea_id_a;
                       const other = ideas.find(i => i.id === otherId);
                       const otherCat = other ? getCat(other.category) : null;
                       return (
                         <div key={ci} style={{ padding: "8px 10px", marginBottom: 4, background: C.bg, borderRadius: 6, border: `1px solid ${C.borderSubtle}` }}>
-                          {other && <div style={{ fontSize: 7, color: otherCat?.color || C.textMuted, fontFamily: mono, marginBottom: 3 }}>{otherCat?.icon} {other.text.slice(0, 50)}...</div>}
-                          <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.45 }}>{(c.reason || "").slice(0, 100)}{(c.reason || "").length > 100 ? "..." : ""}</div>
-                          {c.strength >= 4 && <div style={{ fontSize: 7, color: C.gold, fontFamily: mono, marginTop: 3 }}>◈ STRONG</div>}
+                          {other && <div style={{ fontSize: 9, color: otherCat?.color || C.textMuted, fontFamily: mono, marginBottom: 3 }}>{otherCat?.icon} {other.text.slice(0, 50)}...</div>}
+                          <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.45 }}>{(c.reason || "").slice(0, 100)}{(c.reason || "").length > 100 ? "..." : ""}</div>
+                          {c.strength >= 4 && <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, marginTop: 3 }}>◈ STRONG</div>}
                         </div>
                       );
                     })}
                   </div>
                 )}
                 <div onClick={() => setFocusedNode(null)}
-                  style={{ marginTop: 10, fontSize: 7, color: C.textMuted, fontFamily: mono, cursor: "pointer", textAlign: "center" }}>✕ CLOSE</div>
+                  style={{ marginTop: 10, fontSize: 9, color: C.textMuted, fontFamily: mono, cursor: "pointer", textAlign: "center" }}>✕ CLOSE</div>
               </div>
             );
           })()}
@@ -1645,13 +1645,13 @@ If no meaningful connections exist, return {"connections": []}`,
                     zIndex: 100,
                     pointerEvents: "none",
                   }}>
-                    <div style={{ fontSize: 7, color: node.color, fontFamily: mono, marginBottom: 6 }}>{node.icon} {node.category.toUpperCase()}</div>
-                    <div style={{ fontSize: 7, color: C.textPrimary, lineHeight: 1.6, marginBottom: nodeConns.length ? 10 : 0 }}>{node.fullText.slice(0, 120)}{node.fullText.length > 120 ? "..." : ""}</div>
+                    <div style={{ fontSize: 9, color: node.color, fontFamily: mono, marginBottom: 6 }}>{node.icon} {node.category.toUpperCase()}</div>
+                    <div style={{ fontSize: 9, color: C.textPrimary, lineHeight: 1.6, marginBottom: nodeConns.length ? 10 : 0 }}>{node.fullText.slice(0, 120)}{node.fullText.length > 120 ? "..." : ""}</div>
                     {nodeConns.length > 0 && (
                       <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                        <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, marginBottom: 6 }}>{nodeConns.length} CONNECTION{nodeConns.length > 1 ? "S" : ""}</div>
+                        <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, marginBottom: 6 }}>{nodeConns.length} CONNECTION{nodeConns.length > 1 ? "S" : ""}</div>
                         {nodeConns.slice(0, 3).map((c, ci) => (
-                          <div key={ci} style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.5, marginBottom: 4 }}>
+                          <div key={ci} style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.5, marginBottom: 4 }}>
                             → {c.reason}
                           </div>
                         ))}
@@ -1672,7 +1672,7 @@ If no meaningful connections exist, return {"connections": []}`,
   return (
     <div style={{ display: "flex", height: "100vh", background: "#131316", color: C.textPrimary, overflow: "hidden", padding: "8px", gap: 6 }}>
       {notification && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, border: `1px solid ${notification.type === "success" ? C.green : notification.type === "error" ? C.red : C.border}`, color: C.textPrimary, padding: "10px 22px", fontFamily: mono, fontSize: 7, letterSpacing: "0.1em", zIndex: 1000, borderRadius: 8 }}>
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, border: `1px solid ${notification.type === "success" ? C.green : notification.type === "error" ? C.red : C.border}`, color: C.textPrimary, padding: "10px 22px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", zIndex: 1000, borderRadius: 8 }}>
           {notification.msg}
         </div>
       )}
@@ -1682,17 +1682,17 @@ If no meaningful connections exist, return {"connections": []}`,
         <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ cursor: "pointer" }} onClick={() => navGo("dashboard")}>
-              <div style={{ fontSize: 12, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em" }}>signal</div>
-              <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginTop: 2 }}>{user.project_name?.toUpperCase()}</div>
+              <div style={{ fontSize: 14, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.02em" }}>signal</div>
+              <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginTop: 2 }}>{user.project_name?.toUpperCase()}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={handleSignOut} style={{ background: "transparent", border: "none", color: C.textDisabled, fontSize: 7, cursor: "pointer", padding: 4, fontFamily: mono }} title="Sign out">⏻</button>
-              <button onClick={() => setLeftW(prev => prev <= 60 ? 260 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 7, cursor: "pointer", padding: 4 }} title="Toggle panel">◧</button>
+              <button onClick={handleSignOut} style={{ background: "transparent", border: "none", color: C.textDisabled, fontSize: 9, cursor: "pointer", padding: 4, fontFamily: mono }} title="Sign out">⏻</button>
+              <button onClick={() => setLeftW(prev => prev <= 60 ? 260 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 9, cursor: "pointer", padding: 4 }} title="Toggle panel">◧</button>
             </div>
           </div>
           {projects.length > 1 && (
             <select value={currentProject?.id || ""} onChange={e => switchProject(e.target.value)}
-              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textSecondary, padding: "6px 8px", fontSize: 7, fontFamily: mono, outline: "none", borderRadius: 4, marginBottom: 10, cursor: "pointer" }}>
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textSecondary, padding: "6px 8px", fontSize: 9, fontFamily: mono, outline: "none", borderRadius: 4, marginBottom: 10, cursor: "pointer" }}>
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           )}
@@ -1705,9 +1705,9 @@ If no meaningful connections exist, return {"connections": []}`,
                 if (searchTimer.current) clearTimeout(searchTimer.current);
                 searchTimer.current = setTimeout(() => setGlobalSearch(val), 200);
               }}
-              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "7px 12px 7px 28px", fontFamily: mono, fontSize: 7, outline: "none", borderRadius: 4 }}
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "7px 12px 7px 28px", fontFamily: mono, fontSize: 9, outline: "none", borderRadius: 4 }}
             />
-            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 7, color: C.textDisabled }}>⌕</span>
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 9, color: C.textDisabled }}>⌕</span>
             {globalSearch && globalResults.length > 0 && (
               <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.surface, border: `1px solid ${C.border}`, borderTop: "none", maxHeight: 320, overflowY: "auto", zIndex: 200, borderRadius: "0 0 4px 4px" }}>
                 {globalResults.map((r, i) => (
@@ -1732,15 +1732,15 @@ If no meaningful connections exist, return {"connections": []}`,
                     style={{ padding: "8px 12px", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", display: "flex", gap: 8, alignItems: "flex-start" }}
                     onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <span style={{ fontSize: 7, color: r.color, fontFamily: mono, flexShrink: 0, marginTop: 3 }}>{r.sub.toUpperCase()}</span>
-                    <span style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={r.label} term={globalSearch} /></span>
+                    <span style={{ fontSize: 9, color: r.color, fontFamily: mono, flexShrink: 0, marginTop: 3 }}>{r.sub.toUpperCase()}</span>
+                    <span style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={r.label} term={globalSearch} /></span>
                   </div>
                 ))}
               </div>
             )}
             {globalSearch && globalResults.length === 0 && globalSearch.length >= 2 && (
               <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.surface, border: `1px solid ${C.border}`, borderTop: "none", padding: "10px 12px", zIndex: 200 }}>
-                <span style={{ fontSize: 7, color: C.textDisabled, fontStyle: "italic" }}>No results for "{globalSearch}"</span>
+                <span style={{ fontSize: 9, color: C.textDisabled, fontStyle: "italic" }}>No results for "{globalSearch}"</span>
               </div>
             )}
           </div>
@@ -1758,9 +1758,9 @@ If no meaningful connections exist, return {"connections": []}`,
             }}
             onMouseEnter={e => { if (view !== "dashboard") { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.gold + "10"; }}}
             onMouseLeave={e => { if (view !== "dashboard") { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bg; }}}>
-            <span style={{ fontSize: 12, color: view === "dashboard" ? C.gold : C.textSecondary, flexShrink: 0 }}>◉</span>
-            <span style={{ fontSize: 12, color: view === "dashboard" ? C.gold : C.textSecondary, flex: 1, textAlign: "left" }}>Overview</span>
-            <span style={{ fontSize: 12, color: C.textDisabled }}>›</span>
+            <span style={{ fontSize: 14, color: view === "dashboard" ? C.gold : C.textSecondary, flexShrink: 0 }}>◉</span>
+            <span style={{ fontSize: 14, color: view === "dashboard" ? C.gold : C.textSecondary, flex: 1, textAlign: "left" }}>Overview</span>
+            <span style={{ fontSize: 14, color: C.textDisabled }}>›</span>
           </button>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
           {[
@@ -1782,8 +1782,8 @@ If no meaningful connections exist, return {"connections": []}`,
               }}
               onMouseEnter={e => { if (view !== item.id) { e.currentTarget.style.borderColor = item.color; e.currentTarget.style.background = item.color + "10"; }}}
               onMouseLeave={e => { if (view !== item.id) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bg; }}}>
-              <span style={{ fontSize: 7, color: view === item.id ? item.color : C.textSecondary, flexShrink: 0 }}>{item.icon}</span>
-              <span style={{ fontSize: 7, color: view === item.id ? item.color : C.textSecondary }}>{item.label}</span>
+              <span style={{ fontSize: 9, color: view === item.id ? item.color : C.textSecondary, flexShrink: 0 }}>{item.icon}</span>
+              <span style={{ fontSize: 9, color: view === item.id ? item.color : C.textSecondary }}>{item.label}</span>
             </button>
           ))}
           </div>
@@ -1797,24 +1797,24 @@ If no meaningful connections exist, return {"connections": []}`,
                 ref={localSearchRef}
                 placeholder="Search library..."
                 onChange={e => setLocalSearch(e.target.value)}
-                style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "6px 10px", fontFamily: sans, fontSize: 7, outline: "none", borderRadius: 4 }}
+                style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "6px 10px", fontFamily: sans, fontSize: 9, outline: "none", borderRadius: 4 }}
               />
             </div>
             <div style={{ padding: "8px 10px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
               <button onClick={() => setFilterCat(null)}
-                style={{ background: !filterCat ? C.gold : "transparent", color: !filterCat ? C.bg : C.textMuted, border: `1px solid ${!filterCat ? C.gold : C.border}`, padding: "3px 8px", fontSize: 7, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
+                style={{ background: !filterCat ? C.gold : "transparent", color: !filterCat ? C.bg : C.textMuted, border: `1px solid ${!filterCat ? C.gold : C.border}`, padding: "3px 8px", fontSize: 9, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
                 ALL {ideas.length}
               </button>
               {CATEGORIES.filter(cat => ideas.some(i => i.category === cat.id)).map(cat => (
                 <button key={cat.id} onClick={() => setFilterCat(cat.id === filterCat ? null : cat.id)}
-                  style={{ background: filterCat === cat.id ? cat.color : "transparent", color: filterCat === cat.id ? C.bg : C.textMuted, border: `1px solid ${filterCat === cat.id ? cat.color : C.border}`, padding: "3px 8px", fontSize: 7, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
+                  style={{ background: filterCat === cat.id ? cat.color : "transparent", color: filterCat === cat.id ? C.bg : C.textMuted, border: `1px solid ${filterCat === cat.id ? cat.color : C.border}`, padding: "3px 8px", fontSize: 9, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
                   {cat.icon} {cat.label}
                 </button>
               ))}
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               {filtered.length === 0
-                ? <div style={{ padding: 20, color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>Nothing here yet.</div>
+                ? <div style={{ padding: 20, color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>Nothing here yet.</div>
                 : filtered.map(idea => {
                     const cat = getCat(idea.category);
                     const displayIdea = activeIdea || filtered[0];
@@ -1826,11 +1826,11 @@ If no meaningful connections exist, return {"connections": []}`,
                         onMouseEnter={e => !isActive && (e.currentTarget.style.background = C.surfaceHigh)}
                         onMouseLeave={e => !isActive && (e.currentTarget.style.background = "transparent")}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                          <span style={{ fontSize: 7, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label}</span>
-                          <span style={{ fontSize: 7, color: C.textDisabled, fontFamily: mono }}>{daysAgo === 0 ? "today" : `${daysAgo}d`}{idea.signal_strength >= 4 ? " ◈" : ""}</span>
+                          <span style={{ fontSize: 9, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label}</span>
+                          <span style={{ fontSize: 9, color: C.textDisabled, fontFamily: mono }}>{daysAgo === 0 ? "today" : `${daysAgo}d`}{idea.signal_strength >= 4 ? " ◈" : ""}</span>
                         </div>
-                        <div style={{ fontSize: 7, color: isActive ? C.textPrimary : C.textSecondary, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}><Highlight text={idea.text} term={localSearch} /></div>
-                        {idea.signal_strength >= 4 && <div style={{ fontSize: 7, color: C.gold, fontFamily: mono, marginTop: 4 }}>◈ HIGH SIGNAL</div>}
+                        <div style={{ fontSize: 9, color: isActive ? C.textPrimary : C.textSecondary, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}><Highlight text={idea.text} term={localSearch} /></div>
+                        {idea.signal_strength >= 4 && <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, marginTop: 4 }}>◈ HIGH SIGNAL</div>}
                       </div>
                     );
                   })
@@ -1841,7 +1841,7 @@ If no meaningful connections exist, return {"connections": []}`,
           <>
             <div style={{ padding: "10px", borderBottom: `1px solid ${C.border}` }}>
               <button onClick={() => setShowUpload(!showUpload)}
-                style={{ width: "100%", background: showUpload ? "transparent" : C.gold, color: showUpload ? C.textMuted : C.bg, border: showUpload ? `1px solid ${C.border}` : "none", padding: "8px", fontFamily: sans, fontSize: 7, fontWeight: 500, letterSpacing: "0.05em", cursor: "pointer", borderRadius: 4 }}>
+                style={{ width: "100%", background: showUpload ? "transparent" : C.gold, color: showUpload ? C.textMuted : C.bg, border: showUpload ? `1px solid ${C.border}` : "none", padding: "8px", fontFamily: sans, fontSize: 9, fontWeight: 500, letterSpacing: "0.05em", cursor: "pointer", borderRadius: 4 }}>
                 {showUpload ? "CANCEL" : "+ ADD TO CANON"}
               </button>
             </div>
@@ -1851,37 +1851,37 @@ If no meaningful connections exist, return {"connections": []}`,
                   style={{ padding: "10px 12px", cursor: "pointer", display: "flex", gap: 8, alignItems: "center", borderBottom: `1px solid ${C.borderSubtle}`, borderLeft: activeDoc?.id === doc.id ? `3px solid ${C.green}` : "3px solid transparent", background: activeDoc?.id === doc.id ? C.surfaceHigh : "transparent" }}
                   onMouseEnter={e => activeDoc?.id !== doc.id && (e.currentTarget.style.background = C.surfaceHigh)}
                   onMouseLeave={e => activeDoc?.id !== doc.id && (e.currentTarget.style.background = "transparent")}>
-                  <span style={{ fontSize: 7, color: doc.is_active ? C.green : C.textDisabled, flexShrink: 0 }}>{doc.is_active ? "✓" : "○"}</span>
+                  <span style={{ fontSize: 9, color: doc.is_active ? C.green : C.textDisabled, flexShrink: 0 }}>{doc.is_active ? "✓" : "○"}</span>
                   <div style={{ overflow: "hidden" }}>
-                    <div style={{ fontSize: 7, color: doc.is_active ? C.textPrimary : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.title}</div>
-                    <div style={{ fontSize: 7, color: C.textDisabled, fontFamily: mono }}>{doc.type || "reference"}</div>
+                    <div style={{ fontSize: 9, color: doc.is_active ? C.textPrimary : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.title}</div>
+                    <div style={{ fontSize: 9, color: C.textDisabled, fontFamily: mono }}>{doc.type || "reference"}</div>
                   </div>
                 </div>
               ))}
-              {canonDocs.length === 0 && <div style={{ padding: 20, color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>No sources yet.</div>}
+              {canonDocs.length === 0 && <div style={{ padding: 20, color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>No sources yet.</div>}
             </div>
           </>
         ) : (view === "compose") ? (
           <>
             <div style={{ padding: "10px", borderBottom: `1px solid ${C.border}` }}>
               <button onClick={createComposeDoc}
-                style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "8px", fontFamily: sans, fontSize: 7, fontWeight: 500, letterSpacing: "0.05em", cursor: "pointer", borderRadius: 4 }}>
+                style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "8px", fontFamily: sans, fontSize: 9, fontWeight: 500, letterSpacing: "0.05em", cursor: "pointer", borderRadius: 4 }}>
                 + NEW DOCUMENT
               </button>
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               {composeDocs.length === 0
-                ? <div style={{ padding: 20, color: C.textDisabled, fontStyle: "italic", fontSize: 7 }}>No documents yet.</div>
+                ? <div style={{ padding: 20, color: C.textDisabled, fontStyle: "italic", fontSize: 9 }}>No documents yet.</div>
                 : composeDocs.map(doc => (
                     <div key={doc.id} onClick={() => setActiveCompose(doc)}
                       style={{ padding: "10px 12px", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", borderLeft: activeCompose?.id === doc.id ? `3px solid ${C.gold}` : "3px solid transparent", background: activeCompose?.id === doc.id ? C.surfaceHigh : "transparent" }}
                       onMouseEnter={e => activeCompose?.id !== doc.id && (e.currentTarget.style.background = C.surfaceHigh)}
                       onMouseLeave={e => activeCompose?.id !== doc.id && (e.currentTarget.style.background = "transparent")}>
-                      <div style={{ fontSize: 7, color: activeCompose?.id === doc.id ? C.textPrimary : C.textSecondary, marginBottom: 3 }}>{doc.title || "Untitled"}</div>
+                      <div style={{ fontSize: 9, color: activeCompose?.id === doc.id ? C.textPrimary : C.textSecondary, marginBottom: 3 }}>{doc.title || "Untitled"}</div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 7, color: C.textMuted, fontFamily: mono }}>{doc.content?.length || 0} chars</span>
+                        <span style={{ fontSize: 9, color: C.textMuted, fontFamily: mono }}>{doc.content?.length || 0} chars</span>
                         <button onClick={e => { e.stopPropagation(); deleteComposeDoc(doc.id); }}
-                          style={{ fontSize: 7, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "2px 6px", fontFamily: mono, cursor: "pointer", borderRadius: 3 }}>
+                          style={{ fontSize: 9, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "2px 6px", fontFamily: mono, cursor: "pointer", borderRadius: 3 }}>
                           DEL
                         </button>
                       </div>
@@ -1892,7 +1892,7 @@ If no meaningful connections exist, return {"connections": []}`,
           </>
         ) : (
           <>
-            <div style={{ padding: "10px 10px 4px", fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", fontWeight: 500 }}>
+            <div style={{ padding: "10px 10px 4px", fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", fontWeight: 500 }}>
               SOURCES · {activeCanon.length} active
             </div>
             <div style={{ overflowY: "auto", padding: "0 4px" }}>
@@ -1901,13 +1901,13 @@ If no meaningful connections exist, return {"connections": []}`,
                   style={{ padding: "6px 10px", cursor: "pointer", display: "flex", gap: 8, alignItems: "center", borderRadius: 4, marginBottom: 1 }}
                   onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <span style={{ fontSize: 7, color: doc.is_active ? C.green : C.textDisabled, flexShrink: 0 }}>{doc.is_active ? "✓" : "○"}</span>
-                  <div style={{ fontSize: 7, color: doc.is_active ? C.textPrimary : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.title}</div>
+                  <span style={{ fontSize: 9, color: doc.is_active ? C.green : C.textDisabled, flexShrink: 0 }}>{doc.is_active ? "✓" : "○"}</span>
+                  <div style={{ fontSize: 9, color: doc.is_active ? C.textPrimary : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.title}</div>
                 </div>
               ))}
-              {canonDocs.length === 0 && <div style={{ padding: 12, fontSize: 7, color: C.textDisabled, fontStyle: "italic" }}>No sources yet.</div>}
+              {canonDocs.length === 0 && <div style={{ padding: 12, fontSize: 9, color: C.textDisabled, fontStyle: "italic" }}>No sources yet.</div>}
 
-              <div style={{ padding: "14px 8px 4px", fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", fontWeight: 500 }}>
+              <div style={{ padding: "14px 8px 4px", fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", fontWeight: 500 }}>
                 RECENT IDEAS
               </div>
               {ideas.slice(0, 8).map(idea => {
@@ -1918,8 +1918,8 @@ If no meaningful connections exist, return {"connections": []}`,
                     style={{ padding: "6px 10px", cursor: "pointer", borderRadius: 4, background: isActive ? C.surfaceHigh : "transparent", marginBottom: 1 }}
                     onMouseEnter={e => !isActive && (e.currentTarget.style.background = C.surfaceHigh)}
                     onMouseLeave={e => !isActive && (e.currentTarget.style.background = "transparent")}>
-                    <div style={{ fontSize: 7, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</div>
-                    <div style={{ fontSize: 7, color: isActive ? C.textPrimary : C.textSecondary, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{idea.text}</div>
+                    <div style={{ fontSize: 9, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</div>
+                    <div style={{ fontSize: 9, color: isActive ? C.textPrimary : C.textSecondary, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{idea.text}</div>
                   </div>
                 );
               })}
@@ -1938,13 +1938,13 @@ If no meaningful connections exist, return {"connections": []}`,
       {/* ─── CENTER COLUMN: Main Content ─── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: C.bg, borderRadius: 12 }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
+          <span style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
             {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", tasks: "TASKS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
-            <span style={{ fontSize: 7, color: C.textDisabled, fontFamily: mono }}>{ideas.length} ideas</span>
-            <span style={{ fontSize: 7, color: C.textDisabled }}>·</span>
-            <span style={{ fontSize: 7, color: C.textDisabled, fontFamily: mono }}>{pending.length} open</span>
+            <span style={{ fontSize: 9, color: C.textDisabled, fontFamily: mono }}>{ideas.length} ideas</span>
+            <span style={{ fontSize: 9, color: C.textDisabled }}>·</span>
+            <span style={{ fontSize: 9, color: C.textDisabled, fontFamily: mono }}>{pending.length} open</span>
           </div>
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -1970,8 +1970,8 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ width: rightW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12 }}>
         <div style={{ padding: "12px 14px 14px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <span style={{ fontSize: 7, color: C.textPrimary, fontWeight: 500 }}>Studio</span>
-            <button onClick={() => setRightW(prev => prev <= 60 ? 290 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 7, cursor: "pointer", padding: 4 }} title="Toggle panel">◨</button>
+            <span style={{ fontSize: 9, color: C.textPrimary, fontWeight: 500 }}>Studio</span>
+            <button onClick={() => setRightW(prev => prev <= 60 ? 290 : 60)} style={{ background: "transparent", border: "none", color: C.textMuted, fontSize: 9, cursor: "pointer", padding: 4 }} title="Toggle panel">◨</button>
           </div>
 
           {/* Tool cards grid — NotebookLM style */}
@@ -2007,9 +2007,9 @@ If no meaningful connections exist, return {"connections": []}`,
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = tool.color; e.currentTarget.style.background = tool.color + "10"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bg; }}>
-                <span style={{ fontSize: 7, color: tool.color, flexShrink: 0 }}>{tool.icon}</span>
-                <span style={{ fontSize: 7, color: C.textSecondary, flex: 1, textAlign: "left" }}>{tool.label}</span>
-                <span style={{ fontSize: 7, color: C.textDisabled }}>›</span>
+                <span style={{ fontSize: 9, color: tool.color, flexShrink: 0 }}>{tool.icon}</span>
+                <span style={{ fontSize: 9, color: C.textSecondary, flex: 1, textAlign: "left" }}>{tool.label}</span>
+                <span style={{ fontSize: 9, color: C.textDisabled }}>›</span>
               </button>
             ))}
           </div>
@@ -2019,7 +2019,7 @@ If no meaningful connections exist, return {"connections": []}`,
         <div style={{ padding: "8px 14px 0", display: "flex", borderBottom: `1px solid ${C.border}` }}>
           {[{ id: "insight", label: "Insight" }, { id: "patterns", label: "Patterns" }, { id: "stats", label: "Stats" }].map(t => (
             <button key={t.id} onClick={() => setStudioTab(t.id)}
-              style={{ background: "transparent", border: "none", borderBottom: studioTab === t.id ? `2px solid ${C.gold}` : "2px solid transparent", color: studioTab === t.id ? C.textPrimary : C.textMuted, padding: "6px 12px 8px", fontSize: 7, fontWeight: 500, cursor: "pointer" }}>
+              style={{ background: "transparent", border: "none", borderBottom: studioTab === t.id ? `2px solid ${C.gold}` : "2px solid transparent", color: studioTab === t.id ? C.textPrimary : C.textMuted, padding: "6px 12px 8px", fontSize: 9, fontWeight: 500, cursor: "pointer" }}>
               {t.label}
             </button>
           ))}
@@ -2029,76 +2029,76 @@ If no meaningful connections exist, return {"connections": []}`,
           {studioTab === "insight" && (
             studioLoading
               ? <div style={{ padding: "20px 0", textAlign: "center" }}>
-                  <div style={{ fontSize: 7, color: C.gold, marginBottom: 8, animation: "pulse 1.5s infinite" }}>✦</div>
-                  <div style={{ color: C.textMuted, fontSize: 7, lineHeight: 1.8 }}>Analyzing your project...</div>
-                  <div style={{ color: C.textDisabled, fontSize: 7, marginTop: 4 }}>This can take 10-15 seconds</div>
+                  <div style={{ fontSize: 9, color: C.gold, marginBottom: 8, animation: "pulse 1.5s infinite" }}>✦</div>
+                  <div style={{ color: C.textMuted, fontSize: 9, lineHeight: 1.8 }}>Analyzing your project...</div>
+                  <div style={{ color: C.textDisabled, fontSize: 9, marginTop: 4 }}>This can take 10-15 seconds</div>
                 </div>
               : studio ? (
                 <div>
                   <div style={{ marginBottom: 18 }}>
-                    <div style={{ fontSize: 7, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>PROVOCATION</div>
-                    <div style={{ fontSize: 7, color: C.textPrimary, lineHeight: 1.65, borderLeft: `3px solid ${C.gold}`, paddingLeft: 10 }}>{studio.provocation}</div>
+                    <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>PROVOCATION</div>
+                    <div style={{ fontSize: 9, color: C.textPrimary, lineHeight: 1.65, borderLeft: `3px solid ${C.gold}`, paddingLeft: 10 }}>{studio.provocation}</div>
                     <ReplyBox section="provocation" compact />
                   </div>
                   {studio.blind_spot && (
                     <div style={{ marginBottom: 18 }}>
-                      <div style={{ fontSize: 7, color: C.red, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>BLIND SPOT</div>
-                      <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.75 }}>{studio.blind_spot}</div>
+                      <div style={{ fontSize: 9, color: C.red, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>BLIND SPOT</div>
+                      <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.75 }}>{studio.blind_spot}</div>
                       <ReplyBox section="blind_spot" compact />
                     </div>
                   )}
                   {studio.urgentIdea && (
                     <div style={{ marginBottom: 18 }}>
-                      <div style={{ fontSize: 7, color: C.green, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>ACT ON THIS NOW</div>
-                      <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.75, fontStyle: "italic" }}>{studio.urgentIdea}</div>
+                      <div style={{ fontSize: 9, color: C.green, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>ACT ON THIS NOW</div>
+                      <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.75, fontStyle: "italic" }}>{studio.urgentIdea}</div>
                       <ReplyBox section="urgent" compact />
                     </div>
                   )}
                   <button onClick={() => { studioFired.current = false; setStudio(null); runStudio(ideas, user); }}
-                    style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "7px", fontFamily: mono, fontSize: 7, letterSpacing: "0.1em", cursor: "pointer", marginTop: 4, borderRadius: 4 }}>
+                    style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "7px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", cursor: "pointer", marginTop: 4, borderRadius: 4 }}>
                     REFRESH ↻
                   </button>
                 </div>
               ) : ideas.length < 2
-                ? <div style={{ fontSize: 7, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.8 }}>Capture a few ideas to activate the Studio.</div>
+                ? <div style={{ fontSize: 9, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.8 }}>Capture a few ideas to activate the Studio.</div>
                 : <button onClick={() => runStudio(ideas, user)}
-                    style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: mono, fontSize: 7, letterSpacing: "0.1em", cursor: "pointer", borderRadius: 4 }}>
+                    style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", cursor: "pointer", borderRadius: 4 }}>
                     GENERATE INSIGHT →
                   </button>
           )}
           {studioTab === "patterns" && (
             <div>
               <div style={{ marginBottom: 18 }}>
-                <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>LIBRARY AUDIT</div>
-                <div style={{ fontSize: 7, color: C.textMuted, lineHeight: 1.7, marginBottom: 8 }}>AI removes duplicates and test entries.</div>
+                <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 6 }}>LIBRARY AUDIT</div>
+                <div style={{ fontSize: 9, color: C.textMuted, lineHeight: 1.7, marginBottom: 8 }}>AI removes duplicates and test entries.</div>
                 <button onClick={auditLibrary} disabled={auditing}
-                  style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}`, color: C.red, padding: "8px", fontFamily: mono, fontSize: 7, letterSpacing: "0.1em", cursor: auditing ? "default" : "pointer", opacity: auditing ? 0.5 : 1, borderRadius: 4 }}>
+                  style={{ width: "100%", background: "transparent", border: `1px solid ${C.red}`, color: C.red, padding: "8px", fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", cursor: auditing ? "default" : "pointer", opacity: auditing ? 0.5 : 1, borderRadius: 4 }}>
                   {auditing ? "AUDITING..." : "AUDIT + CLEAN LIBRARY"}
                 </button>
               </div>
               {studio?.pattern && (
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 7, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>WHAT YOU KEEP CIRCLING</div>
-                  <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.65, borderLeft: `3px solid ${C.purple}`, paddingLeft: 10 }}>{studio.pattern}</div>
+                  <div style={{ fontSize: 9, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>WHAT YOU KEEP CIRCLING</div>
+                  <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.65, borderLeft: `3px solid ${C.purple}`, paddingLeft: 10 }}>{studio.pattern}</div>
                 </div>
               )}
               {studio?.duplicates && studio.duplicates !== "null" && (
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 7, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>ON REPETITION</div>
-                  <div style={{ fontSize: 7, color: C.textSecondary, lineHeight: 1.65, borderLeft: `3px solid ${C.gold}`, paddingLeft: 10 }}>{studio.duplicates}</div>
+                  <div style={{ fontSize: 9, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>ON REPETITION</div>
+                  <div style={{ fontSize: 9, color: C.textSecondary, lineHeight: 1.65, borderLeft: `3px solid ${C.gold}`, paddingLeft: 10 }}>{studio.duplicates}</div>
                 </div>
               )}
               {ideas.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 7, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>BY CATEGORY</div>
+                  <div style={{ fontSize: 9, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>BY CATEGORY</div>
                   {CATEGORIES.map(cat => {
                     const count = ideas.filter(i => i.category === cat.id).length;
                     if (!count) return null;
                     return (
                       <div key={cat.id} onClick={() => { setFilterCat(cat.id); navGo("library"); }} style={{ marginBottom: 8, cursor: "pointer" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                          <span style={{ fontSize: 7, color: C.textSecondary }}>{cat.icon} {cat.label}</span>
-                          <span style={{ fontSize: 7, color: cat.color, fontFamily: mono }}>{count}</span>
+                          <span style={{ fontSize: 9, color: C.textSecondary }}>{cat.icon} {cat.label}</span>
+                          <span style={{ fontSize: 9, color: cat.color, fontFamily: mono }}>{count}</span>
                         </div>
                         <div style={{ height: 2, background: C.border, borderRadius: 2 }}>
                           <div style={{ height: "100%", background: cat.color, width: `${(count / ideas.length) * 100}%`, borderRadius: 2, opacity: 0.8 }} />
@@ -2124,8 +2124,8 @@ If no meaningful connections exist, return {"connections": []}`,
                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <span style={{ fontSize: 7, color: C.textSecondary }}>{s.label}</span>
-                  <span style={{ fontSize: 12, color: s.color, fontStyle: "italic" }}>{s.value}</span>
+                  <span style={{ fontSize: 9, color: C.textSecondary }}>{s.label}</span>
+                  <span style={{ fontSize: 14, color: s.color, fontStyle: "italic" }}>{s.value}</span>
                 </div>
               ))}
             </div>
