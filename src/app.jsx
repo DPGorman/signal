@@ -344,7 +344,7 @@ export default function Signal() {
       if (cd) setComposeDocs(cd);
     } catch (e) { console.warn("Compose:", e); }
     try {
-      const { data: cn } = await supabase.from("connections").select("*").eq("user_id", uid);
+      const { data: cn } = await supabase.from("connections").select("*");
       if (cn) setConnections(cn);
     } catch (e) { console.warn("Connections:", e); }
   };
@@ -527,7 +527,6 @@ If no meaningful connections exist, return {"connections": []}`,
       const newConns = (result.connections || [])
         .filter(c => c.index >= 0 && c.index < otherIdeas.length && c.strength >= 2)
         .map(c => ({
-          user_id: user?.id,
           idea_id_a: newIdeaId,
           idea_id_b: otherIdeas[c.index].id,
           reason: c.relationship,
