@@ -125,6 +125,7 @@ export default function Signal() {
   const [scrollToId,    setScrollToId]    = useState(null);
   const [mapFilter,     setMapFilter]     = useState("all");
   const [actionsView,   setActionsView]   = useState("focus");
+  const [justDone,      setJustDone]      = useState(new Set());
   const [leftW,         setLeftW]         = useState(260);
   const [rightW,        setRightW]        = useState(290);
   const dragRef = useRef(null);
@@ -680,10 +681,22 @@ If no meaningful connections exist, return {"connections": []}`,
   };
 
   const toggleDeliverable = async (id, current) => {
-    await supabase.from("deliverables")
-      .update({ is_complete: !current, completed_at: !current ? new Date().toISOString() : null })
-      .eq("id", id);
-    setDeliverables(prev => prev.map(d => d.id === id ? { ...d, is_complete: !current } : d));
+    if (!current) {
+      setJustDone(prev => new Set([...prev, id]));
+      setTimeout(() => {
+        setDeliverables(prev => prev.map(d => d.id === id ? { ...d, is_complete: true } : d));
+        setJustDone(prev => { const s = new Set(prev); s.delete(id); return s; });
+      }, 700);
+      await supabase.from("deliverables")
+        .update({ is_complete: true, completed_at: new Date().toISOString() })
+        .eq("id", id);
+      notify("Action complete", "success");
+    } else {
+      await supabase.from("deliverables")
+        .update({ is_complete: false, completed_at: null })
+        .eq("id", id);
+      setDeliverables(prev => prev.map(d => d.id === id ? { ...d, is_complete: false } : d));
+    }
   };
 
   const toggleCanon = async (id, current) => {
@@ -1237,24 +1250,32 @@ If no meaningful connections exist, return {"connections": []}`,
           {actionsView === "focus" && (
             <div>
               <div style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 12 }}>YOUR NEXT 5 ACTIONS</div>
-              {next5.length === 0
+              {next5.length === 0 && justDone.size === 0
                 ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>All caught up.</div>
-                : next5.map(d => {
-                    const cat = getCat(d.idea?.category);
-                    return (
-                      <div key={d.id} id={`del-${d.id}`}
-                        style={{ padding: "14px 16px", marginBottom: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, borderLeft: `3px solid ${cat.color}`, cursor: "pointer" }}
-                        onClick={() => toggleDeliverable(d.id, d.is_complete)}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = cat.color}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-                        <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.6, marginBottom: 6 }}><Highlight text={d.text} term={searchHighlight} /></div>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <span style={{ fontSize: 12, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
-                          {d.idea?.text && <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>· {d.idea.text.slice(0, 40)}...</span>}
+                : (() => {
+                    const flashItems = deliverables.filter(d => justDone.has(d.id));
+                    const visible = [...flashItems, ...next5.filter(d => !justDone.has(d.id))];
+                    return visible.map(d => {
+                      const done = justDone.has(d.id);
+                      const cat = getCat(d.idea?.category);
+                      return (
+                        <div key={d.id} id={`del-${d.id}`}
+                          style={{ padding: "14px 16px", marginBottom: 8, background: done ? C.green + "12" : C.surface, border: `1px solid ${done ? C.green + "60" : C.border}`, borderRadius: 8, borderLeft: `3px solid ${done ? C.green : cat.color}`, cursor: done ? "default" : "pointer", transition: "all 0.3s", opacity: done ? 0.7 : 1 }}
+                          onClick={() => !done && toggleDeliverable(d.id, d.is_complete)}
+                          onMouseEnter={e => { if (!done) e.currentTarget.style.borderColor = cat.color; }}
+                          onMouseLeave={e => { if (!done) e.currentTarget.style.borderColor = C.border; }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                            {done && <span style={{ color: C.green, fontSize: 14 }}>✓</span>}
+                            <div style={{ fontSize: 12, color: done ? C.textMuted : C.textPrimary, lineHeight: 1.6, textDecoration: done ? "line-through" : "none", flex: 1 }}><Highlight text={d.text} term={searchHighlight} /></div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: done ? C.textMuted : cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
+                            {d.idea?.text && <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>· {d.idea.text.slice(0, 40)}...</span>}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    });
+                  })()
               }
             </div>
           )}
