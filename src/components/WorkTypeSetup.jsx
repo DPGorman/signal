@@ -1,10 +1,5 @@
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || "https://krhidwibweznwakaoxjw.supabase.co",
-  import.meta.env.VITE_SUPABASE_ANON_KEY || ""
-);
+import { supabase } from "../lib/supabase";
 
 const C = {
   bg: "#1B1B1F", surface: "#232328", surfaceHigh: "#2C2C32",
