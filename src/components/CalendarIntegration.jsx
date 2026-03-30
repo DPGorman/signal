@@ -13,7 +13,8 @@ export default function CalendarIntegration({ user, deliverables, onEventsLoaded
     // Check if calendar was just connected via OAuth callback
     const params = new URLSearchParams(window.location.search);
     if (params.get("calendar_connected") === "true") {
-      const rt = params.get("refresh_token");
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const rt = hashParams.get("refresh_token");
       if (rt) {
         setRefreshToken(rt);
         setConnected(true);
@@ -41,10 +42,11 @@ export default function CalendarIntegration({ user, deliverables, onEventsLoaded
       .select("refresh_token")
       .eq("user_id", user.id)
       .eq("provider", "google_calendar")
-      .single();
+      .limit(1);
 
-    if (data?.refresh_token) {
-      setRefreshToken(data.refresh_token);
+    const row = data?.[0];
+    if (row?.refresh_token) {
+      setRefreshToken(row.refresh_token);
       setConnected(true);
       fetchEvents(null, data.refresh_token);
     }
@@ -86,7 +88,7 @@ export default function CalendarIntegration({ user, deliverables, onEventsLoaded
 
       // Cross-reference with Signal tasks
       if (onEventsDue) {
-        const eventTitles = data.events.map(e => e.title.toLowerCase());
+        const eventTitles = evts.map(e => e.title.toLowerCase());
         const missingTasks = deliverables.filter(d =>
           !d.is_complete &&
           d.due_date &&

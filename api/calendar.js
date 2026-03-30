@@ -62,7 +62,7 @@ export default async function handler(req, res) {
       // Redirect back to app with tokens in URL fragment
       // In production, store tokens server-side and use a session token
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://signal-navy-five.vercel.app";
-      return res.redirect(302, `${appUrl}?calendar_connected=true&refresh_token=${tokens.refresh_token}`);
+      return res.redirect(302, `${appUrl}?calendar_connected=true#refresh_token=${tokens.refresh_token}`);
     }
 
     if (action === "events") {
