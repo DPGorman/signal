@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       supabase.from("ideas").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("deliverables").select("*, idea:ideas(text, category)").eq("user_id", user.id),
       supabase.from("canon_documents").select("id, title, content, summary, is_active").eq("user_id", user.id).eq("is_active", true),
-      supabase.from("connections").select("*").eq("user_id", user.id),
+      supabase.from("connections").select("*"),
     ]);
 
     const pending = (deliverables || []).filter(d => !d.is_complete);

@@ -302,10 +302,11 @@ export default function Signal() {
   const loadAll = async (uid, projId = null) => {
     try {
       // Load user + projects first
-      const [{ data: u }, { data: projs }] = await Promise.all([
-        supabase.from("users").select("*").eq("id", uid).single(),
+      const [{ data: users }, { data: projs }] = await Promise.all([
+        supabase.from("users").select("*").eq("id", uid).limit(1),
         supabase.from("projects").select("*").eq("user_id", uid).order("created_at", { ascending: true }),
       ]);
+      const u = users?.[0];
       if (u) setUser(u);
       const projList = projs || [];
       setProjects(projList);
@@ -341,7 +342,7 @@ export default function Signal() {
       if (cd) setComposeDocs(cd);
     } catch (e) { console.warn("Compose:", e); }
     try {
-      const { data: cn } = await supabase.from("connections").select("*").eq("user_id", uid);
+      const { data: cn } = await supabase.from("connections").select("*");
       if (cn) setConnections(cn);
     } catch (e) { console.warn("Connections:", e); }
   };
