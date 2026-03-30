@@ -1,2 +1,13 @@
 .vercel
 .env*.local
+
+# Credentials — never commit secrets
+credentials.json
+token.json
+*.json.bak
+
+# Dependencies
+node_modules/
+
+# Backups
+*.bak
