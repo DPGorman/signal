@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const SUPABASE_URL = "https://krhidwibweznwakaoxjw.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable__QsWm6OyTnnGcBMxfMBX-Q_sX-asbi6";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from "./lib/supabase.js";
 
 const C = {
   bg:           "#1B1B1F",
@@ -345,7 +341,7 @@ export default function Signal() {
       if (cd) setComposeDocs(cd);
     } catch (e) { console.warn("Compose:", e); }
     try {
-      const { data: cn } = await supabase.from("connections").select("*");
+      const { data: cn } = await supabase.from("connections").select("*").eq("user_id", uid);
       if (cn) setConnections(cn);
     } catch (e) { console.warn("Connections:", e); }
   };
