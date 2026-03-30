@@ -61,8 +61,8 @@ export function getPriorityConflicts(deliverables = [], connections = []) {
   // Also check connections for explicit links that create pressure
   if (connections && connections.length) {
     connections.forEach(conn => {
-      const from = deliverables.find(d => d.id === conn.from_id);
-      const to = deliverables.find(d => d.id === conn.to_id);
+      const from = deliverables.find(d => d.idea_id === conn.idea_id_a);
+      const to = deliverables.find(d => d.idea_id === conn.idea_id_b);
       if (!from || !to) return;
       if (!from.is_complete && !to.is_complete && from.due_date && to.due_date) {
         const fromDue = new Date(from.due_date).getTime();

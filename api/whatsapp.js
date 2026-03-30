@@ -52,23 +52,24 @@ export default async function handler(req, res) {
       .from("users")
       .select("*")
       .eq("whatsapp_number", phoneNumber)
-      .single();
+      .limit(1);
 
     // Fallback to most recent user for single-user dev setup
     let userId;
     let projectName = "Film Series";
-    if (!user) {
-      const { data: latestUser } = await supabase
+    const matchedUser = user?.[0];
+    if (!matchedUser) {
+      const { data: latestUsers } = await supabase
         .from("users")
         .select("id, project_name")
         .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
+      const latestUser = latestUsers?.[0];
       userId = latestUser?.id;
       projectName = latestUser?.project_name || "Film Series";
     } else {
-      userId = user.id;
-      projectName = user.project_name || "Film Series";
+      userId = matchedUser.id;
+      projectName = matchedUser.project_name || "Film Series";
     }
 
     if (!userId) {
@@ -151,7 +152,7 @@ async function analyzeWithAI(text, projectName) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 1000,
         system: `You are a brilliant script editor and dramaturg. Analyze ideas across MULTIPLE dimensions simultaneously.
 Respond ONLY with a raw JSON object — no markdown, no backticks, no explanation:

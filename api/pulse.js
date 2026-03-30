@@ -19,7 +19,7 @@ async function callAI(system, message) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 600, system, messages: [{ role: "user", content: message }] }),
+    body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: 600, system, messages: [{ role: "user", content: message }] }),
   });
   const data = await res.json();
   return data.content?.[0]?.text || "";
@@ -34,14 +34,15 @@ export default async function handler(req, res) {
   try {
     let q = supabase.from("users").select("*");
     if (userId) { q = q.eq("id", userId); } else { q = q.order("created_at", { ascending: true }); }
-    const { data: user } = await q.limit(1).single();
+    const { data: users } = await q.limit(1);
+    const user = users?.[0];
     if (!user) return res.status(400).json({ error: "No user found" });
 
     const [{ data: ideas }, { data: deliverables }, { data: canonDocs }, { data: connections }] = await Promise.all([
       supabase.from("ideas").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("deliverables").select("*, idea:ideas(text, category)").eq("user_id", user.id),
       supabase.from("canon_documents").select("id, title, content, summary, is_active").eq("user_id", user.id).eq("is_active", true),
-      supabase.from("connections").select("*"),
+      supabase.from("connections").select("*").eq("user_id", user.id),
     ]);
 
     const pending = (deliverables || []).filter(d => !d.is_complete);
@@ -71,7 +72,7 @@ export default async function handler(req, res) {
     }).join("\n\n---\n\n");
 
     if (mode === "checkin") {
-      const msg = `Good morning Daniel. What's on your agenda today?\n\nReply here or type /status for a project snapshot.`;
+      const msg = `Good morning ${user.display_name || user.project_name || "friend"}. What's on your agenda today?\n\nReply here or type /status for a project snapshot.`;
       await sendTelegram(msg);
       return res.status(200).json({ sent: true, mode: "checkin", message: msg });
     }

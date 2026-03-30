@@ -30,12 +30,12 @@ export default async function handler(req, res) {
 
   try {
     // Get all users (for now, just the most recent one — single-user setup)
-    const { data: user } = await supabase
+    const { data: users } = await supabase
       .from("users")
       .select("id, project_name")
       .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+    const user = users?.[0];
 
     if (!user) {
       return res.status(200).json({ message: "No users found." });
@@ -73,13 +73,13 @@ export default async function handler(req, res) {
     const openActions = (deliverables || []).slice(0, 10).map(d => `- ${d.text}`).join("\n");
 
     // Get the last snapshot to avoid repetition
-    const { data: lastSnapshot } = await supabase
+    const { data: lastSnapshots } = await supabase
       .from("studio_snapshots")
       .select("snapshot")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+    const lastSnapshot = lastSnapshots?.[0];
 
     const lastInsight = lastSnapshot?.snapshot
       ? `\n\nYOUR PREVIOUS INSIGHT (do NOT repeat this — build on it or challenge it):\nProvocation: "${lastSnapshot.snapshot.provocation}"\nBlind spot: "${lastSnapshot.snapshot.blind_spot}"`

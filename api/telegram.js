@@ -18,20 +18,20 @@ async function callAI(system, message) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 800, system, messages: [{ role: "user", content: message }] }),
+    body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: 800, system, messages: [{ role: "user", content: message }] }),
   });
   const data = await res.json();
   return data.content?.[0]?.text || "";
 }
 
 async function getUser() {
-  const { data } = await supabase.from("users").select("*").order("created_at", { ascending: true }).limit(1).single();
-  return data;
+  const { data } = await supabase.from("users").select("*").order("created_at", { ascending: true }).limit(1);
+  return data?.[0] || null;
 }
 
 async function getProject(userId) {
-  const { data } = await supabase.from("projects").select("id").eq("user_id", userId).order("created_at", { ascending: true }).limit(1).single();
-  return data;
+  const { data } = await supabase.from("projects").select("id").eq("user_id", userId).order("created_at", { ascending: true }).limit(1);
+  return data?.[0] || null;
 }
 
 export default async function handler(req, res) {
