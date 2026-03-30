@@ -34,6 +34,24 @@ async function getProject(userId) {
   return data?.[0] || null;
 }
 
+async function generateConnections(newIdeaId, newIdeaText, userId) {
+  const { data: existingIdeas } = await supabase.from("ideas").select("id, category, text").eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
+  if (!existingIdeas?.length) return;
+  const others = existingIdeas.filter(i => i.id !== newIdeaId);
+  if (!others.length) return;
+  const ideaList = others.map((i, n) => `${n}|${i.id}|${i.category}|${i.text.slice(0, 120)}`).join("\n");
+  const result = await callAI(
+    `Find meaningful connections between a NEW idea and EXISTING ideas. Only real creative relationships — not just same category. Return raw JSON: {"connections":[{"index":0,"relationship":"why connected","strength":3}]} strength: 1-5. Empty array if none.`,
+    `NEW: "${newIdeaText}"\n\nEXISTING:\n${ideaList}`
+  );
+  let parsed;
+  try { parsed = JSON.parse(result.replace(/```json|```/g, "").trim()); } catch { return; }
+  const conns = (parsed.connections || [])
+    .filter(c => c.index >= 0 && c.index < others.length && c.strength >= 2)
+    .map(c => ({ idea_id_a: newIdeaId, idea_id_b: others[c.index].id, reason: c.relationship, strength: c.strength }));
+  if (conns.length > 0) await supabase.from("connections").insert(conns);
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
@@ -111,6 +129,12 @@ export default async function handler(req, res) {
     }
 
     await sendTelegram(chatId, `◈ *Signal captured.*\n${parsed.aiNote}\n\nCategory: ${parsed.category}\nSignal: ${"◈".repeat(parsed.signalStrength)}`);
+
+    // Generate connections in the background (don't block response)
+    if (newIdea) {
+      generateConnections(newIdea.id, text, user.id).catch(e => console.warn("Connection gen:", e.message));
+    }
+
     return res.status(200).json({ ok: true });
 
   } catch (error) {
