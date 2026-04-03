@@ -2252,6 +2252,7 @@ If no meaningful connections exist, return {"connections": []}`,
         </div>
       </div>
 
+      {/* CalendarIntegration loads events silently — no visible UI */}
       {user && (
         <CalendarIntegration
           user={user}

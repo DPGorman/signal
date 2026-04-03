@@ -140,24 +140,9 @@ export default function CalendarIntegration({ user, deliverables, onEventsLoaded
     return acc;
   }, {});
 
+  // Headless mode: silently load events, no visible UI
   if (!showPanel) {
-    return (
-      <button
-        onClick={() => setShowPanel(true)}
-        style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "6px 12px", borderRadius: 8,
-          background: connected ? C.surfaceHigh : "transparent",
-          border: `1px solid ${connected ? C.green : C.border}`,
-          color: connected ? C.green : C.textMuted,
-          fontSize: 12, cursor: "pointer",
-        }}
-      >
-        <span>📅</span>
-        <span>{connected ? "Calendar" : "Connect Calendar"}</span>
-        {connected && <span style={{ color: C.green, fontSize: 10 }}>●</span>}
-      </button>
-    );
+    return null;
   }
 
   return (
