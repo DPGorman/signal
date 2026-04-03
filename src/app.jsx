@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase.js";
+import TodayFocus from "./components/TodayFocus.jsx";
+import CalendarIntegration from "./components/CalendarIntegration.jsx";
+import CalendarView from "./components/views/CalendarView.jsx";
+import TasksView from "./components/views/TasksView.jsx";
 
 const C = {
   bg:           "#1B1B1F",
@@ -50,6 +54,7 @@ const DAILY_INVITATIONS = [
 ];
 
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
+const formatDuration = (mins) => { if (!mins) return null; if (mins < 60) return `${mins}m`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h}h ${m}m` : `${h}h`; };
 const todayInvitation = DAILY_INVITATIONS[new Date().getDay() % DAILY_INVITATIONS.length];
 
 const Highlight = ({ text, term }) => {
@@ -88,7 +93,7 @@ export default function Signal() {
   const [ideas,         setIdeas]         = useState([]);
   const [deliverables,  setDeliverables]  = useState([]);
   const [canonDocs,     setCanonDocs]     = useState([]);
-  const [view,          setView]          = useState("dashboard");
+  const [view,          setView]          = useState("today");
   const [activeIdea,    setActiveIdea]    = useState(null);
   const [activeDoc,     setActiveDoc]     = useState(null);
   const [input,         setInput]         = useState("");
@@ -132,6 +137,8 @@ export default function Signal() {
   const [newTaskText,   setNewTaskText]   = useState("");
   const [newTaskDue,    setNewTaskDue]    = useState("");
   const [taskAdding,    setTaskAdding]    = useState(false);
+  const [newTaskDuration, setNewTaskDuration] = useState("");
+  const [calendarEvents, setCalendarEvents] = useState([]);
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
@@ -451,12 +458,14 @@ ${openInvites || "None yet."}
 
 ${ctx ? `WHY THIS FELT IMPORTANT:\n"${ctx}"\n\n` : ""}Rules: if substantially same as existing idea, say so in aiNote and set signalStrength to 1. Max 2 invitations, only if genuinely new. signalStrength: 1=noise, 2=interesting, 3=strong, 4=urgent, 5=essential.
 
+Today's date is ${new Date().toISOString().split("T")[0]}. For each invitation, suggest a realistic due_date (YYYY-MM-DD) based on complexity and urgency. Use dates within the next 1-4 weeks. If no date makes sense, use null. Also estimate duration_minutes: how long this action would take a working professional. Use 30, 60, 90, 120, 180, or 240.
+
 Raw JSON only:
 {
   "category": "premise|character|scene|dialogue|arc|production|research|business",
   "dimensions": ["level 1","level 2"],
   "aiNote": "specific insight in context of everything captured",
-  "invitations": [],
+  "invitations": [{"text": "action description", "due_date": "YYYY-MM-DD or null", "duration_minutes": 60}],
   "signalStrength": 3,
   "canonResonance": ""
 }`,
@@ -482,7 +491,14 @@ Raw JSON only:
         );
       if (analysis.invitations?.length)
         await supabase.from("deliverables").insert(
-          analysis.invitations.map(t => ({ idea_id: saved.id, user_id: user.id, text: t, project_id: currentProject?.id || null }))
+          analysis.invitations.map(inv => ({
+            idea_id: saved.id,
+            user_id: user.id,
+            text: typeof inv === "string" ? inv : inv.text,
+            due_date: (typeof inv === "object" && inv.due_date) ? inv.due_date : null,
+            duration_minutes: (typeof inv === "object" && inv.duration_minutes) ? inv.duration_minutes : null,
+            project_id: currentProject?.id || null,
+          }))
         );
 
       await loadAll(user.id);
@@ -718,7 +734,7 @@ If no meaningful connections exist, return {"connections": []}`,
     setLocalSearch("");
     if (localSearchRef.current) localSearchRef.current.value = "";
     if (idea) { setActiveIdea(idea); }
-    else if (v !== "library" && v !== "canon" && v !== "compose" && v !== "tasks") { setActiveIdea(null); setActiveDoc(null); }
+    else if (v !== "library" && v !== "canon" && v !== "compose") { setActiveIdea(null); setActiveDoc(null); }
   };
 
   // Drag-to-resize gutters
@@ -786,15 +802,18 @@ If no meaningful connections exist, return {"connections": []}`,
     }
   };
 
-  const addTask = async () => {
-    const text = newTaskText.trim();
-    if (!text || !user || taskAdding) return;
+  const addTask = async (text, dueDate, extra = {}) => {
+    const taskText = (text || newTaskText).trim();
+    if (!taskText || !user || taskAdding) return;
     setTaskAdding(true);
-    const insertData = { user_id: user.id, text, type: "task", priority: 2, project_id: currentProject?.id || null };
-    if (newTaskDue && /^\d{4}-\d{2}-\d{2}$/.test(newTaskDue)) insertData.due_date = newTaskDue;
+    const insertData = { user_id: user.id, text: taskText, type: "task", priority: 2, project_id: currentProject?.id || null, ...extra };
+    const dueDateVal = dueDate || newTaskDue;
+    if (dueDateVal) insertData.due_date = dueDateVal;
+    if (newTaskDuration) insertData.duration_minutes = parseInt(newTaskDuration);
     await supabase.from("deliverables").insert([insertData]);
     setNewTaskText("");
     setNewTaskDue("");
+    setNewTaskDuration("");
     setTaskAdding(false);
     await loadAll(user.id, currentProject?.id);
   };
@@ -805,7 +824,58 @@ If no meaningful connections exist, return {"connections": []}`,
     setDeliverables(prev => prev.filter(d => d.id !== id));
   };
 
-  const pending     = deliverables.filter(d => !d.is_complete && d.type !== "task");
+  const updateTask = async (id, updates) => {
+    setDeliverables(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+    await supabase.from("deliverables").update(updates).eq("id", id);
+  };
+
+  const starTask = async (id, starred) => {
+    setDeliverables(prev => prev.map(d => d.id === id ? { ...d, is_starred: starred } : d));
+    await supabase.from("deliverables").update({ is_starred: starred }).eq("id", id);
+  };
+
+  const addToSession = async (id) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    setDeliverables(prev => prev.map(d => d.id === id ? { ...d, session_date: todayStr } : d));
+    await supabase.from("deliverables").update({ session_date: todayStr }).eq("id", id);
+  };
+
+  const removeFromSession = async (id) => {
+    setDeliverables(prev => prev.map(d => d.id === id ? { ...d, session_date: null } : d));
+    await supabase.from("deliverables").update({ session_date: null }).eq("id", id);
+  };
+
+  const pushToGoogleCalendar = async (deliverable) => {
+    if (!user) return;
+    try {
+      // Get refresh token
+      const { data } = await supabase
+        .from("user_integrations")
+        .select("refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "google_calendar")
+        .limit(1);
+      const token = data?.[0]?.refresh_token;
+      if (!token) { notify("Connect Google Calendar first.", "error"); return; }
+
+      const res = await fetch("/api/calendar?action=create-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refresh_token: token,
+          title: deliverable.text,
+          date: deliverable.due_date,
+          duration_minutes: deliverable.duration_minutes || 60,
+          description: deliverable.idea?.text || "",
+        }),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      notify("Pushed to Google Calendar.", "success");
+    } catch (e) { console.error("Push to calendar:", e); notify("Failed to push to calendar.", "error"); }
+  };
+
+  const pending     = deliverables.filter(d => !d.is_complete);
   const activeCanon = canonDocs.filter(d => d.is_active);
   const filtered    = (() => {
     let f = filterCat ? ideas.filter(i => i.category === filterCat) : ideas;
@@ -928,8 +998,8 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 36 }}>
         {[
           { label: "Ideas",       value: ideas.length,   color: C.gold,   sub: `${ideas.filter(i => Date.now() - new Date(i.created_at) < 7*864e5).length} this week`, dest: "library" },
-          { label: "Invitations", value: pending.length, color: C.red,    sub: `${deliverables.filter(d => d.is_complete && d.type !== "task").length} completed`, dest: "deliverables" },
-          { label: "Tasks",       value: deliverables.filter(d => d.type === "task" && !d.is_complete).length, color: C.blue, sub: `${deliverables.filter(d => d.type === "task" && d.is_complete).length} done`, dest: "tasks" },
+          { label: "Actions",     value: pending.length, color: C.red,    sub: `${deliverables.filter(d => d.is_complete).length} completed`, dest: "deliverables" },
+          { label: "Overdue",     value: deliverables.filter(d => !d.is_complete && d.due_date && d.due_date.slice(0,10) < new Date().toISOString().slice(0,10)).length, color: C.red, sub: "need attention", dest: "calendar" },
           { label: "Canon",       value: activeCanon.length, color: C.purple, sub: "active sources", dest: "canon" },
         ].map(s => (
           <div key={s.label} onClick={() => navGo(s.dest)}
@@ -1221,11 +1291,48 @@ If no meaningful connections exist, return {"connections": []}`,
   const DeliverablesView = () => {
     const completed = deliverables.filter(d => d.is_complete);
     const pct = deliverables.length ? Math.round((completed.length / deliverables.length) * 100) : 0;
-    const byCategory = CATEGORIES.map(cat => ({ ...cat, items: pending.filter(d => d.idea?.category === cat.id) })).filter(cat => cat.items.length > 0);
+    const invitations = pending.filter(d => d.type !== "task");
+    const tasks = pending.filter(d => d.type === "task");
+    const byCategory = CATEGORIES.map(cat => ({ ...cat, items: invitations.filter(d => d.idea?.category === cat.id) })).filter(cat => cat.items.length > 0);
     const next5 = pending.slice(0, 5);
+    const formatDue = (d) => {
+      const date = new Date(d);
+      const diff = Math.ceil((date.getTime() - Date.now()) / 864e5);
+      if (diff < 0) return { text: `${Math.abs(diff)}d overdue`, color: C.red };
+      if (diff === 0) return { text: "today", color: C.gold };
+      if (diff === 1) return { text: "tomorrow", color: C.gold };
+      return { text: `in ${diff}d`, color: C.textMuted };
+    };
     return (
       <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
         <div style={{ maxWidth: 700 }}>
+          {/* Add task form */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 18, marginBottom: 24 }}>
+            <input value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && newTaskText.trim()) addTask(); }}
+              placeholder="Add a task..."
+              style={{ width: "100%", background: "transparent", border: "none", color: C.textPrimary, fontSize: 12, outline: "none", marginBottom: 12, fontFamily: sans }} />
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} type="date"
+                style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 4, color: C.textPrimary, fontSize: 12, padding: "8px 12px", outline: "none", fontFamily: mono }} />
+              <select value={newTaskDuration} onChange={e => setNewTaskDuration(e.target.value)}
+                style={{ background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 4, color: newTaskDuration ? C.textPrimary : C.textMuted, fontSize: 12, padding: "8px 10px", outline: "none", fontFamily: mono }}>
+                <option value="">Duration</option>
+                <option value="30">30m</option>
+                <option value="60">1h</option>
+                <option value="90">1.5h</option>
+                <option value="120">2h</option>
+                <option value="180">3h</option>
+                <option value="240">4h</option>
+              </select>
+              <button onClick={addTask} disabled={!newTaskText.trim() || taskAdding}
+                style={{ background: newTaskText.trim() ? C.gold : C.surfaceHigh, color: newTaskText.trim() ? C.bg : C.textMuted, border: "none", borderRadius: 4, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: newTaskText.trim() ? "pointer" : "default", fontFamily: sans }}>
+                {taskAdding ? "..." : "Add"}
+              </button>
+            </div>
+          </div>
+
+          {/* Progress bar */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 12, color: C.textSecondary }}>{pending.length} open · {completed.length} complete</span>
@@ -1235,8 +1342,10 @@ If no meaningful connections exist, return {"connections": []}`,
               <div style={{ height: "100%", background: C.gold, width: `${pct}%`, borderRadius: 2, transition: "width 0.4s" }} />
             </div>
           </div>
+
+          {/* View tabs */}
           <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
-            {[{ id: "focus", label: "Next Up" }, { id: "workshops", label: "Workshops" }, { id: "all", label: "All Open" }].map(t => (
+            {[{ id: "focus", label: "Next Up" }, { id: "tasks", label: `Tasks (${tasks.length})` }, { id: "workshops", label: "Workshops" }, { id: "all", label: "All Open" }].map(t => (
               <button key={t.id} onClick={() => setActionsView(t.id)}
                 style={{ background: actionsView === t.id ? C.gold + "20" : "transparent", border: `1px solid ${actionsView === t.id ? C.gold + "60" : C.border}`, color: actionsView === t.id ? C.gold : C.textMuted, padding: "5px 12px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
                 {t.label}
@@ -1255,6 +1364,7 @@ If no meaningful connections exist, return {"connections": []}`,
                     return visible.map(d => {
                       const done = justDone.has(d.id);
                       const cat = getCat(d.idea?.category);
+                      const due = d.due_date ? formatDue(d.due_date) : null;
                       return (
                         <div key={d.id} id={`del-${d.id}`}
                           style={{ padding: "14px 16px", marginBottom: 8, background: done ? C.green + "12" : C.surface, border: `1px solid ${done ? C.green + "60" : C.border}`, borderRadius: 8, borderLeft: `3px solid ${done ? C.green : cat.color}`, cursor: done ? "default" : "pointer", transition: "all 0.3s", opacity: done ? 0.7 : 1 }}
@@ -1267,6 +1377,7 @@ If no meaningful connections exist, return {"connections": []}`,
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <span style={{ fontSize: 12, color: done ? C.textMuted : cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
+                            {due && <span style={{ fontSize: 12, color: due.color, fontFamily: mono }}>· due {due.text}</span>}
                             {d.idea?.text && <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>· {d.idea.text.slice(0, 40)}...</span>}
                           </div>
                         </div>
@@ -1274,6 +1385,43 @@ If no meaningful connections exist, return {"connections": []}`,
                     });
                   })()
               }
+            </div>
+          )}
+
+          {actionsView === "tasks" && (
+            <div>
+              {tasks.length === 0
+                ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>No tasks. Add one above.</div>
+                : tasks.map(t => {
+                    const due = t.due_date ? formatDue(t.due_date) : null;
+                    return (
+                      <div key={t.id} style={{ display: "flex", alignItems: "flex-start", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 6, cursor: "pointer" }}>
+                        <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
+                          style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.border}`, marginTop: 2, flexShrink: 0 }} />
+                        <div style={{ flex: 1 }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>
+                          <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>{t.text}</div>
+                          {due && <div style={{ fontSize: 12, color: due.color, marginTop: 6, fontFamily: mono }}>Due {due.text}</div>}
+                        </div>
+                        <div onClick={() => deleteTask(t.id)} style={{ fontSize: 12, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}
+                          onMouseEnter={e => e.currentTarget.style.color = C.red}
+                          onMouseLeave={e => e.currentTarget.style.color = C.textDisabled}>✕</div>
+                      </div>
+                    );
+                  })
+              }
+              {deliverables.filter(d => d.type === "task" && d.is_complete).length > 0 && (
+                <div style={{ marginTop: 24 }}>
+                  <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>DONE ({deliverables.filter(d => d.type === "task" && d.is_complete).length})</div>
+                  {deliverables.filter(d => d.type === "task" && d.is_complete).slice(0, 10).map(t => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 6, opacity: 0.4, cursor: "pointer" }}>
+                      <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
+                        style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.green}`, background: C.green + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: C.green, flexShrink: 0 }}>✓</div>
+                      <div style={{ flex: 1, fontSize: 12, color: C.textDisabled, textDecoration: "line-through" }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>{t.text}</div>
+                      <div onClick={() => deleteTask(t.id)} style={{ fontSize: 12, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}>✕</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1303,99 +1451,48 @@ If no meaningful connections exist, return {"connections": []}`,
 
           {actionsView === "all" && (
             pending.length === 0
-              ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>All invitations complete.</div>
-              : byCategory.map(cat => (
-                  <div key={cat.id} style={{ marginBottom: 28 }}>
-                    <div style={{ fontSize: 12, color: cat.color, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>{cat.icon} {cat.label.toUpperCase()}</div>
-                    {cat.items.map(d => (
-                      <div key={d.id} id={`del-${d.id}`}
-                        onClick={() => toggleDeliverable(d.id, d.is_complete)}
-                        style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", background: scrollToId === d.id ? C.surfaceHigh : "transparent" }}
-                        onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                        onMouseLeave={e => scrollToId !== d.id && (e.currentTarget.style.background = "transparent")}>
-                        <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 3 }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
-                          {d.idea?.text && <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, marginTop: 4 }}>from: {d.idea.text.slice(0, 60)}...</div>}
+              ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>All actions complete.</div>
+              : <>
+                  {byCategory.map(cat => (
+                    <div key={cat.id} style={{ marginBottom: 28 }}>
+                      <div style={{ fontSize: 12, color: cat.color, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>{cat.icon} {cat.label.toUpperCase()}</div>
+                      {cat.items.map(d => (
+                        <div key={d.id} id={`del-${d.id}`}
+                          onClick={() => toggleDeliverable(d.id, d.is_complete)}
+                          style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", background: scrollToId === d.id ? C.surfaceHigh : "transparent" }}
+                          onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
+                          onMouseLeave={e => scrollToId !== d.id && (e.currentTarget.style.background = "transparent")}>
+                          <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 3 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}><Highlight text={d.text} term={searchHighlight} /></div>
+                            {d.due_date && <div style={{ fontSize: 12, color: formatDue(d.due_date).color, fontFamily: mono, marginTop: 2 }}>due {formatDue(d.due_date).text}</div>}
+                            {d.duration_minutes && <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, marginTop: 2 }}>{formatDuration(d.duration_minutes)}</div>}
+                            {d.idea?.text && <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, marginTop: 4 }}>from: {d.idea.text.slice(0, 60)}...</div>}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ))
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const TasksView = () => {
-    const tasks = deliverables.filter(d => d.type === "task");
-    const openTasks = tasks.filter(d => !d.is_complete);
-    const doneTasks = tasks.filter(d => d.is_complete);
-    const formatDue = (d) => {
-      const date = new Date(d);
-      const diff = Math.ceil((date.getTime() - Date.now()) / 864e5);
-      if (diff < 0) return { text: `${Math.abs(diff)}d overdue`, color: C.red };
-      if (diff === 0) return { text: "today", color: C.gold };
-      if (diff === 1) return { text: "tomorrow", color: C.gold };
-      return { text: `in ${diff}d`, color: C.textMuted };
-    };
-    return (
-      <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
-        <div style={{ maxWidth: 700 }}>
-          <div style={{ fontSize: 17, color: C.textPrimary, fontWeight: 500, marginBottom: 8 }}>Tasks</div>
-          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 28 }}>Simple to-dos. No AI analysis.</div>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 18, marginBottom: 32 }}>
-            <input value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && newTaskText.trim()) addTask(); }}
-              placeholder="What needs to get done?"
-              style={{ width: "100%", background: "transparent", border: "none", color: C.textPrimary, fontSize: 12, outline: "none", marginBottom: 12, fontFamily: sans }} />
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <input value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)}
-                placeholder="Due date (YYYY-MM-DD)"
-                style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 4, color: C.textPrimary, fontSize: 12, padding: "8px 12px", outline: "none", fontFamily: mono }} />
-              <button onClick={addTask} disabled={!newTaskText.trim() || taskAdding}
-                style={{ background: newTaskText.trim() ? C.gold : C.surfaceHigh, color: newTaskText.trim() ? C.bg : C.textMuted, border: "none", borderRadius: 4, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: newTaskText.trim() ? "pointer" : "default", fontFamily: sans }}>
-                {taskAdding ? "..." : "Add"}
-              </button>
-            </div>
-          </div>
-          {openTasks.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>OPEN ({openTasks.length})</div>
-              {openTasks.map(t => {
-                const due = t.due_date ? formatDue(t.due_date) : null;
-                return (
-                  <div key={t.id} style={{ display: "flex", alignItems: "flex-start", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 6, cursor: "pointer" }}>
-                    <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
-                      style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.border}`, marginTop: 2, flexShrink: 0 }} />
-                    <div style={{ flex: 1 }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>
-                      <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>{t.text}</div>
-                      {due && <div style={{ fontSize: 12, color: due.color, marginTop: 6, fontFamily: mono }}>Due {due.text}</div>}
+                      ))}
                     </div>
-                    <div onClick={() => deleteTask(t.id)} style={{ fontSize: 12, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}
-                      onMouseEnter={e => e.currentTarget.style.color = C.red}
-                      onMouseLeave={e => e.currentTarget.style.color = C.textDisabled}>✕</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {doneTasks.length > 0 && (
-            <div>
-              <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", fontWeight: 500, marginBottom: 14 }}>DONE ({doneTasks.length})</div>
-              {doneTasks.slice(0, 15).map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 6, opacity: 0.4, cursor: "pointer" }}>
-                  <div onClick={() => toggleDeliverable(t.id, t.is_complete)}
-                    style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${C.green}`, background: C.green + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: C.green, flexShrink: 0 }}>✓</div>
-                  <div style={{ flex: 1, fontSize: 12, color: C.textDisabled, textDecoration: "line-through" }} onClick={() => toggleDeliverable(t.id, t.is_complete)}>{t.text}</div>
-                  <div onClick={() => deleteTask(t.id)} style={{ fontSize: 12, color: C.textDisabled, cursor: "pointer", padding: "4px 8px" }}>✕</div>
-                </div>
-              ))}
-            </div>
-          )}
-          {tasks.length === 0 && (
-            <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12, textAlign: "center", padding: "40px 0" }}>No tasks yet. Add one above.</div>
+                  ))}
+                  {tasks.length > 0 && (
+                    <div style={{ marginBottom: 28 }}>
+                      <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>✓ TASKS</div>
+                      {tasks.map(d => (
+                        <div key={d.id}
+                          onClick={() => toggleDeliverable(d.id, d.is_complete)}
+                          style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
+                          onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 3 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>{d.text}</div>
+                            {d.due_date && <div style={{ fontSize: 12, color: formatDue(d.due_date).color, fontFamily: mono, marginTop: 2 }}>due {formatDue(d.due_date).text}</div>}
+                            {d.duration_minutes && <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, marginTop: 2 }}>{formatDuration(d.duration_minutes)}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
           )}
         </div>
       </div>
@@ -1766,29 +1863,31 @@ If no meaningful connections exist, return {"connections": []}`,
 
         {/* Nav pills */}
         <div style={{ padding: "12px 12px 6px", display: "flex", flexDirection: "column", gap: 4 }}>
-          <button onClick={() => navGo("dashboard")}
+          <button onClick={() => navGo("today")}
             style={{
-              background: view === "dashboard" ? C.gold + "15" : C.bg,
-              border: `1px solid ${view === "dashboard" ? C.gold : C.border}`,
+              background: view === "today" ? C.gold + "15" : C.bg,
+              border: `1px solid ${view === "today" ? C.gold : C.border}`,
               borderRadius: 8, padding: "7px 10px", cursor: "pointer",
               display: "flex", alignItems: "center", gap: 8,
               transition: "border-color 0.15s, background 0.15s",
             }}
-            onMouseEnter={e => { if (view !== "dashboard") { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.gold + "10"; }}}
-            onMouseLeave={e => { if (view !== "dashboard") { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bg; }}}>
-            <span style={{ fontSize: 17, color: view === "dashboard" ? C.gold : C.textSecondary, flexShrink: 0 }}>◉</span>
-            <span style={{ fontSize: 17, color: view === "dashboard" ? C.gold : C.textSecondary, flex: 1, textAlign: "left" }}>Overview</span>
+            onMouseEnter={e => { if (view !== "today") { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.gold + "10"; }}}
+            onMouseLeave={e => { if (view !== "today") { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bg; }}}>
+            <span style={{ fontSize: 17, color: view === "today" ? C.gold : C.textSecondary, flexShrink: 0 }}>◉</span>
+            <span style={{ fontSize: 17, color: view === "today" ? C.gold : C.textSecondary, flex: 1, textAlign: "left" }}>Today</span>
             <span style={{ fontSize: 17, color: C.textDisabled }}>›</span>
           </button>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
           {[
+            { id: "tasks",        icon: "☑", label: "Tasks",    color: C.gold },
+            { id: "calendar",     icon: "▦", label: "Calendar", color: C.blue },
             { id: "capture",      icon: "◈", label: "Capture",  color: C.blue },
+            { id: "deliverables", icon: "☐", label: "Actions",  color: C.gold },
             { id: "library",      icon: "▤", label: "Library",  color: C.textSecondary },
             { id: "canon",        icon: "◆", label: "Canon",    color: C.green },
-            { id: "deliverables", icon: "☐", label: "Actions",  color: C.gold },
-            { id: "tasks",        icon: "✓", label: "Tasks",    color: C.textSecondary },
             { id: "compose",      icon: "✎", label: "Compose",  color: C.purple },
             { id: "connections",  icon: "⬡", label: "Map",      color: C.blue },
+            { id: "dashboard",    icon: "◎", label: "Overview",  color: C.textSecondary },
           ].map(item => (
             <button key={item.id} onClick={() => navGo(item.id)}
               style={{
@@ -1957,7 +2056,7 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: C.bg, borderRadius: 12 }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
-            {{ dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "DELIVERABLES", tasks: "TASKS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
+            {{ today: "TODAY'S FOCUS", calendar: "CALENDAR", dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "ACTIONS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
             <span style={{ fontSize: 12, color: C.textDisabled, fontFamily: mono }}>{ideas.length} ideas</span>
@@ -1966,12 +2065,14 @@ If no meaningful connections exist, return {"connections": []}`,
           </div>
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {view === "today"        && <TodayFocus deliverables={deliverables} connections={connections} calendarEvents={calendarEvents} onToggleDeliverable={toggleDeliverable} onNavigate={navGo} onAddToSession={addToSession} />}
+          {view === "tasks"        && <TasksView deliverables={deliverables} onAddTask={addTask} onDeleteTask={deleteTask} onToggleDeliverable={toggleDeliverable} onUpdateTask={updateTask} onAddToSession={addToSession} onRemoveFromSession={removeFromSession} onStarTask={starTask} />}
+          {view === "calendar"     && <CalendarView deliverables={deliverables} calendarEvents={calendarEvents} onToggleDeliverable={toggleDeliverable} onPushToCalendar={pushToGoogleCalendar} />}
           {view === "dashboard"    && DashboardView()}
           {view === "capture"      && CaptureView()}
           {view === "library"      && LibraryView()}
           {view === "canon"        && CanonView()}
           {view === "deliverables" && DeliverablesView()}
-          {view === "tasks"        && TasksView()}
           {view === "compose"      && ComposeView()}
           {view === "connections"  && MindMapView()}
         </div>
@@ -2150,6 +2251,14 @@ If no meaningful connections exist, return {"connections": []}`,
           )}
         </div>
       </div>
+
+      {user && (
+        <CalendarIntegration
+          user={user}
+          deliverables={deliverables}
+          onEventsLoaded={(evts) => setCalendarEvents(evts)}
+        />
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Roboto+Mono:wght@400;500&display=swap');
