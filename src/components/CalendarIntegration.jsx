@@ -48,7 +48,7 @@ export default function CalendarIntegration({ user, deliverables, onEventsLoaded
     if (row?.refresh_token) {
       setRefreshToken(row.refresh_token);
       setConnected(true);
-      fetchEvents(null, data.refresh_token);
+      fetchEvents(null, row.refresh_token);
     }
   };
 

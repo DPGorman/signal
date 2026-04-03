@@ -124,6 +124,50 @@ export default async function handler(req, res) {
       return res.status(200).json({ events, new_access_token: token !== access_token ? token : null });
     }
 
+    if (action === "create-event") {
+      // Push a deliverable to Google Calendar as a time-blocked event
+      const { refresh_token, title, date, duration_minutes = 60, description = "" } = req.body || {};
+      if (!refresh_token || !title || !date) return res.status(400).json({ error: "Missing required fields" });
+
+      // Get fresh access token
+      const refreshResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: process.env.GOOGLE_CLIENT_ID,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+          refresh_token,
+          grant_type: "refresh_token",
+        }),
+      });
+      const refreshData = await refreshResponse.json();
+      if (refreshData.error) return res.status(401).json({ error: "Token refresh failed" });
+
+      // Create event — default to 9am on the given date
+      const startTime = new Date(`${date}T09:00:00`);
+      const endTime = new Date(startTime.getTime() + duration_minutes * 60000);
+
+      const event = {
+        summary: title,
+        description: description ? `[Signal] ${description}` : "[Signal deliverable]",
+        start: { dateTime: startTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York" },
+        end: { dateTime: endTime.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York" },
+      };
+
+      const createResponse = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${refreshData.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(event),
+      });
+      const created = await createResponse.json();
+      if (created.error) return res.status(400).json({ error: created.error.message });
+
+      return res.status(200).json({ event: { id: created.id, title: created.summary, start: created.start, htmlLink: created.htmlLink } });
+    }
+
     return res.status(400).json({ error: "Unknown action" });
   } catch (err) {
     console.error("Calendar API error:", err);
