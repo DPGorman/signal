@@ -94,7 +94,7 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 1200,
         system: `You are a senior creative collaborator — script editor, dramaturg, producer — performing a periodic re-analysis of a creator's entire project. You have access to their full idea library, their canon documents, their responses to your previous insights, and open action items.
 
