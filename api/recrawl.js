@@ -8,6 +8,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
+import { getUpcomingEvents, formatEventsForContext } from "./_calendar/get-events.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -86,15 +87,19 @@ export default async function handler(req, res) {
       ? `\n\nYOUR PREVIOUS INSIGHT (do NOT repeat this — build on it or challenge it):\nProvocation: "${lastSnapshot.snapshot.provocation}"\nBlind spot: "${lastSnapshot.snapshot.blind_spot}"`
       : "";
 
-    // Build runtime context (canon + open actions + last insight + studio replies + timestamp).
+    // Build runtime context (canon + open actions + last insight + studio replies + calendar + timestamp).
     // The voice (script editor / dramaturg / producer) and JSON output contract now come from
     // the assembled system prompt: backbone + craft overlay + recrawl mode contract.
     // Other crafts get their craft-appropriate equivalent trio (chef = CDC/R&D/GM, etc.).
+    const events = await getUpcomingEvents(supabase, user.id, 7);
+    const calendarBlock = formatEventsForContext(events);
+
     const runtimeContext = [
       canonText ? `CANON DOCUMENTS:\n${canonText}` : null,
       openActions ? `OPEN ACTIONS:\n${openActions}` : null,
       lastInsight || null,
       studioReplyText || null,
+      calendarBlock || null,
       `Timestamp: ${Date.now()}`,
     ].filter(Boolean).join("\n\n");
 

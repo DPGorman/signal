@@ -17,6 +17,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
+import { getUpcomingEvents, formatEventsForContext } from "./_calendar/get-events.js";
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
@@ -60,11 +61,23 @@ export default async function handler(req, res) {
   let systemPrompt;
   if (mode && userId) {
     try {
+      // Inject calendar context for modes that benefit from time-window awareness.
+      // Audit is skipped — it's a hygiene utility, calendar is irrelevant.
+      // Failures are logged but never block the call (calendar is optional).
+      let runtimeContext = context || "";
+      if (["capture", "studio", "pulse", "insight"].includes(mode)) {
+        const events = await getUpcomingEvents(supabase, userId, 7);
+        const calendarBlock = formatEventsForContext(events);
+        if (calendarBlock) {
+          runtimeContext = [runtimeContext, calendarBlock].filter(Boolean).join("\n\n");
+        }
+      }
+
       const parts = await assembleSystemPrompt({
         supabase,
         userId,
         mode,
-        runtimeContext: context,
+        runtimeContext,
       });
       systemPrompt = toCacheableSystemContent(parts);
     } catch (e) {

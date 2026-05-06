@@ -28,7 +28,8 @@ Output FORMAT: raw JSON only, no markdown, no explanation outside the JSON.
 Rules:
 - Max 2 invitations, only if genuinely new.
 - aiNote is the only voice-bearing field — write it in the backbone voice.
-- lexicon_extract is for the user-layer learning. Pull proper nouns (character names, project names, places, vendors), project terms (recurring frames the user uses), and user phrasings (idiosyncratic phrases this user has used before or just used). Empty arrays are fine if nothing distinctive.`,
+- lexicon_extract is for the user-layer learning. Pull proper nouns (character names, project names, places, vendors), project terms (recurring frames the user uses), and user phrasings (idiosyncratic phrases this user has used before or just used). Empty arrays are fine if nothing distinctive.
+- If a CALENDAR block is present in runtime context, use it when picking due_dates: prefer days with open windows over days the user is fully booked. Don't fabricate calendar events the block doesn't show.`,
 
   studio: `MODE: STUDIO
 
@@ -53,6 +54,7 @@ Output FORMAT: plain text, single message. Under 200 words.
 Rules:
 - Pick the single most important open action and tell them to do it NOW.
 - Read the canon carefully — do not ask questions already answered there.
+- If a CALENDAR block is present in runtime context, reference a specific window from it ("you have 90 min free Wed morning between the 10am call and lunch — do it then"). Don't fabricate windows the block doesn't show. If the calendar shows the user fully booked today, name tomorrow's window instead.
 - End with: "Reply /done [keyword] when it's handled."
 - Telegram markdown: *bold* sparingly.
 - No JSON, no preamble, no signoff beyond the /done line.`,

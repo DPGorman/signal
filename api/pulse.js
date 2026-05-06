@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
+import { getUpcomingEvents, formatEventsForContext } from "./_calendar/get-events.js";
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -89,6 +90,13 @@ NERVE CENTERS: ${nerveCenters.map(i => `"${i.text.slice(0, 60)}" (${i.connCount}
 STALE CATEGORIES: ${staleCats.join(", ") || "none"}
 OPEN ACTIONS:\n${pending.slice(0, 15).map((d, i) => `${i + 1}. [${d.idea?.category || "?"}] ${d.text}`).join("\n") || "all caught up"}`;
 
+    // Inject calendar awareness so pulse can reference specific time windows
+    // ("you have 90 minutes free tomorrow morning"). Calendar is optional — if
+    // not connected, returns [] and runtime context is unchanged.
+    const events = await getUpcomingEvents(supabase, user.id, 7);
+    const calendarBlock = formatEventsForContext(events);
+    const fullContext = [context, calendarBlock].filter(Boolean).join("\n\n");
+
     // System prompt assembled server-side from [backbone] + [craft overlay] + [user-layer] + [pulse mode contract].
     // The "showrunner texting his lead writer" voice is now in the screenwriter overlay's pulse named-voice;
     // other crafts get their craft-appropriate equivalent (chef = sous chef texting CDC, founder = trusted advisor, etc.).
@@ -97,7 +105,7 @@ OPEN ACTIONS:\n${pending.slice(0, 15).map((d, i) => `${i + 1}. [${d.idea?.catego
       supabase,
       userId: user.id,
       mode: "pulse",
-      runtimeContext: context,
+      runtimeContext: fullContext,
     });
     const systemContent = toCacheableSystemContent(parts);
 
