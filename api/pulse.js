@@ -17,10 +17,13 @@ async function sendTelegram(text) {
 }
 
 async function callAI(system, message) {
+  // Anthropic rejects empty user content. Pulse is mode-driven (the system prompt
+  // is self-sufficient) so callers may pass "" — substitute a trigger phrase.
+  const userContent = (typeof message === "string" && message.length > 0) ? message : "Generate today's pulse.";
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 600, system, messages: [{ role: "user", content: message }] }),
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 600, system, messages: [{ role: "user", content: userContent }] }),
   });
   const data = await res.json();
   return data.content?.[0]?.text || "";

@@ -109,6 +109,13 @@ export default async function handler(req, res) {
     userContent = message;
   }
 
+  // Anthropic rejects empty user content. Mode-driven calls (studio, audit, insight)
+  // are fully specified by the system prompt and don't have a natural user message —
+  // supply a minimal trigger phrase so the API accepts the request.
+  if (typeof userContent !== "string" || userContent.length === 0) {
+    userContent = mode ? `Begin ${mode}.` : "Begin.";
+  }
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
