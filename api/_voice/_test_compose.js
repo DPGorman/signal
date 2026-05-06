@@ -1,13 +1,14 @@
-// Isolation test for composePrompt. Run with: node api/_voice/_test_compose.js
+// Isolation test for composePrompt + toCacheableSystemContent.
+// Run with: node api/_voice/_test_compose.js
 // Tests:
-//   1. Three crafts compose without errors (screenwriter, founder, chef)
-//   2. All 6 modes resolve
-//   3. Cold-start case (no lexicon, no voice card) doesn't crash
-//   4. Full case (lexicon + voice card + collaborator name) composes the user-layer block
-//   5. Unknown craft falls back to default
-//   6. Unknown mode throws
+//   1. Three crafts × all modes compose without errors and split into {stable, runtime}
+//   2. Cold-start case (no lexicon, no voice card) doesn't crash
+//   3. Full case (lexicon + voice card + collaborator name) composes the user-layer block
+//   4. Unknown craft falls back to default
+//   5. Unknown mode throws
+//   6. toCacheableSystemContent puts cache_control on stable, omits it from runtime
 
-import { composePrompt, BACKBONE, OVERLAYS, MODES } from "./assemble.js";
+import { composePrompt, toCacheableSystemContent, BACKBONE, OVERLAYS, MODES } from "./assemble.js";
 
 function assert(cond, msg) {
   if (!cond) {
@@ -30,11 +31,15 @@ const allModes = Object.keys(MODES);
 
 for (const user of fakeUsers) {
   for (const mode of allModes) {
-    const prompt = composePrompt({ ...user, mode, runtimeContext: "" });
-    assert(typeof prompt === "string", `compose: ${user.craft} × ${mode} returns string`);
-    assert(prompt.includes(BACKBONE.slice(0, 50)), `compose: ${user.craft} × ${mode} includes backbone`);
-    assert(prompt.includes(OVERLAYS[user.craft].slice(0, 30)), `compose: ${user.craft} × ${mode} includes craft overlay`);
-    assert(prompt.includes(MODES[mode].slice(0, 30)), `compose: ${user.craft} × ${mode} includes mode contract`);
+    const parts = composePrompt({ ...user, mode, runtimeContext: "PROJECT: Foo" });
+    assert(typeof parts === "object" && parts !== null, `compose: ${user.craft} × ${mode} returns object`);
+    assert(typeof parts.stable === "string" && parts.stable.length > 0, `compose: ${user.craft} × ${mode} has stable string`);
+    assert(typeof parts.runtime === "string", `compose: ${user.craft} × ${mode} has runtime string`);
+    assert(parts.stable.includes(BACKBONE.slice(0, 50)), `compose: ${user.craft} × ${mode} stable includes backbone`);
+    assert(parts.stable.includes(OVERLAYS[user.craft].slice(0, 30)), `compose: ${user.craft} × ${mode} stable includes craft overlay`);
+    assert(parts.stable.includes(MODES[mode].slice(0, 30)), `compose: ${user.craft} × ${mode} stable includes mode contract`);
+    assert(parts.runtime.includes("PROJECT: Foo"), `compose: ${user.craft} × ${mode} runtime carries runtimeContext`);
+    assert(!parts.stable.includes("PROJECT: Foo"), `compose: ${user.craft} × ${mode} runtime context NOT in stable`);
   }
 }
 
@@ -47,9 +52,10 @@ const coldStart = composePrompt({
   mode: "capture",
   runtimeContext: "",
 });
-assert(!coldStart.includes("USER LEXICON"), "cold-start: no USER LEXICON block");
-assert(!coldStart.includes("USER VOICE CARD"), "cold-start: no USER VOICE CARD block");
-assert(!coldStart.includes("named you"), "cold-start: no collaborator name reference");
+assert(!coldStart.stable.includes("USER LEXICON"), "cold-start: no USER LEXICON block");
+assert(!coldStart.stable.includes("USER VOICE CARD"), "cold-start: no USER VOICE CARD block");
+assert(!coldStart.stable.includes("named you"), "cold-start: no collaborator name reference");
+assert(coldStart.runtime === "", "cold-start: empty runtimeContext yields empty runtime");
 
 // 3. Full user-layer
 const fullUserLayer = composePrompt({
@@ -65,11 +71,12 @@ const fullUserLayer = composePrompt({
   mode: "studio",
   runtimeContext: "PROJECT: CRISPR\nIDEAS: 4 captures this week",
 });
-assert(fullUserLayer.includes("Sal"), "full: collaborator name 'Sal' injected");
-assert(fullUserLayer.includes("Ava"), "full: proper noun 'Ava' injected");
-assert(fullUserLayer.includes("soft-tell"), "full: phrasing 'soft-tell' injected");
-assert(fullUserLayer.includes("Daniel buries his thesis"), "full: voice card text injected");
-assert(fullUserLayer.includes("CRISPR"), "full: runtime context injected");
+assert(fullUserLayer.stable.includes("Sal"), "full: collaborator name 'Sal' injected into stable");
+assert(fullUserLayer.stable.includes("Ava"), "full: proper noun 'Ava' injected into stable");
+assert(fullUserLayer.stable.includes("soft-tell"), "full: phrasing 'soft-tell' injected into stable");
+assert(fullUserLayer.stable.includes("Daniel buries his thesis"), "full: voice card text injected into stable");
+assert(fullUserLayer.runtime.includes("CRISPR"), "full: runtime context goes to runtime");
+assert(!fullUserLayer.stable.includes("4 captures this week"), "full: runtime context NOT duplicated into stable");
 
 // 4. Unknown craft → fallback to default
 const unknownCraft = composePrompt({
@@ -80,7 +87,7 @@ const unknownCraft = composePrompt({
   mode: "capture",
   runtimeContext: "",
 });
-assert(unknownCraft.includes(OVERLAYS.screenwriter.slice(0, 30)), "unknown craft falls back to screenwriter");
+assert(unknownCraft.stable.includes(OVERLAYS.screenwriter.slice(0, 30)), "unknown craft falls back to screenwriter");
 
 // 5. Unknown mode throws
 let threw = false;
@@ -97,7 +104,27 @@ try {
 }
 assert(threw, "unknown mode actually throws");
 
-// 6. Show one full prompt for visual inspection (founder, capture mode, full layer)
+// 6. toCacheableSystemContent shapes the array correctly for Anthropic
+const blocks = toCacheableSystemContent({
+  stable: "STABLE PORTION (backbone + overlay + ...)",
+  runtime: "RUNTIME PORTION (canon, ideas)",
+});
+assert(Array.isArray(blocks) && blocks.length === 2, "cache: returns 2-element array when both parts present");
+assert(blocks[0].type === "text" && blocks[0].text.startsWith("STABLE"), "cache: first block is stable text");
+assert(blocks[0].cache_control?.type === "ephemeral", "cache: first block has ephemeral cache_control");
+assert(blocks[1].type === "text" && blocks[1].text.startsWith("RUNTIME"), "cache: second block is runtime text");
+assert(blocks[1].cache_control === undefined, "cache: second block has NO cache_control");
+
+const stableOnly = toCacheableSystemContent({ stable: "S", runtime: "" });
+assert(stableOnly.length === 1 && stableOnly[0].cache_control?.type === "ephemeral", "cache: empty runtime collapses to single cached block");
+
+const empty = toCacheableSystemContent({ stable: "", runtime: "" });
+assert(empty === undefined, "cache: both empty returns undefined");
+
+const nothing = toCacheableSystemContent();
+assert(nothing === undefined, "cache: no args returns undefined");
+
+// 7. Show one full prompt for visual inspection (founder, capture mode, full layer)
 console.log("\n=== Sample assembled prompt (founder · capture · full user layer) ===\n");
 const sample = composePrompt({
   craft: "founder",
@@ -110,11 +137,12 @@ const sample = composePrompt({
   mode: "capture",
   runtimeContext: "PROJECT: Better Lab\nRECENT: 3 captures about pricing",
 });
-console.log(`Prompt length: ${sample.length} chars (~${Math.round(sample.length / 4)} tokens)`);
-console.log(`Contains backbone: ${sample.includes(BACKBONE.slice(0, 50))}`);
-console.log(`Contains founder overlay: ${sample.includes("OVERLAY: FOUNDER")}`);
-console.log(`Contains capture mode: ${sample.includes("MODE: CAPTURE")}`);
-console.log(`Contains user layer: ${sample.includes("USER LEXICON")}`);
-console.log(`Contains 'V' collaborator: ${sample.includes("named you V")}`);
+console.log(`Stable length:  ${sample.stable.length} chars (~${Math.round(sample.stable.length / 4)} tokens) — CACHED`);
+console.log(`Runtime length: ${sample.runtime.length} chars (~${Math.round(sample.runtime.length / 4)} tokens) — fresh per call`);
+console.log(`Contains backbone in stable:    ${sample.stable.includes(BACKBONE.slice(0, 50))}`);
+console.log(`Contains founder overlay:        ${sample.stable.includes("OVERLAY: FOUNDER")}`);
+console.log(`Contains capture mode contract:  ${sample.stable.includes("MODE: CAPTURE")}`);
+console.log(`Contains user-layer in stable:   ${sample.stable.includes("USER LEXICON")}`);
+console.log(`Contains 'V' collaborator:       ${sample.stable.includes("named you V")}`);
 
 console.log("\n=== ALL TESTS PASSED ===");

@@ -64,6 +64,13 @@ function formatRuntimeContext(runtimeContext) {
 /**
  * Pure prompt composition. No I/O, no DB. Easy to test in isolation.
  *
+ * Splits the assembled prompt into a STABLE part (backbone + craft overlay
+ * + user layer + mode contract — same across calls within a user/mode pair)
+ * and a RUNTIME part (canon + recent ideas + open deliverables — changes
+ * every call). The split lets the API caller put a cache_control breakpoint
+ * between them so the stable portion gets cached for ~90% off on subsequent
+ * calls within the 5-minute TTL. See B13 in handoff.
+ *
  * @param {object} params
  * @param {string} params.craft — one of the OVERLAYS keys; falls back to DEFAULT_CRAFT
  * @param {Array<{term:string,type:string}>} [params.lexicon] — user's distinctive vocabulary, top-N
@@ -71,7 +78,7 @@ function formatRuntimeContext(runtimeContext) {
  * @param {string} [params.collaboratorName] — optional user-supplied AI name
  * @param {string} params.mode — one of the MODES keys
  * @param {string|object} [params.runtimeContext] — canon + recent ideas + open deliverables
- * @returns {string} the full system prompt
+ * @returns {{stable: string, runtime: string}} the assembled prompt in two parts
  */
 export function composePrompt({ craft, lexicon, voiceCard, collaboratorName, mode, runtimeContext }) {
   const overlayKey = craft && OVERLAYS[craft] ? craft : DEFAULT_CRAFT;
@@ -85,15 +92,44 @@ export function composePrompt({ craft, lexicon, voiceCard, collaboratorName, mod
   const userLayer = formatUserLayer({ lexicon, voiceCard, collaboratorName });
   const runtime = formatRuntimeContext(runtimeContext);
 
-  return [BACKBONE, overlay, userLayer, modeContract, runtime]
+  const stable = [BACKBONE, overlay, userLayer, modeContract]
     .filter(Boolean)
     .join(SEPARATOR);
+
+  return { stable, runtime };
+}
+
+/**
+ * Build the Anthropic API system content array with a cache_control breakpoint
+ * after the stable portion. Anthropic silently ignores cache_control on prompts
+ * smaller than the per-model minimum (1024 tokens for Sonnet 4.x), so this is
+ * always safe. Returns undefined if both parts are empty.
+ *
+ * @param {{stable: string, runtime: string}} parts
+ * @returns {Array|undefined} system content array shaped for Anthropic's messages API
+ */
+export function toCacheableSystemContent({ stable, runtime } = {}) {
+  const blocks = [];
+  if (stable) {
+    blocks.push({
+      type: "text",
+      text: stable,
+      cache_control: { type: "ephemeral" },
+    });
+  }
+  if (runtime) {
+    blocks.push({ type: "text", text: runtime });
+  }
+  return blocks.length > 0 ? blocks : undefined;
 }
 
 /**
  * DB-aware wrapper. Takes a Supabase client + userId + mode + runtime context.
  * Reads the user's craft, lexicon, and active voice card from the database.
- * Returns the full assembled system prompt as a string.
+ * Returns {stable, runtime} so callers can apply cache_control to the stable
+ * portion (see toCacheableSystemContent).
+ *
+ * @returns {Promise<{stable: string, runtime: string}>}
  */
 export async function assembleSystemPrompt({ supabase, userId, mode, runtimeContext }) {
   if (!supabase) throw new Error("assembleSystemPrompt: supabase client required");

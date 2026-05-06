@@ -16,7 +16,7 @@
 // Exactly one of {system} or {mode + userId} must be provided.
 
 import { createClient } from "@supabase/supabase-js";
-import { assembleSystemPrompt } from "./_voice/assemble.js";
+import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
@@ -51,18 +51,22 @@ export default async function handler(req, res) {
 
   const { system, message, maxTokens, file, mode, userId, context } = req.body;
 
-  // Resolve the system prompt: new-shape assembly OR legacy passthrough.
-  // Legacy behavior preserved exactly: if no {mode, userId}, fall back to whatever
-  // `system` is (defined or undefined) — same as the original handler.
+  // Resolve the system prompt:
+  //   - New shape ({mode, userId}) → assemble {stable, runtime}, build a cacheable
+  //     content array so the stable portion (backbone + overlay + user-layer + mode
+  //     contract, ~2.7K tokens) gets ~90% off on cache hits within the 5-min TTL.
+  //   - Legacy shape ({system} string) → pass through unchanged. Anthropic accepts
+  //     both string and array forms in the system field.
   let systemPrompt;
   if (mode && userId) {
     try {
-      systemPrompt = await assembleSystemPrompt({
+      const parts = await assembleSystemPrompt({
         supabase,
         userId,
         mode,
         runtimeContext: context,
       });
+      systemPrompt = toCacheableSystemContent(parts);
     } catch (e) {
       console.error("AI proxy: assemble failed:", e.message);
       return res.status(400).json({ error: `Failed to assemble system prompt: ${e.message}` });

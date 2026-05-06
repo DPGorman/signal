@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { assembleSystemPrompt } from "./_voice/assemble.js";
+import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -89,14 +89,16 @@ OPEN ACTIONS:\n${pending.slice(0, 15).map((d, i) => `${i + 1}. [${d.idea?.catego
     // System prompt assembled server-side from [backbone] + [craft overlay] + [user-layer] + [pulse mode contract].
     // The "showrunner texting his lead writer" voice is now in the screenwriter overlay's pulse named-voice;
     // other crafts get their craft-appropriate equivalent (chef = sous chef texting CDC, founder = trusted advisor, etc.).
-    const systemPrompt = await assembleSystemPrompt({
+    // Stable portion (~2.7K tokens) wrapped with cache_control so daily cron-triggered pulses share cached prefix.
+    const parts = await assembleSystemPrompt({
       supabase,
       userId: user.id,
       mode: "pulse",
       runtimeContext: context,
     });
+    const systemContent = toCacheableSystemContent(parts);
 
-    const nudge = await callAI(systemPrompt, "");
+    const nudge = await callAI(systemContent, "");
 
     await sendTelegram(nudge);
     return res.status(200).json({ sent: true, mode: "nudge", message: nudge });

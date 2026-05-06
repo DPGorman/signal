@@ -7,7 +7,7 @@
 // ============================================
 
 import { createClient } from "@supabase/supabase-js";
-import { assembleSystemPrompt } from "./_voice/assemble.js";
+import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -98,12 +98,16 @@ export default async function handler(req, res) {
       `Timestamp: ${Date.now()}`,
     ].filter(Boolean).join("\n\n");
 
-    const systemPrompt = await assembleSystemPrompt({
+    // Stable portion (~2.7K tokens) wrapped with cache_control. Recrawl runs less
+    // frequently than pulse, but the cache still helps when multiple users get
+    // recrawled in the same 5-minute window per craft+mode pair.
+    const parts = await assembleSystemPrompt({
       supabase,
       userId: user.id,
       mode: "recrawl",
       runtimeContext,
     });
+    const systemContent = toCacheableSystemContent(parts);
 
     // Call Claude
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -116,7 +120,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 1200,
-        system: systemPrompt,
+        system: systemContent,
         messages: [{
           role: "user",
           content: `Project: ${user.project_name || "Film Series"}\nTotal ideas: ${ideas.length}\nTimestamp: ${new Date().toISOString()}\n\nALL IDEAS:\n${allIdeas}`,
