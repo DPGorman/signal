@@ -1,7 +1,14 @@
 // ============================================
-// SIGNAL: WhatsApp Webhook
+// SIGNAL: WhatsApp Webhook (capture-and-relay only)
 // api/whatsapp.js
 // ============================================
+// Per 2026-05-07 decision: keep both Telegram and WhatsApp bots functional, but
+// deliberately dumb. Each bot saves the raw text to the ideas table with
+// source="whatsapp" and replies with a confirmation. The desktop and iOS apps
+// run the rich pipeline (voice overlay analysis, lexicon writes, invitations
+// with due dates, connection generation) when the user opens them.
+// Rationale: keeping the bots simple means a global user on WhatsApp/Telegram
+// gets zero-friction capture without us maintaining three parallel AI pipelines.
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -9,8 +16,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
-
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 // Tell Vercel to parse form-encoded bodies (how Twilio sends data)
 export const config = {
@@ -73,45 +78,23 @@ export default async function handler(req, res) {
     }
 
     if (!userId) {
-      return sendTwilioResponse(res, "Signal: No user found. Complete onboarding at signal-navy-five.vercel.app first.");
+      return sendTwilioResponse(res, "Signal: No user found. Complete onboarding in the app first.");
     }
 
-    // Run the idea through the AI analyzer
-    const analysis = await analyzeWithAI(messageText, projectName);
-    console.log("AI Analysis:", analysis);
-
-    // Save the idea to Supabase
+    // Capture-and-relay only — no AI analysis here.
+    // The idea sits as raw text in the ideas table. When the user next opens
+    // the desktop or iOS app, the workstation runs the rich pipeline.
     const { data: savedIdea, error: ideaError } = await supabase
       .from("ideas")
       .insert([{
         user_id: userId,
         text: messageText,
         source: "whatsapp",
-        category: analysis.category || "premise",
-        ai_note: analysis.aiNote || "",
-        inspiration_question: analysis.inspirationQuestion,
-        signal_strength: analysis.signalStrength || 3,
       }])
       .select()
       .single();
 
     if (ideaError) throw ideaError;
-
-    if (analysis.dimensions?.length) {
-      await supabase.from("dimensions").insert(
-        analysis.dimensions.map(label => ({ idea_id: savedIdea.id, label }))
-      );
-    }
-
-    if (analysis.deliverables?.length) {
-      await supabase.from("deliverables").insert(
-        analysis.deliverables.map(text => ({
-          idea_id: savedIdea.id,
-          user_id: userId,
-          text
-        }))
-      );
-    }
 
     await supabase
       .from("whatsapp_messages")
@@ -119,72 +102,11 @@ export default async function handler(req, res) {
       .eq("from_number", phoneNumber)
       .eq("processed", false);
 
-    const categoryEmoji = {
-      premise: "◈", character: "◉", scene: "◫", dialogue: "◌",
-      arc: "◎", production: "◧", research: "◐", business: "◑"
-    }[analysis.category] || "◈";
-
-    const replyMessage = `${categoryEmoji} Signal captured.
-
-${analysis.aiNote}
-
-Operating on: ${analysis.dimensions?.join(", ") || "story"}
-
-Next: ${analysis.deliverables?.[0] || "Sit with this idea"}
-
-signal-navy-five.vercel.app`;
-
-    return sendTwilioResponse(res, replyMessage);
+    return sendTwilioResponse(res, "◈ Signal captured. Open the app to see the analysis.");
 
   } catch (error) {
     console.error("Webhook error:", error);
     return sendTwilioResponse(res, "Signal received your idea. Check your library.");
-  }
-}
-
-async function analyzeWithAI(text, projectName) {
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1000,
-        system: `You are a brilliant script editor and dramaturg. Analyze ideas across MULTIPLE dimensions simultaneously.
-Respond ONLY with a raw JSON object — no markdown, no backticks, no explanation:
-{
-  "category": one of [premise,character,scene,dialogue,arc,production,research,business],
-  "dimensions": array of 2-4 strings,
-  "aiNote": "1-2 sentences of genuine dramaturgical insight",
-  "deliverables": array of 2-3 next steps as invitations,
-  "inspirationQuestion": "one question",
-  "signalStrength": integer 1-5
-}`,
-        messages: [{
-          role: "user",
-          content: `Project: ${projectName}\n\nIdea: "${text}"`
-        }],
-      }),
-    });
-
-    const data = await response.json();
-    console.log("Anthropic raw response:", JSON.stringify(data));
-    const raw = data.content[0].text.replace(/```json|```/g, "").trim();
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error("AI analysis error:", e);
-    return {
-      category: "premise",
-      dimensions: ["story", "character"],
-      aiNote: "This idea has layers worth exploring.",
-      deliverables: ["Expand in 3 sentences", "Connect to your protagonist's arc"],
-      inspirationQuestion: "What made this feel important?",
-      signalStrength: 3,
-    };
   }
 }
 

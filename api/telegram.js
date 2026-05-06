@@ -1,7 +1,17 @@
+// Telegram bot — capture-and-relay only.
+// Per 2026-05-07 decision: keep both Telegram and WhatsApp bots functional, but
+// deliberately dumb. Each bot saves the raw text to the ideas table with
+// source="telegram"|"whatsapp" and replies with a confirmation. The desktop and
+// iOS apps run the rich pipeline (voice overlay analysis, lexicon writes,
+// invitations with due dates, connection generation) when the user opens them.
+// Rationale: keeping the bots simple means a global user on WhatsApp/Telegram
+// gets zero-friction capture without us maintaining three parallel AI pipelines.
+// The workstation (web/iOS) does the work; the messaging surface is a write-only
+// inbox into the same canon.
+
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegram(chatId, text) {
@@ -14,16 +24,6 @@ async function sendTelegram(chatId, text) {
   return data;
 }
 
-async function callAI(system, message) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 800, system, messages: [{ role: "user", content: message }] }),
-  });
-  const data = await res.json();
-  return data.content?.[0]?.text || "";
-}
-
 async function getUser() {
   const { data } = await supabase.from("users").select("*").order("created_at", { ascending: true }).limit(1);
   return data?.[0] || null;
@@ -32,24 +32,6 @@ async function getUser() {
 async function getProject(userId) {
   const { data } = await supabase.from("projects").select("id").eq("user_id", userId).order("created_at", { ascending: true }).limit(1);
   return data?.[0] || null;
-}
-
-async function generateConnections(newIdeaId, newIdeaText, userId) {
-  const { data: existingIdeas } = await supabase.from("ideas").select("id, category, text").eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
-  if (!existingIdeas?.length) return;
-  const others = existingIdeas.filter(i => i.id !== newIdeaId);
-  if (!others.length) return;
-  const ideaList = others.map((i, n) => `${n}|${i.id}|${i.category}|${i.text.slice(0, 120)}`).join("\n");
-  const result = await callAI(
-    `Find meaningful connections between a NEW idea and EXISTING ideas. Only real creative relationships — not just same category. Return raw JSON: {"connections":[{"index":0,"relationship":"why connected","strength":3}]} strength: 1-5. Empty array if none.`,
-    `NEW: "${newIdeaText}"\n\nEXISTING:\n${ideaList}`
-  );
-  let parsed;
-  try { parsed = JSON.parse(result.replace(/```json|```/g, "").trim()); } catch { return; }
-  const conns = (parsed.connections || [])
-    .filter(c => c.index >= 0 && c.index < others.length && c.strength >= 2)
-    .map(c => ({ idea_id_a: newIdeaId, idea_id_b: others[c.index].id, reason: c.relationship, strength: c.strength }));
-  if (conns.length > 0) await supabase.from("connections").insert(conns);
 }
 
 export default async function handler(req, res) {
@@ -101,39 +83,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // Default: capture idea
+    // Default: capture idea (capture-and-relay only — no AI analysis here).
+    // The idea sits as raw text in the ideas table. When the user next opens
+    // the desktop or iOS app, the workstation runs the rich pipeline.
     const user = await getUser();
     if (!user) { await sendTelegram(chatId, "No user found."); return res.status(200).json({ ok: true }); }
     const project = await getProject(user.id);
 
-    const analysis = await callAI(
-      `You are a script editor. Analyze this idea. Respond ONLY with raw JSON, no markdown:
-{"category":"one of premise/character/scene/dialogue/arc/production/research/business","aiNote":"1-2 sentences of insight","deliverables":["next step 1","next step 2"],"signalStrength":3}`,
-      `Project: ${user.project_name}\n\nIdea: "${text}"`
-    );
+    await supabase.from("ideas").insert([{
+      user_id: user.id,
+      text,
+      source: "telegram",
+      project_id: project?.id || null,
+    }]);
 
-    let parsed;
-    try { parsed = JSON.parse(analysis.replace(/```json|```/g, "").trim()); }
-    catch { parsed = { category: "premise", aiNote: "Captured.", deliverables: [], signalStrength: 3 }; }
-
-    const { data: newIdea } = await supabase.from("ideas").insert([{
-      user_id: user.id, text, category: parsed.category,
-      ai_note: parsed.aiNote, signal_strength: parsed.signalStrength,
-      source: "telegram", project_id: project?.id || null,
-    }]).select().single();
-
-    if (parsed.deliverables?.length && newIdea) {
-      await supabase.from("deliverables").insert(
-        parsed.deliverables.map(d => ({ user_id: user.id, idea_id: newIdea.id, text: d, project_id: project?.id || null }))
-      );
-    }
-
-    await sendTelegram(chatId, `◈ *Signal captured.*\n${parsed.aiNote}\n\nCategory: ${parsed.category}\nSignal: ${"◈".repeat(parsed.signalStrength)}`);
-
-    // Generate connections in the background (don't block response)
-    if (newIdea) {
-      generateConnections(newIdea.id, text, user.id).catch(e => console.warn("Connection gen:", e.message));
-    }
+    await sendTelegram(chatId, "◈ *Signal captured.*\nOpen the app to see the analysis.");
 
     return res.status(200).json({ ok: true });
 
