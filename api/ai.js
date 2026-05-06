@@ -24,6 +24,28 @@ export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
 };
 
+// Flatten capture-mode lexicon_extract into [{term, type}] for upsert_lexicon_terms RPC.
+// Schema: {proper_nouns:[], project_terms:[], user_phrasings:[]} → user_lexicon.type values.
+function flattenLexicon(lex) {
+  if (!lex || typeof lex !== "object") return [];
+  const map = {
+    proper_nouns: "proper_noun",
+    project_terms: "project_term",
+    user_phrasings: "user_phrasing",
+  };
+  const out = [];
+  for (const [key, type] of Object.entries(map)) {
+    const arr = lex[key];
+    if (!Array.isArray(arr)) continue;
+    for (const term of arr) {
+      if (typeof term === "string" && term.trim()) {
+        out.push({ term: term.trim(), type });
+      }
+    }
+  }
+  return out;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
@@ -112,12 +134,32 @@ export default async function handler(req, res) {
       return res.status(200).json({ text });
     }
 
+    let parsed;
     try {
       const clean = text.replace(/```json|```/g, "").trim();
-      return res.status(200).json(JSON.parse(clean));
+      parsed = JSON.parse(clean);
     } catch {
       return res.status(200).json({ raw: text });
     }
+
+    // Capture mode: persist lexicon_extract to user_lexicon. Failures are logged
+    // but never block the analysis response — the user always gets their result.
+    if (mode === "capture" && userId && parsed?.lexicon_extract) {
+      const flat = flattenLexicon(parsed.lexicon_extract);
+      if (flat.length > 0) {
+        try {
+          const { error: lexErr } = await supabase.rpc("upsert_lexicon_terms", {
+            p_user_id: userId,
+            p_terms: flat,
+          });
+          if (lexErr) console.warn("Lexicon write failed:", lexErr.message);
+        } catch (e) {
+          console.warn("Lexicon write threw:", e.message);
+        }
+      }
+    }
+
+    return res.status(200).json(parsed);
   } catch (e) {
     console.error("AI proxy error:", e);
     return res.status(500).json({ error: e.message });
