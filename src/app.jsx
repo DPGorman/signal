@@ -88,6 +88,18 @@ async function callAI(system, userMsg, maxTokens = 1000) {
   return res.json();
 }
 
+// Voice-overlay shape: server assembles backbone + craft overlay + user-layer + mode contract.
+// See api/_voice/* and SIGNAL_VOICE_AND_OVERLAYS_2026-05-06_v2.1.md.
+async function callAIv2({ mode, userId, context, message = "", maxTokens = 1000 }) {
+  const res = await fetch("/api/ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, userId, context, message, maxTokens }),
+  });
+  if (!res.ok) throw new Error(`AI proxy error: ${res.status}`);
+  return res.json();
+}
+
 export default function Signal() {
   const [user,          setUser]          = useState(null);
   const [ideas,         setIdeas]         = useState([]);
@@ -361,19 +373,11 @@ export default function Signal() {
       const allIdeas = ideasList.map((i, n) =>
         `#${n + 1} [${i.category}, signal ${i.signal_strength || "?"}] "${i.text}"`
       ).join("\n");
-      const result = await callAI(
-        `You are a senior creative collaborator — script editor, dramaturg, producer. Read every idea this creator has captured. Think, don't categorize. Notice what's there, what's missing, what keeps surfacing. Be direct and specific.
-
-Respond ONLY in raw JSON:
-{
-  "provocation": "sharpest unresolved question this work raises. 2-3 sentences. Specific.",
-  "pattern": "what the creator is actually working on beneath the surface.",
-  "urgentIdea": "single idea most deserving development now, and one sentence why.",
-  "blind_spot": "what this work isn't yet grappling with that it must.",
-  "duplicates": "name ideas that are clearly the same thought and which articulation is strongest. null if none."
-}`,
-        `Project: ${userObj?.project_name || "Film Series"}\nTotal: ${ideasList.length}\n\nALL IDEAS:\n${allIdeas}`
-      );
+      const result = await callAIv2({
+        mode: "studio",
+        userId: userObj?.id,
+        context: `PROJECT: ${userObj?.project_name || "Film Series"}\n\nALL IDEAS (${ideasList.length} total):\n${allIdeas}`,
+      });
       setStudio(result);
     } catch (e) { console.error("Studio:", e); }
     finally { setStudioLoading(false); }
@@ -386,28 +390,12 @@ Respond ONLY in raw JSON:
     try {
       const validIds = new Set(ideas.map(i => i.id));
       const allIdeas = ideas.map(i => `ID:${i.id} [${i.category}] "${i.text}"`).join("\n");
-      const result = await callAI(
-        `You are auditing a creative idea library. This is a live database — every ID below is real and current right now.
-
-Your job: identify ideas to DELETE. Be specific. Criteria:
-1. TEST ENTRIES: anything clearly written to test the system, not a real creative idea
-2. EXACT DUPLICATES: if two ideas say the same thing, delete the weaker version
-3. FRAGMENTS: a short fragment fully contained within a longer, better idea
-
-CRITICAL RULES:
-- Only return IDs that appear EXACTLY in the list below. Do not invent IDs.
-- If the library is already clean, return an empty toDelete array. Do NOT fabricate deletions.
-
-Timestamp: ${Date.now()}
-
-Return ONLY raw JSON:
-{
-  "toDelete": ["actual-uuid-from-list"],
-  "reasons": ["short reason for each deletion in same order"]
-}`,
-        `CURRENT LIBRARY (${ideas.length} ideas):\n${allIdeas}`,
-        1000
-      );
+      const result = await callAIv2({
+        mode: "audit",
+        userId: user.id,
+        context: `Timestamp: ${Date.now()}\n\nCURRENT LIBRARY (${ideas.length} ideas):\n${allIdeas}`,
+        maxTokens: 1000,
+      });
 
       const toDelete = (result.toDelete || []).filter(id => validIds.has(id));
 
@@ -447,31 +435,20 @@ Return ONLY raw JSON:
       const existing     = ideas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
       const openInvites  = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
 
-      const analysis = await callAI(
-        `You are a world-class script editor on a specific creative project.
+      const analysis = await callAIv2({
+        mode: "capture",
+        userId: user.id,
+        context: `PROJECT: ${user.project_name}
+TODAY: ${new Date().toISOString().split("T")[0]} — for invitations, pick realistic due dates within the next 1-4 weeks, or null if none fits.
 
 ${canonContext ? `CANON:\n${canonContext}\n\n` : ""}EXISTING IDEAS — don't duplicate:
 ${existing || "None yet."}
 
 OPEN INVITATIONS — don't overlap:
-${openInvites || "None yet."}
-
-${ctx ? `WHY THIS FELT IMPORTANT:\n"${ctx}"\n\n` : ""}Rules: if substantially same as existing idea, say so in aiNote and set signalStrength to 1. Max 2 invitations, only if genuinely new. signalStrength: 1=noise, 2=interesting, 3=strong, 4=urgent, 5=essential.
-
-Today's date is ${new Date().toISOString().split("T")[0]}. For each invitation, suggest a realistic due_date (YYYY-MM-DD) based on complexity and urgency. Use dates within the next 1-4 weeks. If no date makes sense, use null. Also estimate duration_minutes: how long this action would take a working professional. Use 30, 60, 90, 120, 180, or 240.
-
-Raw JSON only:
-{
-  "category": "premise|character|scene|dialogue|arc|production|research|business",
-  "dimensions": ["level 1","level 2"],
-  "aiNote": "specific insight in context of everything captured",
-  "invitations": [{"text": "action description", "due_date": "YYYY-MM-DD or null", "duration_minutes": 60}],
-  "signalStrength": 3,
-  "canonResonance": ""
-}`,
-        `Project: ${user.project_name}\n\nNew idea: "${text}"`,
-        1200
-      );
+${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framing):\n"${ctx}"` : ""}`,
+        message: `New idea: "${text}"`,
+        maxTokens: 1200,
+      });
 
       const { data: saved, error } = await supabase.from("ideas").insert([{
         user_id: user.id, text, source: "app",
