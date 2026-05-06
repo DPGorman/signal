@@ -7,6 +7,7 @@
 // ============================================
 
 import { createClient } from "@supabase/supabase-js";
+import { assembleSystemPrompt } from "./_voice/assemble.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -85,6 +86,25 @@ export default async function handler(req, res) {
       ? `\n\nYOUR PREVIOUS INSIGHT (do NOT repeat this — build on it or challenge it):\nProvocation: "${lastSnapshot.snapshot.provocation}"\nBlind spot: "${lastSnapshot.snapshot.blind_spot}"`
       : "";
 
+    // Build runtime context (canon + open actions + last insight + studio replies + timestamp).
+    // The voice (script editor / dramaturg / producer) and JSON output contract now come from
+    // the assembled system prompt: backbone + craft overlay + recrawl mode contract.
+    // Other crafts get their craft-appropriate equivalent trio (chef = CDC/R&D/GM, etc.).
+    const runtimeContext = [
+      canonText ? `CANON DOCUMENTS:\n${canonText}` : null,
+      openActions ? `OPEN ACTIONS:\n${openActions}` : null,
+      lastInsight || null,
+      studioReplyText || null,
+      `Timestamp: ${Date.now()}`,
+    ].filter(Boolean).join("\n\n");
+
+    const systemPrompt = await assembleSystemPrompt({
+      supabase,
+      userId: user.id,
+      mode: "recrawl",
+      runtimeContext,
+    });
+
     // Call Claude
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -96,23 +116,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 1200,
-        system: `You are a senior creative collaborator — script editor, dramaturg, producer — performing a periodic re-analysis of a creator's entire project. You have access to their full idea library, their canon documents, their responses to your previous insights, and open action items.
-
-Your job: find NEW connections. Don't repeat previous insights. Go deeper. Notice what has changed since last time. If the creator has responded to your provocations, engage with those responses. If new ideas have been added, see how they reshape the whole.
-
-${canonText ? `CANON DOCUMENTS:\n${canonText}\n\n` : ""}${openActions ? `OPEN ACTIONS:\n${openActions}\n\n` : ""}${lastInsight}${studioReplyText}
-
-Timestamp: ${Date.now()}
-
-Respond ONLY in raw JSON:
-{
-  "provocation": "the sharpest NEW unresolved question this work raises. 2-3 sentences. Must be different from previous.",
-  "pattern": "what the creator is actually working on beneath the surface — evolved from last time if applicable.",
-  "urgentIdea": "single idea most deserving development RIGHT NOW, and one sentence why.",
-  "blind_spot": "what this work isn't yet grappling with that it must. NEW angle.",
-  "duplicates": "ideas that overlap and which articulation to keep. null if none.",
-  "newConnections": "2-3 connections between ideas that weren't obvious before."
-}`,
+        system: systemPrompt,
         messages: [{
           role: "user",
           content: `Project: ${user.project_name || "Film Series"}\nTotal ideas: ${ideas.length}\nTimestamp: ${new Date().toISOString()}\n\nALL IDEAS:\n${allIdeas}`,
