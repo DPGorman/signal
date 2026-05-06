@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { assembleSystemPrompt } from "./_voice/assemble.js";
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -85,10 +86,17 @@ NERVE CENTERS: ${nerveCenters.map(i => `"${i.text.slice(0, 60)}" (${i.connCount}
 STALE CATEGORIES: ${staleCats.join(", ") || "none"}
 OPEN ACTIONS:\n${pending.slice(0, 15).map((d, i) => `${i + 1}. [${d.idea?.category || "?"}] ${d.text}`).join("\n") || "all caught up"}`;
 
-    const nudge = await callAI(
-      `You are Daniel's creative partner on "${user.project_name}". Read the canon carefully — do not ask questions already answered there. Send ONE Telegram message. Under 200 words. Pick the single most important open action and tell him to do it NOW. End with: "Reply /done [keyword] when it's handled." Tone: showrunner texting his lead writer. Use Telegram markdown: *bold* sparingly.`,
-      context
-    );
+    // System prompt assembled server-side from [backbone] + [craft overlay] + [user-layer] + [pulse mode contract].
+    // The "showrunner texting his lead writer" voice is now in the screenwriter overlay's pulse named-voice;
+    // other crafts get their craft-appropriate equivalent (chef = sous chef texting CDC, founder = trusted advisor, etc.).
+    const systemPrompt = await assembleSystemPrompt({
+      supabase,
+      userId: user.id,
+      mode: "pulse",
+      runtimeContext: context,
+    });
+
+    const nudge = await callAI(systemPrompt, "");
 
     await sendTelegram(nudge);
     return res.status(200).json({ sent: true, mode: "nudge", message: nudge });
