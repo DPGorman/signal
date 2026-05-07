@@ -4,6 +4,7 @@ import TodayFocus from "./components/TodayFocus.jsx";
 import CalendarIntegration from "./components/CalendarIntegration.jsx";
 import CalendarView from "./components/views/CalendarView.jsx";
 import TasksView from "./components/views/TasksView.jsx";
+import OnboardingFlow from "./components/OnboardingFlow.jsx";
 
 const C = {
   bg:           "#1B1B1F",
@@ -170,7 +171,7 @@ export default function Signal() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
-  const [onboardName, setOnboardName] = useState("");
+  // onboardName state migrated into <OnboardingFlow /> component (5/7).
 
   useEffect(() => {
     document.documentElement.lang = "en";
@@ -250,24 +251,43 @@ export default function Signal() {
     }
   };
 
-  const completeOnboarding = async () => {
-    if (!onboardName.trim() || !authUser) return;
+  // Activation-pattern onboarding: accepts { name, craft, collaborator, canon }
+  // from <OnboardingFlow />. Writes user (with craft + collaborator_name),
+  // creates first project, optionally creates one canon doc per the activation
+  // lock (SIGNAL-OPS · 5/7).
+  const completeOnboarding = async (values) => {
+    if (!values?.name?.trim() || !values?.craft || !authUser) return;
     setAuthLoading(true);
+    setAuthError("");
     try {
-      // Create user record
+      // Create user record with craft + collaborator
       const { data: newUser, error: ue } = await supabase.from("users").insert([{
-        display_name: onboardName.trim(),
-        project_name: onboardName.trim(),
-        auth_id: authUser.id,
+        display_name:      values.name.trim(),
+        project_name:      values.name.trim(),
+        auth_id:           authUser.id,
+        craft:             values.craft,
+        collaborator_name: values.collaborator || null,
       }]).select().single();
       if (ue) throw ue;
 
       // Create first project
       const { error: pe } = await supabase.from("projects").insert([{
         user_id: newUser.id,
-        name: onboardName.trim(),
+        name:    values.name.trim(),
       }]);
       if (pe) throw pe;
+
+      // Optionally create the day-1 canon doc (skippable in UI, nag-once)
+      if (values.canon?.title && values.canon?.content) {
+        const { error: ce } = await supabase.from("canon_documents").insert([{
+          user_id:   newUser.id,
+          title:     values.canon.title,
+          doc_type:  "reference",
+          content:   values.canon.content,
+          is_active: true,
+        }]);
+        if (ce) console.warn("Canon insert failed (non-fatal):", ce.message);
+      }
 
       setOnboarding(false);
       await loadAll(newUser.id);
@@ -928,34 +948,14 @@ If no meaningful connections exist, return {"connections": []}`,
   );
 
   if (onboarding) return (
-    <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans }}>
-      <div style={{ width: 380, display: "flex", flexDirection: "column", gap: 20 }}>
-        <div style={{ textAlign: "center", marginBottom: 8 }}>
-          <div style={{ fontSize: 30, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.03em", marginBottom: 6 }}>Signal</div>
-          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>NAME YOUR PROJECT</div>
-        </div>
-        <div style={{ fontSize: 12, color: C.textSecondary, textAlign: "center", lineHeight: 1.6 }}>
-          What are you working on? This becomes your workspace.
-        </div>
-        <input
-          type="text" placeholder="e.g. CRISPR, Untitled Pilot, The Descent..."
-          value={onboardName}
-          onChange={e => setOnboardName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && onboardName.trim() && completeOnboarding()}
-          autoFocus
-          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "14px 16px", fontSize: 12, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box", textAlign: "center" }}
-        />
-        {authError && (
-          <div style={{ fontSize: 12, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
-        )}
-        <button
-          onClick={completeOnboarding}
-          disabled={authLoading || !onboardName.trim()}
-          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 12, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
-          {authLoading ? "CREATING..." : "START →"}
-        </button>
-      </div>
-    </div>
+    <OnboardingFlow
+      C={C}
+      sans={sans}
+      mono={mono}
+      error={authError}
+      loading={authLoading}
+      onComplete={completeOnboarding}
+    />
   );
 
   if (!user) return (
