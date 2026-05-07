@@ -3,6 +3,10 @@
     {
       "path": "/api/pulse?mode=checkin",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/activation",
+      "schedule": "0 14 * * *"
     }
   ]
 }
