@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     // /pulse
     if (text === "/pulse") {
       await sendTelegram(chatId, "Generating pulse...");
-      const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://signal-navy-five.vercel.app";
+      const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://signal-multi.vercel.app";
       const user = await getUser();
       await fetch(`${baseUrl}/api/pulse?mode=nudge`, {
         method: "POST", headers: { "Content-Type": "application/json" },
