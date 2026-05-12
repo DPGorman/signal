@@ -102,7 +102,9 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
   const selEvents = selectedDay ? (eventsByDate[selectedDay] || []) : [];
 
   const overdueCount = deliverables.filter(d => d.due_date && d.due_date.slice(0,10) < today && !d.is_complete).length;
-  const noDueDate = deliverables.filter(d => !d.due_date && !d.is_complete);
+  const noDueDate = deliverables
+    .filter(d => !d.due_date)
+    .sort((a, b) => (a.is_complete === b.is_complete ? 0 : a.is_complete ? 1 : -1));
 
   const monthLabel = month.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const weekLabel = `${weekDays[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${weekDays[6].toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
@@ -364,9 +366,9 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
                           {d.is_complete && <span style={{ fontSize: 10, color: C.green }}>✓</span>}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, color: d.is_complete ? C.textDisabled : C.textPrimary, lineHeight: 1.5, textDecoration: d.is_complete ? "line-through" : "none" }}>{d.text}</div>
+                          <div style={{ fontSize: d.is_complete ? 10 : 11, color: d.is_complete ? C.textDisabled : C.textPrimary, lineHeight: 1.5, textDecoration: d.is_complete ? "line-through" : "none" }}>{d.text}</div>
                           <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
-                            <span style={{ fontSize: 11, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
+                            <span style={{ fontSize: d.is_complete ? 10 : 11, color: d.is_complete ? C.textDisabled : cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
                             {d.duration_minutes && <span style={{ fontSize: 10, color: C.textMuted, fontFamily: mono }}>· {formatDuration(d.duration_minutes)}</span>}
                           </div>
                           {overdue && <div style={{ fontSize: 11, color: C.red, fontFamily: mono, marginTop: 2 }}>OVERDUE</div>}
@@ -397,17 +399,20 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
             <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>NO DUE DATE · {noDueDate.length}</div>
             {noDueDate.map(d => {
               const cat = getCat(d.idea?.category);
+              const done = d.is_complete;
               return (
                 <div key={d.id}
                   onClick={() => onToggleDeliverable(d.id, d.is_complete)}
-                  style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "7px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
+                  style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: done ? "5px 0" : "7px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer", opacity: done ? 0.6 : 1 }}
                   onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <div style={{ width: 13, height: 13, border: `2px solid ${C.border}`, borderRadius: 3, flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ width: 13, height: 13, border: `2px solid ${done ? C.green : C.border}`, background: done ? C.green + "30" : "transparent", borderRadius: 3, flexShrink: 0, marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {done && <span style={{ fontSize: 9, color: C.green, lineHeight: 1 }}>✓</span>}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: C.textSecondary, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.text}</div>
+                    <div style={{ fontSize: done ? 10 : 11, color: done ? C.textDisabled : C.textSecondary, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: done ? "line-through" : "none" }}>{d.text}</div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <span style={{ fontSize: 11, color: cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
+                      <span style={{ fontSize: done ? 10 : 11, color: done ? C.textDisabled : cat.color, fontFamily: mono }}>{cat.icon} {cat.label}</span>
                       {d.duration_minutes && <span style={{ fontSize: 10, color: C.textMuted, fontFamily: mono }}>· {formatDuration(d.duration_minutes)}</span>}
                     </div>
                   </div>
