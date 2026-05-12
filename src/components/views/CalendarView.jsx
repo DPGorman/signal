@@ -15,7 +15,7 @@ function formatDuration(mins) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-export default function CalendarView({ deliverables, calendarEvents, onToggleDeliverable, onPushToCalendar }) {
+export default function CalendarView({ deliverables, calendarEvents, onToggleDeliverable, onPushToCalendar, onNavigate }) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDay, setSelectedDay] = useState(todayStr());
   const [calMode, setCalMode] = useState("month"); // "month" | "week"
@@ -218,7 +218,12 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {overdueCount > 0 && (
-              <span style={{ fontSize: 11, color: C.red, fontFamily: mono, border: `1px solid ${C.red}40`, padding: "3px 10px", borderRadius: 4 }}>
+              <span
+                onClick={() => onNavigate && onNavigate("deliverables")}
+                style={{ fontSize: 11, color: C.red, fontFamily: mono, border: `1px solid ${C.red}40`, padding: "3px 10px", borderRadius: 4, cursor: onNavigate ? "pointer" : "default", transition: "background 0.15s" }}
+                onMouseEnter={e => onNavigate && (e.currentTarget.style.background = C.red + "15")}
+                onMouseLeave={e => onNavigate && (e.currentTarget.style.background = "transparent")}
+              >
                 {overdueCount} OVERDUE
               </span>
             )}

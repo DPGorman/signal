@@ -2155,7 +2155,7 @@ If no meaningful connections exist, return {"connections": []}`,
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {view === "today"        && <TodayFocus deliverables={deliverables} connections={connections} calendarEvents={calendarEvents} onToggleDeliverable={toggleDeliverable} onNavigate={navGo} onAddToSession={addToSession} />}
           {view === "tasks"        && <TasksView deliverables={deliverables} onAddTask={addTask} onDeleteTask={deleteTask} onToggleDeliverable={toggleDeliverable} onUpdateTask={updateTask} onAddToSession={addToSession} onRemoveFromSession={removeFromSession} onStarTask={starTask} />}
-          {view === "calendar"     && <CalendarView deliverables={deliverables} calendarEvents={calendarEvents} onToggleDeliverable={toggleDeliverable} onPushToCalendar={pushToGoogleCalendar} />}
+          {view === "calendar"     && <CalendarView deliverables={deliverables} calendarEvents={calendarEvents} onToggleDeliverable={toggleDeliverable} onPushToCalendar={pushToGoogleCalendar} onNavigate={navGo} />}
           {view === "dashboard"    && DashboardView()}
           {view === "capture"      && CaptureView()}
           {view === "library"      && LibraryView()}
