@@ -59,7 +59,7 @@ git push origin fix/short-description
 
 # At this point, Vercel automatically builds a preview URL.
 # Find it in the Vercel dashboard or in the GitHub PR.
-# It looks like: signal-git-fix-short-description-dpgormans-projects.vercel.app
+# It looks like: signal-multi-git-fix-short-description-dpgormans-projects.vercel.app
 # Open it. Verify the change works in production-equivalent conditions.
 
 # If preview works:
@@ -76,11 +76,13 @@ git push origin --delete fix/short-description    # remote delete
 
 ### 3. Verify the live deployment after every push to `main`
 
-Vercel auto-deploys main. After pushing:
+**Deploy model note (as of 2026-05-12):** the canonical signal-multi.vercel.app is MANUAL-deploy via `vercel --prod` from `signal/` (the project is linked but not GitHub-connected for auto-deploys). The old signal-navy-five.vercel.app still auto-deploys from this repo's `main` but is on pre-migration code and is parked. So after pushing to main: run `vercel --prod` to push the change to the canonical URL, then verify.
+
+After pushing:
 
 ```bash
 # Wait ~60 seconds for the deploy
-# Open https://signal-navy-five.vercel.app in incognito (⌘+Shift+N)
+# Open https://signal-multi.vercel.app in incognito (⌘+Shift+N)
 # Repeat the smoke test from step 1
 # If it broke in production but worked locally → revert immediately:
 git revert HEAD
@@ -145,4 +147,4 @@ The rules in this document exist because beta testers are coming, and beta teste
 
 ---
 
-*Last updated: April 30, 2026*
+*Last updated: 2026-05-12 — refreshed backend URL (signal-multi), deploy model (manual `vercel --prod`), and old-project parked status.*
