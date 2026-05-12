@@ -165,9 +165,12 @@ export default function Signal() {
   const searchTimer = useRef(null);
 
   const [authUser, setAuthUser] = useState(null);
-  const [authScreen, setAuthScreen] = useState("login"); // "login" | "signup"
+  const [authMode, setAuthMode] = useState("magic"); // "magic" | "password"
+  const [authStep, setAuthStep] = useState("email"); // "email" | "code" — magic mode only
+  const [authScreen, setAuthScreen] = useState("login"); // "login" | "signup" — password mode only
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
+  const [authCode, setAuthCode] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
@@ -220,6 +223,44 @@ export default function Signal() {
     } catch {
       setOnboarding(true);
       setIsLoading(false);
+    }
+  };
+
+  const handleSendCode = async () => {
+    if (!authEmail) return;
+    setAuthError("");
+    setAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: authEmail.trim(),
+        options: { shouldCreateUser: true },
+      });
+      if (error) throw error;
+      setAuthStep("code");
+    } catch (e) {
+      setAuthError(e.message || "Could not send code.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (authCode.trim().length !== 6) return;
+    setAuthError("");
+    setAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: authEmail.trim(),
+        token: authCode.trim(),
+        type: "email",
+      });
+      if (error) throw error;
+      // onAuthStateChange picks up the session
+    } catch (e) {
+      setAuthError(e.message || "That code didn't work.");
+      setAuthCode("");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -908,41 +949,111 @@ If no meaningful connections exist, return {"connections": []}`,
 
   if (!authUser) return (
     <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans }}>
-      <div style={{ width: 340, display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ width: 340, display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ textAlign: "center", marginBottom: 8 }}>
           <div style={{ fontSize: 30, color: C.textPrimary, fontStyle: "italic", letterSpacing: "-0.03em", marginBottom: 6 }}>Signal</div>
           <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em" }}>
-            {authScreen === "login" ? "WELCOME BACK" : "CREATE ACCOUNT"}
+            {authMode === "magic" && authStep === "code"
+              ? "CHECK YOUR EMAIL"
+              : authMode === "password"
+                ? (authScreen === "login" ? "WELCOME BACK" : "CREATE ACCOUNT")
+                : "SIGN IN"}
           </div>
         </div>
-        <input
-          type="email" placeholder="Email" value={authEmail}
-          onChange={e => setAuthEmail(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && authPass && handleAuth(authScreen)}
-          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 12, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
-        />
-        <input
-          type="password" placeholder="Password" value={authPass}
-          onChange={e => setAuthPass(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && authEmail && handleAuth(authScreen)}
-          style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 12, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
-        />
-        {authError && (
-          <div style={{ fontSize: 12, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
+
+        {authMode === "magic" && authStep === "code" ? (
+          <>
+            <div style={{ fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.5, padding: "0 4px" }}>
+              We sent a 6-digit code to{" "}
+              <span style={{ color: C.textPrimary }}>{authEmail}</span>.
+            </div>
+            <input
+              type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+              placeholder="123456" value={authCode}
+              onChange={e => setAuthCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              onKeyDown={e => e.key === "Enter" && handleVerifyCode()}
+              style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "14px", fontSize: 22, fontFamily: mono, letterSpacing: "0.5em", textAlign: "center", outline: "none", borderRadius: 6, boxSizing: "border-box" }}
+            />
+            {authError && (
+              <div style={{ fontSize: 12, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
+            )}
+            <button
+              onClick={handleVerifyCode}
+              disabled={authLoading || authCode.length !== 6}
+              style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 12, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
+              {authLoading ? "..." : "VERIFY →"}
+            </button>
+            <button
+              onClick={() => { setAuthStep("email"); setAuthCode(""); setAuthError(""); }}
+              style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: sans, marginTop: 4 }}>
+              ← Use a different email
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              type="email" placeholder="Email" value={authEmail}
+              onChange={e => setAuthEmail(e.target.value)}
+              onKeyDown={e => {
+                if (e.key !== "Enter") return;
+                if (authMode === "magic" && authEmail) handleSendCode();
+                else if (authMode === "password" && authEmail && authPass) handleAuth(authScreen);
+              }}
+              style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 12, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
+            />
+
+            {authMode === "password" && (
+              <input
+                type="password" placeholder="Password" value={authPass}
+                onChange={e => setAuthPass(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && authEmail && authPass && handleAuth(authScreen)}
+                style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "12px 14px", fontSize: 12, fontFamily: sans, outline: "none", borderRadius: 6, boxSizing: "border-box" }}
+              />
+            )}
+
+            {authError && (
+              <div style={{ fontSize: 12, color: C.red, textAlign: "center", lineHeight: 1.5 }}>{authError}</div>
+            )}
+
+            <button
+              onClick={() => authMode === "magic" ? handleSendCode() : handleAuth(authScreen)}
+              disabled={authLoading || !authEmail || (authMode === "password" && !authPass)}
+              style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 12, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
+              {authLoading
+                ? "..."
+                : authMode === "magic"
+                  ? "EMAIL ME A CODE →"
+                  : authScreen === "login" ? "LOG IN →" : "SIGN UP →"}
+            </button>
+
+            {authMode === "magic" ? (
+              <div style={{ textAlign: "center", marginTop: 4 }}>
+                <button
+                  onClick={() => { setAuthMode("password"); setAuthError(""); }}
+                  style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: sans }}>
+                  Use a password instead
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ textAlign: "center" }}>
+                  <button
+                    onClick={() => { setAuthScreen(authScreen === "login" ? "signup" : "login"); setAuthError(""); }}
+                    style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: sans }}>
+                    {authScreen === "login" ? "Don't have an account? Sign up" : "Already have an account? Log in"}
+                  </button>
+                </div>
+                <div style={{ textAlign: "center", marginTop: -4 }}>
+                  <button
+                    onClick={() => { setAuthMode("magic"); setAuthPass(""); setAuthError(""); }}
+                    style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: sans }}>
+                    ← Back to email code
+                  </button>
+                </div>
+              </>
+            )}
+          </>
         )}
-        <button
-          onClick={() => handleAuth(authScreen)}
-          disabled={authLoading || !authEmail || !authPass}
-          style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "12px", fontFamily: mono, fontSize: 12, letterSpacing: "0.12em", cursor: authLoading ? "default" : "pointer", borderRadius: 6, opacity: authLoading ? 0.6 : 1 }}>
-          {authLoading ? "..." : authScreen === "login" ? "LOG IN →" : "SIGN UP →"}
-        </button>
-        <div style={{ textAlign: "center" }}>
-          <button
-            onClick={() => { setAuthScreen(authScreen === "login" ? "signup" : "login"); setAuthError(""); }}
-            style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", fontFamily: sans }}>
-            {authScreen === "login" ? "Don't have an account? Sign up" : "Already have an account? Log in"}
-          </button>
-        </div>
       </div>
     </div>
   );
