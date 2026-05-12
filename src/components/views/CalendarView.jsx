@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { C, getCat, mono, sans } from "../../lib/constants";
 
 function startOfMonth(d)  { return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -75,7 +75,15 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
 
   const prevMonth = () => setMonth(new Date(year, mon - 1, 1));
   const nextMonth = () => setMonth(new Date(year, mon + 1, 1));
-  const goToday   = () => { setMonth(startOfMonth(new Date())); setSelectedDay(todayStr()); };
+  const dayDetailRef = useRef(null);
+  const goToday   = () => {
+    setMonth(startOfMonth(new Date()));
+    setSelectedDay(todayStr());
+    // Defer scroll until after the state update has rendered
+    setTimeout(() => {
+      dayDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
 
   const prevWeek = () => {
     const d = new Date(weekStart);
@@ -297,7 +305,7 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
       </div>
 
       {/* ── Below the calendar — selected day + no-due-date, full width ── */}
-      <div style={{ borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
+      <div ref={dayDetailRef} style={{ borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", scrollMarginTop: 80 }}>
 
         {/* Selected day detail */}
         <div style={{ padding: "20px 28px" }}>
