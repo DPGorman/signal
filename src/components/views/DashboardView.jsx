@@ -72,6 +72,7 @@ export default function DashboardView({ user, ideas, deliverables, pending, acti
               const cat = getCat(task.idea?.category);
               return (
                 <div key={task.id}
+                  onClick={() => onNavigate("deliverables")}
                   style={{ padding: "13px 18px", borderBottom: idx < arr.length - 1 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12 }}
                   onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
@@ -94,7 +95,15 @@ export default function DashboardView({ user, ideas, deliverables, pending, acti
             {CATEGORIES.map(cat => {
               const count = ideas.filter(i => i.category === cat.id).length;
               if (!count) return null;
-              return <div key={cat.id} title={`${cat.label}: ${count}`} style={{ flex: count, background: cat.color, opacity: 0.85 }} />;
+              return (
+                <div key={cat.id}
+                  title={`${cat.label}: ${count}`}
+                  onClick={() => onNavigate("library", null, cat.id)}
+                  style={{ flex: count, background: cat.color, opacity: 0.85, cursor: "pointer", transition: "opacity 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                  onMouseLeave={e => e.currentTarget.style.opacity = 0.85}
+                />
+              );
             })}
           </div>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>

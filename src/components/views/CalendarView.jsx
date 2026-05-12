@@ -188,9 +188,12 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
           );
         })}
 
-        {/* Overflow */}
+        {/* Overflow — clicking the cell already selects the day; this text inherits that click */}
         {(dayDelivs.length + dayEvents.length) > (compact ? 7 : 5) && (
-          <div style={{ fontSize: 10, color: C.textMuted, fontFamily: mono }}>+{(dayDelivs.length + dayEvents.length) - (compact ? 7 : 5)} more</div>
+          <div style={{ fontSize: 10, color: C.gold, fontFamily: mono, cursor: "pointer" }}
+            title="Click to see full day below the calendar">
+            +{(dayDelivs.length + dayEvents.length) - (compact ? 7 : 5)} more →
+          </div>
         )}
 
         {/* Done indicator */}

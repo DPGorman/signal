@@ -115,6 +115,7 @@ export default function Signal() {
   const [isLoading,     setIsLoading]     = useState(true);
   const [notification,  setNotification]  = useState(null);
   const [filterCat,     setFilterCat]     = useState(null);
+  const [signalFilter,  setSignalFilter]  = useState(false);
   const [showUpload,    setShowUpload]    = useState(false);
   const [canonUpload,   setCanonUpload]   = useState({ title: "", type: "reference", content: "" });
   const [isUploading,   setIsUploading]   = useState(false);
@@ -767,12 +768,13 @@ If no meaningful connections exist, return {"connections": []}`,
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const navGo = (v, idea = null) => {
+  const navGo = (v, idea = null, catId = null) => {
     setView(v);
     setLocalSearch("");
     if (localSearchRef.current) localSearchRef.current.value = "";
     if (idea) { setActiveIdea(idea); }
     else if (v !== "library" && v !== "canon" && v !== "compose") { setActiveIdea(null); setActiveDoc(null); }
+    if (catId !== null) { setFilterCat(catId); }
   };
 
   // Drag-to-resize gutters
@@ -917,6 +919,7 @@ If no meaningful connections exist, return {"connections": []}`,
   const activeCanon = canonDocs.filter(d => d.is_active);
   const filtered    = (() => {
     let f = filterCat ? ideas.filter(i => i.category === filterCat) : ideas;
+    if (signalFilter) f = f.filter(i => i.signal_strength >= 4);
     if (localSearch && localSearch.length >= 2) {
       const term = localSearch.toLowerCase();
       f = f.filter(i => i.text.toLowerCase().includes(term) || (i.ai_note || "").toLowerCase().includes(term));
@@ -1256,7 +1259,17 @@ If no meaningful connections exist, return {"connections": []}`,
                   <div style={{ maxWidth: 640 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
                       <span style={{ fontSize: 12, color: cat.color, fontFamily: mono, letterSpacing: "0.1em" }}>{cat.icon} {cat.label.toUpperCase()}</span>
-                      {displayIdea.signal_strength >= 4 && <span style={{ fontSize: 12, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px" }}>HIGH SIGNAL</span>}
+                      {displayIdea.signal_strength >= 4 && (
+                        <span
+                          onClick={() => setSignalFilter(s => !s)}
+                          title={signalFilter ? "Click to clear high-signal filter" : "Click to see all high-signal ideas"}
+                          style={{ fontSize: 12, color: signalFilter ? C.bg : C.gold, background: signalFilter ? C.gold : "transparent", fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer", transition: "background 0.15s" }}
+                          onMouseEnter={e => !signalFilter && (e.currentTarget.style.background = C.gold + "20")}
+                          onMouseLeave={e => !signalFilter && (e.currentTarget.style.background = "transparent")}
+                        >
+                          {signalFilter ? "✓ HIGH SIGNAL" : "HIGH SIGNAL"}
+                        </span>
+                      )}
                       {searchHighlight && <span onClick={() => setSearchHighlight("")} style={{ fontSize: 12, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer" }}>✕ CLEAR HIGHLIGHT</span>}
                       <span style={{ flex: 1 }} />
                       <button onClick={() => deleteIdea(displayIdea.id)}
@@ -1519,7 +1532,14 @@ If no meaningful connections exist, return {"connections": []}`,
                 <div key={cat.id} style={{ marginBottom: 28, padding: "16px 18px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, borderTop: `3px solid ${cat.color}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                     <span style={{ fontSize: 12, color: cat.color, fontFamily: mono, fontWeight: 500 }}>{cat.icon} {cat.label.toUpperCase()} WORKSHOP</span>
-                    <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>{cat.items.length} tasks</span>
+                    <span
+                      onClick={() => navGo("library", null, cat.id)}
+                      style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, cursor: "pointer", transition: "color 0.15s" }}
+                      onMouseEnter={e => e.currentTarget.style.color = cat.color}
+                      onMouseLeave={e => e.currentTarget.style.color = C.textMuted}
+                    >
+                      {cat.items.length} tasks
+                    </span>
                   </div>
                   {cat.items.slice(0, 5).map(d => (
                     <div key={d.id} id={`del-${d.id}`}
@@ -2147,9 +2167,23 @@ If no meaningful connections exist, return {"connections": []}`,
             {{ today: "TODAY'S FOCUS", calendar: "CALENDAR", dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "ACTIONS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
-            <span style={{ fontSize: 12, color: C.textDisabled, fontFamily: mono }}>{ideas.length} ideas</span>
+            <span
+              onClick={() => navGo("library")}
+              style={{ fontSize: 12, color: C.textDisabled, fontFamily: mono, cursor: "pointer", transition: "color 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.color = C.gold}
+              onMouseLeave={e => e.currentTarget.style.color = C.textDisabled}
+            >
+              {ideas.length} ideas
+            </span>
             <span style={{ fontSize: 12, color: C.textDisabled }}>·</span>
-            <span style={{ fontSize: 12, color: C.textDisabled, fontFamily: mono }}>{pending.length} open</span>
+            <span
+              onClick={() => navGo("deliverables")}
+              style={{ fontSize: 12, color: C.textDisabled, fontFamily: mono, cursor: "pointer", transition: "color 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.color = C.gold}
+              onMouseLeave={e => e.currentTarget.style.color = C.textDisabled}
+            >
+              {pending.length} open
+            </span>
           </div>
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
