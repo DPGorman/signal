@@ -202,10 +202,10 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
   };
 
   return (
-    <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
 
-      {/* ── Main calendar ── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "24px 28px" }}>
+      {/* ── Main calendar (full width) ── */}
+      <div style={{ display: "flex", flexDirection: "column", padding: "24px 28px" }}>
 
         {/* Header: mode toggle + nav */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -246,7 +246,7 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
 
         {/* Month grid */}
         {calMode === "month" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, flex: 1, overflowY: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
             {cells.map((day, i) => day ? renderDayCell(day) : <div key={"e" + i} />)}
           </div>
         )}
@@ -288,11 +288,11 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
         )}
       </div>
 
-      {/* ── Right panel ── */}
-      <div style={{ width: 300, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
+      {/* ── Below the calendar — selected day + no-due-date, full width ── */}
+      <div style={{ borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
 
         {/* Selected day detail */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px" }}>
+        <div style={{ padding: "20px 28px" }}>
           {selectedDay ? (
             <>
               <div style={{ marginBottom: 16 }}>
@@ -377,7 +377,7 @@ export default function CalendarView({ deliverables, calendarEvents, onToggleDel
 
         {/* No-date deliverables */}
         {noDueDate.length > 0 && (
-          <div style={{ borderTop: `1px solid ${C.border}`, padding: "14px 18px", maxHeight: 240, overflowY: "auto" }}>
+          <div style={{ borderTop: `1px solid ${C.border}`, padding: "20px 28px" }}>
             <div style={{ fontSize: 11, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 10 }}>NO DUE DATE · {noDueDate.length}</div>
             {noDueDate.map(d => {
               const cat = getCat(d.idea?.category);
