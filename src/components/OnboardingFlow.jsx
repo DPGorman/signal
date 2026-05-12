@@ -174,7 +174,7 @@ export default function OnboardingFlow({ C, sans, mono, error, loading, onComple
     <>
       <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", textAlign: "center" }}>ONE THING TO READ</div>
       <div style={{ fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.6, padding: "0 20px" }}>
-        Drop in <em>the one thing</em> you'd hand a thought partner if you had ten minutes. A pitch, a brief, a brand book, the script you've been wrestling with — whatever your collaborator should read first.
+        You technically can skip this for now, but you shouldn't. Canon docs help Signal understand you and your work.
       </div>
       <input
         type="text"
