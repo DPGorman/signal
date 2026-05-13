@@ -14,3 +14,10 @@
 ## [SIGNAL INFO] 2026-05-13T05:14:03Z — new signups
 1 new in last 12 hours. Emails: dpgorman+ob1@gmail.com (Daniel alias). Total users: 5.
 ---
+
+## [SIGNAL YELLOW] 2026-05-13T11:28:34Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.34s / 0.31s).
+**Why this severity:** 4xx confirmed as Vercel deployment protection — project `live=false`, latest deploy READY. Not an outage; site is intentionally access-controlled pre-launch. Same condition as previous check.
+**Recommended action:** No action needed if pre-launch gating is deliberate; verify if this should remain protected or open before launch.
+**Raw data:** multi=403/0.34s, navy=403/0.31s; deploy dpl_Cu4qPUwr9XoDRRf5Y1aGQwwp4UNc READY; 0 runtime errors in last 6h; total-users=5.
+---
