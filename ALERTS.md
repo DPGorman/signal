@@ -21,3 +21,10 @@
 **Recommended action:** No action needed if pre-launch gating is deliberate; verify if this should remain protected or open before launch.
 **Raw data:** multi=403/0.34s, navy=403/0.31s; deploy dpl_Cu4qPUwr9XoDRRf5Y1aGQwwp4UNc READY; 0 runtime errors in last 6h; total-users=5.
 ---
+
+## [SIGNAL YELLOW] 2026-05-14T05:07:07Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.24s / 0.34s). Recurring pattern — 4th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW; cross-check confirms all Vercel deploys READY (latest: 80e188f "calendar: completed todos stay visible"). This is Vercel Deployment Protection, not an outage.
+**Recommended action:** No action needed. This YELLOW is a known pre-launch baseline. Consider suppressing in future runs if protection is a permanent pre-launch setting.
+**Raw data:** multi=403/0.24s, navy=403/0.34s; deploy dpl_Cu4qPUwr9XoDRRf5Y1aGQwwp4UNc READY; 0 runtime errors in last 6h; new-signups=0; total-users=5; last-commit=80e188f 36h41m ago (fully deployed).
+---
