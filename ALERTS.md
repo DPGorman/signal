@@ -28,3 +28,10 @@
 **Recommended action:** No action needed. This YELLOW is a known pre-launch baseline. Consider suppressing in future runs if protection is a permanent pre-launch setting.
 **Raw data:** multi=403/0.24s, navy=403/0.34s; deploy dpl_Cu4qPUwr9XoDRRf5Y1aGQwwp4UNc READY; 0 runtime errors in last 6h; new-signups=0; total-users=5; last-commit=80e188f 36h41m ago (fully deployed).
 ---
+
+## [SIGNAL YELLOW] 2026-05-14T11:05:05Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.638s / 0.263s). 5th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: most recent deploy dpl_Cu4qPUwr9XoDRRf5Y1aGQwwp4UNc is READY (commit 80e188f); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. No runtime errors in last 6h; DB healthy.
+**Recommended action:** No action needed — known pre-launch baseline. If repetitive YELLOW noise is undesirable, suppress 403=deployment-protection checks once protection is confirmed intentional.
+**Raw data:** multi=403/0.638s, navy=403/0.263s; deploy dpl_Cu4qPUwr9XoDRRf5Y1aGQwwp4UNc READY; 0 runtime errors in last 6h; new-signups=0; total-users=5; last-commit=80e188f ~43h ago (fully deployed, in sync).
+---
