@@ -24,7 +24,7 @@ async function callAI(system, message) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 600, system, messages: [{ role: "user", content: userContent }] }),
+    body: JSON.stringify({ model: "claude-opus-4-6", max_tokens: 600, system, messages: [{ role: "user", content: userContent }] }),
   });
   const data = await res.json();
   return data.content?.[0]?.text || "";
