@@ -15,9 +15,8 @@
 // and computes the rollup in JS. Trivial at current scale; refactor to SQL
 // aggregation if user count crosses ~10k.
 
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../_supabase.js";
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function median(values) {

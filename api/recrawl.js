@@ -6,16 +6,11 @@
 // the entire project and generate fresh insights.
 // ============================================
 
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "./_supabase.js";
+import { callClaude, extractText } from "./_anthropic.js";
+import { isCronAuthorized } from "./_auth.js";
 import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
 import { getUpcomingEvents, formatEventsForContext } from "./_calendar/get-events.js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 export default async function handler(req, res) {
   // Allow GET (cron) and POST (manual trigger)
@@ -23,10 +18,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Simple auth check — cron sends this header, or pass as query param
-  const authToken = req.headers["authorization"] || req.query?.token;
-  const expectedToken = process.env.CRON_SECRET || "signal-recrawl-2024";
-  if (authToken !== `Bearer ${expectedToken}` && authToken !== expectedToken) {
+  if (!isCronAuthorized(req)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -115,26 +107,15 @@ export default async function handler(req, res) {
     const systemContent = toCacheableSystemContent(parts);
 
     // Call Claude
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1200,
-        system: systemContent,
-        messages: [{
-          role: "user",
-          content: `Project: ${user.project_name || "Film Series"}\nTotal ideas: ${ideas.length}\nTimestamp: ${new Date().toISOString()}\n\nALL IDEAS:\n${allIdeas}`,
-        }],
-      }),
+    const data = await callClaude({
+      system: systemContent,
+      messages: [{
+        role: "user",
+        content: `Project: ${user.project_name || "Film Series"}\nTotal ideas: ${ideas.length}\nTimestamp: ${new Date().toISOString()}\n\nALL IDEAS:\n${allIdeas}`,
+      }],
+      maxTokens: 1200,
     });
-
-    const data = await response.json();
-    const raw = data.content[0].text.replace(/```json|```/g, "").trim();
+    const raw = extractText(data).replace(/```json|```/g, "").trim();
     const insight = JSON.parse(raw);
 
     // Save snapshot

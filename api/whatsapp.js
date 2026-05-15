@@ -10,12 +10,8 @@
 // Rationale: keeping the bots simple means a global user on WhatsApp/Telegram
 // gets zero-friction capture without us maintaining three parallel AI pipelines.
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+import { supabase } from "./_supabase.js";
+import { isWebhookAuthorized } from "./_auth.js";
 
 // Tell Vercel to parse form-encoded bodies (how Twilio sends data)
 export const config = {
@@ -29,6 +25,13 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Webhook auth: set WHATSAPP_WEBHOOK_SECRET in Vercel env and append
+  // ?key=<secret> to the Twilio webhook URL to enforce. Until the env var is
+  // set, this is a no-op (preserves legacy behavior; warns in logs).
+  if (!isWebhookAuthorized(req, "WHATSAPP_WEBHOOK_SECRET")) {
+    return res.status(401).end();
   }
 
   try {

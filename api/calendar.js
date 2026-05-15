@@ -15,9 +15,7 @@
 //   POST /api/calendar?action=create-event     body: { user_id, title, date, duration_minutes?, description? }
 //        Creates a calendar event for the user.
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+import { supabase } from "./_supabase.js";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "1mb" } },

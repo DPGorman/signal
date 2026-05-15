@@ -15,11 +15,10 @@
 //
 // Exactly one of {system} or {mode + userId} must be provided.
 
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "./_supabase.js";
+import { callClaude } from "./_anthropic.js";
 import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
 import { getUpcomingEvents, formatEventsForContext } from "./_calendar/get-events.js";
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
@@ -130,28 +129,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "pdfs-2024-09-25",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: maxTokens || 1000,
-        system: systemPrompt || undefined,
+    let data;
+    try {
+      data = await callClaude({
+        system: systemPrompt,
         messages: [{ role: "user", content: userContent }],
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      return res.status(response.status).json({ error: err });
+        maxTokens: maxTokens || 1000,
+        betas: ["pdfs-2024-09-25"],
+      });
+    } catch (e) {
+      return res.status(e.status || 500).json({ error: e.body || e.message });
     }
-
-    const data = await response.json();
     const text = data.content?.map(b => b.text || "").join("") || "";
 
     if (file) {

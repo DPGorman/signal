@@ -1,5 +1,6 @@
 // api/parse-file.js
 import { Buffer } from "buffer";
+import { getAuthedUser } from "./_auth.js";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
@@ -7,6 +8,12 @@ export const config = {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
+
+  // Require a signed-in user — this endpoint accepts up to 20MB of binary
+  // payload and shells out to pdf-parse/mammoth, so anonymous access is a
+  // free-for-all resource sink.
+  const user = await getAuthedUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
 
   const { content, filename } = req.body;
   if (!content || !filename) return res.status(400).json({ error: "Missing content or filename" });
