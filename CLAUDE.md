@@ -24,33 +24,46 @@ Signal is a creative ideation and production management platform for screenwrite
 - **Deferred until Apple Dev clearance:** Apple, Google, Passkey
 
 ## Project Structure
-- `src/app.jsx` — Main application logic (large monolithic file — verify current line count if it matters; ~2K+ in spring, grew significantly with onboarding + OTP work)
+- `src/app.jsx` — Main application logic (large monolithic file, ~2,300 lines, slated for componentization)
 - `src/components/views/` — Major view components
 - `src/components/OnboardingFlow.jsx` — 4-step onboarding (name → craft → collaborator → canon teach)
-- `src/lib/constants.js` — Design tokens, categories, typography
+- `src/lib/constants.js` — Design tokens, categories, typography (single source of truth; app.jsx imports from here)
 - `src/lib/supabase.js` — Supabase client (points at signal-multi)
+- `src/global.css` — Global CSS (fonts, scrollbars, body resets, keyframes)
 - `src/utils/priorityEngine.js` — Priority conflict detection & daily focus
-- `src/engine/actions.js` — Shared data loading functions
+- `src/engine/actions.js` — `loadProjectData(uid)` helper. Currently NOT wired into app.jsx (which inlines an equivalent). Pre-built for the app.jsx split.
 - `src/hooks/useCheckIn.js` — Daily check-in hook
-- `api/` — Vercel serverless endpoints (ai, pulse, calendar, telegram, whatsapp, parse-file, recrawl, plus admin/* and _voice/_calendar helpers)
+- `api/_supabase.js` — Shared service-role Supabase client (used by all server endpoints)
+- `api/_anthropic.js` — Shared `callClaude({ system, messages, maxTokens, model, betas })`. Default model is Sonnet 4.6; `HIGH_QUALITY_MODEL` exported for callers that need Opus (e.g. voicecard).
+- `api/_auth.js` — `isCronAuthorized` / `getAuthedUser` / `isWebhookAuthorized` endpoint auth helpers
+- `api/` — Vercel serverless endpoints (ai, pulse, calendar, telegram, whatsapp, parse-file, recrawl, voicecard/generate, activation, admin/metrics, plus _voice/_calendar internal helpers)
 - `database/` — SQL migrations for Supabase tables
 
 ## Key Patterns
 - All state managed via React useState in app.jsx
 - Supabase is single source of truth
-- AI calls go through `/api/ai` server-side proxy (never client-direct to Anthropic)
+- AI calls go through `/api/ai` server-side proxy (never client-direct to Anthropic). All server AI calls route through `api/_anthropic.js` `callClaude()`.
 - All tables have Row-Level Security — users only access their own data (verified via 8 programmatic RLS tests in v9)
 - Background connection generation after idea capture
 - Design system: dark theme with gold (#E8C547) accent
+
+## Endpoint auth (added 2026-05-16)
+- **User-session endpoints** (e.g. `/api/parse-file`): require `Authorization: Bearer <Supabase JWT>`. Frontend grabs the JWT via `supabase.auth.getSession()`.
+- **Cron endpoints** (`/api/activation`, `/api/recrawl`): require `Authorization: Bearer <CRON_SECRET>`. Vercel cron sets this header automatically when `CRON_SECRET` is set in project env.
+- **Mixed-auth endpoint** (`/api/pulse`): accepts either CRON_SECRET (for internal hops from activation.js + telegram.js) OR a user JWT (for the frontend "Pulse" button).
+- **Webhook endpoints** (`/api/whatsapp`): gated by `?key=<WHATSAPP_WEBHOOK_SECRET>` query param. Fail-OPEN until that env var is set (preserves legacy behavior).
+- `/api/ai`, `/api/voicecard/generate`, `/api/calendar`, `/api/admin/metrics`, `/api/telegram` — auth posture documented per-file; see source.
 
 ## Categories
 Default screenwriter set (`premise, character, scene, dialogue, arc, production, research, business`). Per voice doc v2.1, categories should evolve to craft-overlay-supplied. The hardcoded list is V1 default.
 
 ## Environment Variables (server-side, set in Vercel for signal-multi project)
 - `ANTHROPIC_API_KEY`
-- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (server) / publishable key (client)
+- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (server) / publishable key (client, hardcoded in `src/lib/supabase.js`)
+- `CRON_SECRET` — required by `/api/activation`, `/api/recrawl`, and the cron path of `/api/pulse`. Vercel cron auto-includes it as `Authorization: Bearer <value>`.
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+- `WHATSAPP_WEBHOOK_SECRET` — optional. When set, `/api/whatsapp` requires `?key=<value>` (Twilio webhook URL must include it). Until set, whatsapp endpoint fail-opens.
 - Pull locally via `vercel env pull` (project must be linked)
 
 ## Development
@@ -69,6 +82,6 @@ vercel --prod  # Manual deploy to signal-multi.vercel.app
 - No test suite (no Jest/Vitest)
 - WhatsApp integration is capture-only stub
 - No pagination on large idea lists
-- `MindMapView.jsx` is 12,000+ lines — performance concern at scale
+- `MindMapView.jsx` is ~195 lines; serial `for ... await` over all ideas in `handleMapAll()` will lag past ~50 nodes — performance concern at scale
 - Error handling is generic ("success"/"error" notifications)
 - Canon teach screen wording in `OnboardingFlow.jsx` step 4 is NOT YET the locked copy ("You technically can skip this for now, but you shouldn't"); needs ~5-min sweep for lock parity with iOS
