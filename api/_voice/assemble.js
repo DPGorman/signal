@@ -102,7 +102,7 @@ export function composePrompt({ craft, lexicon, voiceCard, collaboratorName, mod
 /**
  * Build the Anthropic API system content array with a cache_control breakpoint
  * after the stable portion. Anthropic silently ignores cache_control on prompts
- * smaller than the per-model minimum (1024 tokens for Sonnet 4.x), so this is
+ * smaller than the per-model minimum (4096 tokens for Opus 4.x), so this is
  * always safe. Returns undefined if both parts are empty.
  *
  * @param {{stable: string, runtime: string}} parts
