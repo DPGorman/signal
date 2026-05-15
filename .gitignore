@@ -11,3 +11,6 @@ node_modules/
 
 # Backups
 *.bak
+
+# Claude Code session-local config (preview server, etc.)
+.claude/
