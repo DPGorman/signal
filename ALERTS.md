@@ -42,3 +42,10 @@
 **Recommended action:** No action needed — known pre-launch baseline. Protection is intentional.
 **Raw data:** multi=403/0.32s, navy=403/0.43s; deploy dpl_Cu4qPUwr9XoDRRf5Y1aGQwwp4UNc READY; 0 runtime errors in last 6h; new-signups=0; total-users=5; last-commit=80e188f 60h38m ago (fully deployed, in sync).
 ---
+
+## [SIGNAL YELLOW] 2026-05-15T11:05:47Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.37s / 0.61s). 7th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: project `live=false`, latest deploy dpl_98u6Wad5rFRZQTLNuUjss3pk8SsV READY (da009dd); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. 0 runtime errors; DB healthy.
+**Recommended action:** No action needed — known pre-launch baseline. Notable: new model migration deployed (sonnet-4-6 → opus-4-6, Anthropic retiring sonnet-4-6); deploy appears successful.
+**Raw data:** multi=403/0.37s, navy=403/0.61s; deploy dpl_98u6Wad5rFRZQTLNuUjss3pk8SsV READY (da009dd "ai: migrate sonnet-4-6 to opus-4-6"); 1 benign DEP0169 deprecation warning on /api/activation (200 OK); new-signups=0; total-users=5; last-commit=da009dd 1h41m ago, deploy followed immediately.
+---
