@@ -1,62 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase.js";
+import { C, CATEGORIES, DOC_TYPES, DAILY_INVITATIONS, getCat, todayInvitation, callAI } from "./lib/constants.js";
 import TodayFocus from "./components/TodayFocus.jsx";
 import CalendarIntegration from "./components/CalendarIntegration.jsx";
 import CalendarView from "./components/views/CalendarView.jsx";
 import TasksView from "./components/views/TasksView.jsx";
 import OnboardingFlow from "./components/OnboardingFlow.jsx";
 
-const C = {
-  bg:           "#1B1B1F",
-  surface:      "#232328",
-  surfaceHigh:  "#2C2C32",
-  border:       "#3A3A42",
-  borderSubtle: "#2F2F36",
-  textPrimary:  "#E3E3E8",
-  textSecondary:"#C4C4CC",
-  textMuted:    "#8E8E96",
-  textDisabled: "#4A4A52",
-  gold:         "#E8C547",
-  green:        "#6DD58C",
-  red:          "#FF8A80",
-  blue:         "#7ABCFF",
-  purple:       "#CF9FFF",
-};
-
-const CATEGORIES = [
-  { id: "premise",    label: "Premise",    icon: "◈", color: "#E8C547" },
-  { id: "character",  label: "Character",  icon: "◉", color: "#FFB27A" },
-  { id: "scene",      label: "Scene",      icon: "◫", color: "#7ABCFF" },
-  { id: "dialogue",   label: "Dialogue",   icon: "◌", color: "#CF9FFF" },
-  { id: "arc",        label: "Story Arc",  icon: "◎", color: "#6DD58C" },
-  { id: "production", label: "Production", icon: "◧", color: "#FF8A80" },
-  { id: "research",   label: "Research",   icon: "◐", color: "#A8D8A8" },
-  { id: "business",   label: "Business",   icon: "◑", color: "#FF8FB1" },
-];
-
-const DOC_TYPES = [
-  { id: "series_bible",    label: "Series Bible" },
-  { id: "character_bible", label: "Character Bible" },
-  { id: "premise",         label: "Premise Statement" },
-  { id: "tone_guide",      label: "Tone Guide" },
-  { id: "research",        label: "Research" },
-  { id: "reference",       label: "Reference" },
-];
-
-const DAILY_INVITATIONS = [
-  "What are you afraid to write? That's probably the most important scene.",
-  "Which character are you avoiding? Go there.",
-  "What does your protagonist want that they can't admit?",
-  "Name one thing that happens in this story that only this story could contain.",
-  "What's the scene you keep circling without writing?",
-  "If this series had a moral argument, what would it be?",
-  "What would the antagonist say if they were the hero?",
-  "Which idea from this week is still alive in you right now?",
-];
-
-const getCat = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
 const formatDuration = (mins) => { if (!mins) return null; if (mins < 60) return `${mins}m`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h}h ${m}m` : `${h}h`; };
-const todayInvitation = DAILY_INVITATIONS[new Date().getDay() % DAILY_INVITATIONS.length];
 
 const Highlight = ({ text, term }) => {
   if (!term || term.length < 2 || !text || typeof text !== "string") return <>{text || ""}</>;
@@ -78,16 +29,6 @@ const Highlight = ({ text, term }) => {
     return parts.length ? <>{parts}</> : <>{text}</>;
   } catch (e) { return <>{text}</>; }
 };
-
-async function callAI(system, userMsg, maxTokens = 1000) {
-  const res = await fetch("/api/ai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, message: userMsg, maxTokens }),
-  });
-  if (!res.ok) throw new Error(`AI proxy error: ${res.status}`);
-  return res.json();
-}
 
 // Voice-overlay shape: server assembles backbone + craft overlay + user-layer + mode contract.
 // See api/_voice/* and SIGNAL_VOICE_AND_OVERLAYS_2026-05-06_v2.1.md.
@@ -2383,18 +2324,6 @@ If no meaningful connections exist, return {"connections": []}`,
         />
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Roboto+Mono:wght@400;500&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #3A3A42; border-radius: 2px; }
-        textarea::placeholder, input::placeholder { color: #4A4A52; }
-        select option { background: #232328; color: #E3E3E8; }
-        button { transition: opacity 0.15s; }
-        @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
-      ` }} />
     </div>
   );
 }
