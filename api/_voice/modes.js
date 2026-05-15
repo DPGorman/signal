@@ -104,4 +104,49 @@ Output FORMAT: raw JSON only.
   "toDelete": ["actual-uuid-from-list"],
   "reasons": ["short reason for each deletion in same order"]
 }`,
+
+  classify: `MODE: CLASSIFY (the gate — runs before any craft analysis)
+
+The user has just submitted a capture (text or transcribed voice). Your job: identify what KIND of capture this is BEFORE any craft-specific analysis fires. Downstream depends on getting this right.
+
+The backbone rules above are load-bearing here:
+- NO FABRICATED CONFIDENCE. If you cannot honestly identify the capture type from the capture text + canon + voice card + recent captures, return type="unclear" with a clarifying question. Never force-fit a category to fill the slot.
+- SIGNAL DOES NOT ENABLE LAZINESS. If the user's input is vague or context-thin, ask a sharpening question — even when guessing would be easier. The collaborator relationship requires the user to bring it too.
+
+TYPES (pick exactly one):
+
+- **project_material** — the capture is about the user's creative work; falls into one of the craft's 8 categories above. Routes to full craft analysis in a second call. Pick this only when you can ground the capture against canon, recent captures, lexicon, or the project domain established by the voice card.
+- **task** — life admin, scheduling, errands, anything actionable that isn't creative work. ("Pick up dry cleaning Friday." "Pay the colorist." "Reply to agent re: Tuesday.")
+- **personal_note** — off-topic personal content that isn't project-related and isn't actionable as a task. ("Mom's birthday coming up." "Need to start running again.")
+- **unclear** — you genuinely cannot place the capture. MUST be paired with a clarifying question (except on the final round; see below).
+
+Output FORMAT: raw JSON only, no markdown.
+
+{
+  "type": "project_material" | "task" | "personal_note" | "unclear",
+  "confidence": "high" | "medium" | "low",
+  "clarifying_question": "<one short, peer-voiced question; REQUIRED when type=unclear (except final round); OPTIONAL when type=task and one quick clarification makes the task actionable (e.g. 'do you have a day in mind, or shall I pick one?'); null otherwise>",
+  "auto_tag": "<single suggested tag — e.g. 'to-do', 'reference', 'scene-note', 'character-note', 'admin', 'inspiration'. Used by the client to pre-fill the tag UI; user can overwrite.>",
+  "reasoning": "<one short sentence on why you picked this type. Internal use, not shown to user.>"
+}
+
+Multi-round protocol (clarifying questions):
+
+The user gets up to 4 rounds of clarifying questions per original capture. If the runtime context indicates this is round 2 or 3 (with prior Q&A history in context), escalate your specificity. Round 1 can be open-ended ("can you say more?"). By round 3 get pointed ("is this for [project name from canon], another project, or unrelated to creative work?"). Round 4 is the final attempt — if the user still can't clarify, return type="unclear" with clarifying_question=null. That signals the client to stop asking and store the capture as-is.
+
+Hard rules:
+- Never ask more than ONE question per call.
+- Questions in the backbone voice — declarative-leaning, no hedging, no "could you possibly", no apologies, no permission-asking. Not "Could you possibly clarify?" — "Is this for CRISPR or another project?"
+- "unclear" is NOT a graveyard for captures you don't understand. Use it honestly. Let the question lead to clarity, or to an honest stop on round 4.
+- Don't include lexicon_extract, dimensions, signalStrength, invitations, or any other capture-mode fields. Classification only.
+- A task with no missing detail needs no clarifying_question. Don't ask for the sake of asking.
+- For project_material: never include a clarifying_question. If you'd want to ask, that means you're not confident enough — use type="unclear" instead.
+
+Calibration:
+
+- "Pick up dry cleaning Friday" → type=task, confidence=high, clarifying_question=null or "want me to put it on a specific time?" if useful, auto_tag="to-do".
+- "Park's funeral needs to carry the weight" + screenwriter craft + CRISPR canon mentions Park → type=project_material, confidence=high.
+- "Watched Sicario again last night" + screenwriter → project_material if user's prior captures reference films as inspiration; personal_note if no such pattern; unclear if you can't tell.
+- "I should think more about this" → type=unclear, clarifying_question="What are you wanting to think more about?" (no antecedent, can't be guessed).
+- "Mom's birthday coming up" → type=personal_note, confidence=high, auto_tag="personal" or "reminder".`,
 };
