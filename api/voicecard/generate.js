@@ -16,16 +16,11 @@
 // in the sense that calling it twice produces two new versions, not in the
 // sense that it dedupes.
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+import { supabase } from "../_supabase.js";
+import { callClaude, HIGH_QUALITY_MODEL } from "../_anthropic.js";
 
 const MIN_CAPTURES = 5;
 const MAX_CAPTURES_SAMPLE = 100;
-const ANTHROPIC_MODEL = "claude-opus-4-6";
 const MAX_TOKENS = 1200;
 
 export default async function handler(req, res) {
@@ -131,36 +126,22 @@ ${canon?.length ? `\nCanon documents (reference material):\n${canonBlock}` : ""}
 
 Write the voice card.`;
 
-  // ─── 6. Call Claude ───────────────────────────────────────────────────
+  // ─── 6. Call Claude (Opus for higher signature quality on this low-volume endpoint) ──
   let signature;
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: MAX_TOKENS,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
+    const data = await callClaude({
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+      maxTokens: MAX_TOKENS,
+      model: HIGH_QUALITY_MODEL,
     });
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("voicecard/generate: Claude error:", response.status, err);
-      return res.status(response.status).json({ error: `Claude ${response.status}: ${err}` });
-    }
-    const data = await response.json();
     signature = (data.content?.map((b) => b.text || "").join("") || "").trim();
     if (!signature) {
       return res.status(500).json({ error: "Claude returned empty signature" });
     }
   } catch (e) {
-    console.error("voicecard/generate: fetch failed:", e);
-    return res.status(500).json({ error: e.message });
+    console.error("voicecard/generate: Claude call failed:", e.message);
+    return res.status(e.status || 500).json({ error: e.body || e.message });
   }
 
   // ─── 7. Determine new version ─────────────────────────────────────────

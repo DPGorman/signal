@@ -1,9 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "./_supabase.js";
+import { callClaude, extractText } from "./_anthropic.js";
+import { isCronAuthorized, getAuthedUser } from "./_auth.js";
 import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
 import { getUpcomingEvents, formatEventsForContext } from "./_calendar/get-events.js";
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
 
@@ -21,17 +21,24 @@ async function callAI(system, message) {
   // Anthropic rejects empty user content. Pulse is mode-driven (the system prompt
   // is self-sufficient) so callers may pass "" — substitute a trigger phrase.
   const userContent = (typeof message === "string" && message.length > 0) ? message : "Generate today's pulse.";
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 600, system, messages: [{ role: "user", content: userContent }] }),
+  const data = await callClaude({
+    system,
+    messages: [{ role: "user", content: userContent }],
+    maxTokens: 600,
   });
-  const data = await res.json();
-  return data.content?.[0]?.text || "";
+  return extractText(data);
 }
 
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  // Mixed-auth: cron requests (Vercel cron, internal hops from activation/telegram)
+  // carry CRON_SECRET in the Authorization header. Frontend user-triggered nudges
+  // carry the user's Supabase JWT. Either is sufficient.
+  if (!isCronAuthorized(req)) {
+    const user = await getAuthedUser(req);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+  }
 
   const mode = req.query?.mode || req.body?.mode || "nudge";
   const userId = req.body?.user_id || req.query?.user_id || null;

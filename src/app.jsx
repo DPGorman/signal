@@ -602,12 +602,15 @@ If no meaningful connections exist, return {"connections": []}`,
         reader.readAsDataURL(file);
       });
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+
       let data = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const res = await fetch("/api/parse-file", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...authHeader },
             body: JSON.stringify({ content: base64, filename: file.name }),
           });
           data = await res.json();
@@ -2168,7 +2171,9 @@ If no meaningful connections exist, return {"connections": []}`,
               { label: "Pulse",        icon: "↯",  color: C.gold,      action: async () => {
                 notify("Sending pulse...", "processing");
                 try {
-                  const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nudge", user_id: user?.id }) });
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+                  const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json", ...authHeader }, body: JSON.stringify({ mode: "nudge", user_id: user?.id }) });
                   const d = await r.json();
                   if (d.sent) notify("Pulse sent to Telegram.", "success");
                   else notify("Pulse failed: " + (d.error || "unknown"), "error");

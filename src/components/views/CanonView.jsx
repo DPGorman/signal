@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { C, DOC_TYPES, mono, sans, inputBase } from "../../lib/constants";
+import { supabase } from "../../lib/supabase";
 import Highlight from "../Highlight";
 
 export default function CanonView({ canonDocs, activeDoc, searchHighlight, onToggleCanon, onDeleteCanon, onSetActiveDoc, onUploadCanon }) {
@@ -23,12 +24,15 @@ export default function CanonView({ canonDocs, activeDoc, searchHighlight, onTog
         reader.readAsDataURL(file);
       });
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+
       let data = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const res = await fetch("/api/parse-file", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...authHeader },
             body: JSON.stringify({ content: base64, filename: file.name }),
           });
           data = await res.json();

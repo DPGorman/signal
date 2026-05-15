@@ -9,9 +9,8 @@
 // The workstation (web/iOS) does the work; the messaging surface is a write-only
 // inbox into the same canon.
 
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "./_supabase.js";
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegram(chatId, text) {
@@ -76,8 +75,11 @@ export default async function handler(req, res) {
       await sendTelegram(chatId, "Generating pulse...");
       const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://signal-multi.vercel.app";
       const user = await getUser();
+      const cronSecret = process.env.CRON_SECRET;
+      const headers = { "Content-Type": "application/json" };
+      if (cronSecret) headers.Authorization = `Bearer ${cronSecret}`;
       await fetch(`${baseUrl}/api/pulse?mode=nudge`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers,
         body: JSON.stringify({ user_id: user.id }),
       });
       return res.status(200).json({ ok: true });

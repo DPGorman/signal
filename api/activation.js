@@ -14,11 +14,12 @@
 // delivery (per-user telegram_chat_id, email, in-app notification) is
 // deferred to a follow-on chunk.
 
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "./_supabase.js";
+import { isCronAuthorized } from "./_auth.js";
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT  = process.env.TELEGRAM_CHAT_ID;
+const CRON_SECRET = process.env.CRON_SECRET;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAY3_CAPTURE_THRESHOLD = 3;
@@ -51,8 +52,10 @@ async function captureCount(userId) {
 async function fireDay3Pulse(user) {
   // Trigger the existing pulse pipeline for this specific user.
   // pulse.js handles a per-user invocation when ?user_id= is present.
+  // Pulse requires CRON_SECRET on internal hops since it now enforces auth.
   const url = `${APP_URL}/api/pulse?user_id=${user.id}&mode=nudge`;
-  const res = await fetch(url, { method: "GET" });
+  const headers = CRON_SECRET ? { Authorization: `Bearer ${CRON_SECRET}` } : {};
+  const res = await fetch(url, { method: "GET", headers });
   return res.ok;
 }
 
@@ -117,6 +120,10 @@ async function processUser(user, dryRun) {
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!isCronAuthorized(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   const dryRun = req.query?.dry_run === "1" || req.query?.dry_run === "true";
