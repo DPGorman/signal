@@ -1418,7 +1418,7 @@ If no meaningful connections exist, return {"connections": []}`,
               onMouseEnter={e => e.currentTarget.style.color = C.gold}
               onMouseLeave={e => e.currentTarget.style.color = C.textDisabled}
             >
-              {ideas.length} ideas
+              {creativeIdeas.length} ideas
             </span>
             <span style={{ fontSize: 12, color: C.textDisabled }}>·</span>
             <span
