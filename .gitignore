@@ -14,3 +14,7 @@ node_modules/
 
 # Claude Code session-local config (preview server, etc.)
 .claude/
+
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
