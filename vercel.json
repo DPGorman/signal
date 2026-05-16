@@ -16,5 +16,10 @@
       "path": "/api/refresh-voicecards",
       "schedule": "0 10 * * *"
     }
+  ],
+  "rewrites": [
+    { "source": "/api/health", "destination": "/api/admin?mode=health" },
+    { "source": "/api/recrawl", "destination": "/api/admin?mode=recrawl" },
+    { "source": "/api/admin/metrics", "destination": "/api/admin?mode=metrics" }
   ]
 }
