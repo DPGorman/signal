@@ -963,6 +963,28 @@ ${openInvites || "None yet."}`,
     document.body.style.userSelect = "none";
   };
 
+  // Idea filters — declared HERE (not later in the file) so the useEffect
+  // below can safely reference `creativeIdeas.length` in its deps array.
+  // Before this move, Vite's minifier was hoisting `const creativeIdeas`
+  // for us; once reclassifyIncoming added a closure reference to it earlier
+  // in the function body, the hoist optimization stopped and the TDZ
+  // violation became a real runtime crash on initial render.
+  //
+  // Creative library: project_material kind only (legacy null treated as
+  // project_material). Tasks + personal_notes + unclear captures from the
+  // classify gate live in `ideas` but don't belong in the creative library
+  // view, category-filter row, or library count. Archived rows are hidden
+  // from every surface (visible only via direct SQL).
+  const creativeIdeas = ideas.filter(i => (!i.kind || i.kind === "project_material") && !i.is_archived);
+  // Incoming: task | personal_note | unclear captures awaiting triage. Excludes archived.
+  const incomingIdeas = ideas.filter(i => i.kind && i.kind !== "project_material" && !i.is_archived)
+    .sort((a, b) => {
+      // unclear first (most actionable), then by recency
+      if (a.kind === "unclear" && b.kind !== "unclear") return -1;
+      if (a.kind !== "unclear" && b.kind === "unclear") return 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
   // Auto-select first item when entering list views with nothing selected.
   // Library shows project_material only, so the auto-selected item must match
   // — otherwise the highlight points at a row the user can't see.
@@ -1088,19 +1110,8 @@ ${openInvites || "None yet."}`,
 
   const pending     = deliverables.filter(d => !d.is_complete);
   const activeCanon = canonDocs.filter(d => d.is_active);
-  // Creative library: project_material kind only (legacy null treated as project_material).
-  // Tasks + personal_notes + unclear captures from the classify gate live in `ideas`
-  // but don't belong in the creative library view, category-filter row, or library count.
-  // Archived rows are hidden from every surface (visible only via direct SQL).
-  const creativeIdeas = ideas.filter(i => (!i.kind || i.kind === "project_material") && !i.is_archived);
-  // Incoming: task | personal_note | unclear captures awaiting triage. Excludes archived.
-  const incomingIdeas = ideas.filter(i => i.kind && i.kind !== "project_material" && !i.is_archived)
-    .sort((a, b) => {
-      // unclear first (most actionable), then by recency
-      if (a.kind === "unclear" && b.kind !== "unclear") return -1;
-      if (a.kind !== "unclear" && b.kind === "unclear") return 1;
-      return new Date(b.created_at) - new Date(a.created_at);
-    });
+  // (creativeIdeas + incomingIdeas declared earlier in the function so the
+  // auto-select useEffect's deps array can safely reference them.)
   const filtered    = (() => {
     let f = creativeIdeas;
     if (filterCat) f = f.filter(i => i.category === filterCat);
