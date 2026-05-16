@@ -1643,7 +1643,7 @@ If no meaningful connections exist, return {"connections": []}`,
                     REFRESH ↻
                   </button>
                 </div>
-              ) : ideas.length < 2
+              ) : creativeIdeas.length < 2
                 ? <div style={{ fontSize: 12, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.8 }}>Capture a few ideas to activate the Studio.</div>
                 : <button onClick={() => runStudio(ideas, user)}
                     style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: mono, fontSize: 12, letterSpacing: "0.1em", cursor: "pointer", borderRadius: 4 }}>
@@ -1672,11 +1672,11 @@ If no meaningful connections exist, return {"connections": []}`,
                   <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65, borderLeft: `3px solid ${C.gold}`, paddingLeft: 10 }}>{studio.duplicates}</div>
                 </div>
               )}
-              {ideas.length > 0 && (
+              {creativeIdeas.length > 0 && (
                 <div>
                   <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>BY CATEGORY</div>
                   {CATEGORIES.map(cat => {
-                    const count = ideas.filter(i => i.category === cat.id).length;
+                    const count = creativeIdeas.filter(i => i.category === cat.id).length;
                     if (!count) return null;
                     return (
                       <div key={cat.id} onClick={() => { setFilterCat(cat.id); navGo("library"); }} style={{ marginBottom: 8, cursor: "pointer" }}>
@@ -1685,7 +1685,7 @@ If no meaningful connections exist, return {"connections": []}`,
                           <span style={{ fontSize: 12, color: cat.color, fontFamily: mono }}>{count}</span>
                         </div>
                         <div style={{ height: 2, background: C.border, borderRadius: 2 }}>
-                          <div style={{ height: "100%", background: cat.color, width: `${(count / ideas.length) * 100}%`, borderRadius: 2, opacity: 0.8 }} />
+                          <div style={{ height: "100%", background: cat.color, width: `${(count / creativeIdeas.length) * 100}%`, borderRadius: 2, opacity: 0.8 }} />
                         </div>
                       </div>
                     );
@@ -1697,10 +1697,10 @@ If no meaningful connections exist, return {"connections": []}`,
           {studioTab === "stats" && (
             <div>
               {[
-                { label: "Total Ideas",  value: ideas.length,   color: C.gold,   dest: "library"      },
-                { label: "This Week",    value: ideas.filter(i => Date.now() - new Date(i.created_at) < 7*864e5).length, color: C.blue, dest: "library" },
-                { label: "High Signal",  value: ideas.filter(i => i.signal_strength >= 4).length, color: C.green, dest: "library" },
-                { label: "Via Telegram", value: ideas.filter(i => i.source === "whatsapp").length, color: C.purple, dest: "library" },
+                { label: "Total Ideas",  value: creativeIdeas.length,   color: C.gold,   dest: "library"      },
+                { label: "This Week",    value: creativeIdeas.filter(i => Date.now() - new Date(i.created_at) < 7*864e5).length, color: C.blue, dest: "library" },
+                { label: "High Signal",  value: creativeIdeas.filter(i => i.signal_strength >= 4).length, color: C.green, dest: "library" },
+                { label: "Via Telegram", value: creativeIdeas.filter(i => i.source === "whatsapp").length, color: C.purple, dest: "library" },
                 { label: "Open Actions", value: pending.length, color: C.red,    dest: "deliverables" },
                 { label: "Canon Docs",   value: activeCanon.length, color: C.green, dest: "canon"     },
               ].map(s => (
