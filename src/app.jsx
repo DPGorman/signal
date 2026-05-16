@@ -281,7 +281,10 @@ export default function Signal() {
   };
 
   useEffect(() => {
-    if (ideas.length > 1 && user && !studioFired.current && !studioLoading) {
+    // Gate on creative captures only — tasks/unclear/personal_note shouldn't
+    // trigger Studio (Studio is creative synthesis, not life-admin analysis).
+    const creativeCount = ideas.filter(i => !i.kind || i.kind === "project_material").length;
+    if (creativeCount > 1 && user && !studioFired.current && !studioLoading) {
       studioFired.current = true;
       runStudio(ideas, user);
     }
