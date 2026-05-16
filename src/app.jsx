@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase.js";
 import { C, CATEGORIES, DOC_TYPES, DAILY_INVITATIONS, getCat, todayInvitation, callAI } from "./lib/constants.js";
+import Highlight from "./components/Highlight.jsx";
 import TodayFocus from "./components/TodayFocus.jsx";
 import CalendarIntegration from "./components/CalendarIntegration.jsx";
 import CalendarView from "./components/views/CalendarView.jsx";
@@ -8,27 +9,6 @@ import TasksView from "./components/views/TasksView.jsx";
 import OnboardingFlow from "./components/OnboardingFlow.jsx";
 
 const formatDuration = (mins) => { if (!mins) return null; if (mins < 60) return `${mins}m`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h}h ${m}m` : `${h}h`; };
-
-const Highlight = ({ text, term }) => {
-  if (!term || term.length < 2 || !text || typeof text !== "string") return <>{text || ""}</>;
-  try {
-    const parts = [];
-    const lower = text.toLowerCase();
-    const tLower = term.toLowerCase();
-    let last = 0;
-    let idx = lower.indexOf(tLower);
-    let count = 0;
-    while (idx !== -1 && count < 50) {
-      if (idx > last) parts.push(<span key={"t" + idx}>{text.slice(last, idx)}</span>);
-      parts.push(<span key={"h" + idx} style={{ background: "#E8C54740", color: "#E8C547", borderRadius: 2, padding: "0 1px" }}>{text.slice(idx, idx + term.length)}</span>);
-      last = idx + term.length;
-      idx = lower.indexOf(tLower, last);
-      count++;
-    }
-    if (last < text.length) parts.push(<span key="end">{text.slice(last)}</span>);
-    return parts.length ? <>{parts}</> : <>{text}</>;
-  } catch (e) { return <>{text}</>; }
-};
 
 // Voice-overlay shape: server assembles backbone + craft overlay + user-layer + mode contract.
 // See api/_voice/* and SIGNAL_VOICE_AND_OVERLAYS_2026-05-06_v2.1.md.
