@@ -56,3 +56,10 @@
 **Recommended action:** No action needed — known pre-launch baseline. Active development: 8 deploys shipped since last check (~18h); latest voicecard auth fix live. Note: sonnet-4-6 was briefly migrated to opus-4-6 then reverted to sonnet-4-6 same day (cost decision).
 **Raw data:** multi=403/0.22s, navy=403/0.19s; latest deploy dpl_Fn5J6WAxsKNFuDLMAmP1hmJWuGq6 READY (1573786 "voicecard auth fix", 11min ago at check time); runtime logs (6h): 0 5xx, 2×401 on /api/voicecard/generate at 04:52 UTC (benign — 1min post-deploy test traffic, not server errors); new-signups=0; total-users=5; last-commit=1573786 11min ago, fully deployed.
 ---
+
+## [SIGNAL YELLOW] 2026-05-16T11:02:53Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.32s / 0.75s). 9th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: latest deploy dpl_3UNfxpX9k4ni3CzU6UgFefDmLzdF READY (commit 1011679 "feat: desktop multi-round clarifying-question UI"); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. 0 runtime errors in last 6h.
+**Recommended action:** No action needed — known pre-launch baseline. Very active dev session: 11 deploys since last check (6h), including full app.jsx componentization (waves 1–5), classifier integration, LibraryView filters, CATEGORIES extension, ai_observations writer, and multi-round clarifying-question UI.
+**Raw data:** multi=403/0.32s, navy=403/0.75s; latest deploy dpl_3UNfxpX9k4ni3CzU6UgFefDmLzdF READY (1011679 "multi-round clarifying-question UI", 1h27m ago); runtime logs (6h): no entries; new-signups=0; total-users=5; last-commit=1011679 1h27m ago, fully deployed.
+---
