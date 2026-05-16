@@ -171,6 +171,42 @@ export default async function handler(req, res) {
       }
     }
 
+    // ai_observations writer (feeds voicecard v2 + future AI calls).
+    // Writes high-signal observations only — avoid noise that dilutes the
+    // voicecard signature. Studio produces 4 distinct synthesis observations
+    // per call; capture only writes when signal_strength is 4 (urgent) or
+    // 5 (essential). Fire-and-forget; never blocks the analysis response.
+    if (userId && parsed) {
+      const observations = [];
+      if (mode === "studio") {
+        for (const field of ["provocation", "pattern", "urgentIdea", "blind_spot"]) {
+          const val = parsed[field];
+          if (typeof val === "string" && val.trim().length > 0) {
+            observations.push({
+              user_id: userId,
+              type: `studio_${field}`,
+              text: val.trim(),
+            });
+          }
+        }
+      } else if (mode === "capture" && (parsed.signalStrength === 4 || parsed.signalStrength === 5) && typeof parsed.aiNote === "string" && parsed.aiNote.trim().length > 0) {
+        observations.push({
+          user_id: userId,
+          type: "capture_aiNote",
+          text: parsed.aiNote.trim(),
+          user_verbatim: typeof message === "string" ? message.slice(0, 500) : null,
+        });
+      }
+      if (observations.length > 0) {
+        try {
+          const { error: obsErr } = await supabase.from("ai_observations").insert(observations);
+          if (obsErr) console.warn("ai_observations write failed:", obsErr.message);
+        } catch (e) {
+          console.warn("ai_observations write threw:", e.message);
+        }
+      }
+    }
+
     return res.status(200).json(parsed);
   } catch (e) {
     console.error("AI proxy error:", e);
