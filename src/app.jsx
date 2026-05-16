@@ -6,6 +6,7 @@ import TodayFocus from "./components/TodayFocus.jsx";
 import CalendarIntegration from "./components/CalendarIntegration.jsx";
 import CalendarView from "./components/views/CalendarView.jsx";
 import TasksView from "./components/views/TasksView.jsx";
+import DashboardView from "./components/views/DashboardView.jsx";
 import OnboardingFlow from "./components/OnboardingFlow.jsx";
 
 const formatDuration = (mins) => { if (!mins) return null; if (mins < 60) return `${mins}m`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h}h ${m}m` : `${h}h`; };
@@ -859,15 +860,6 @@ If no meaningful connections exist, return {"connections": []}`,
     fontSize: 12, outline: "none", boxSizing: "border-box",
   };
 
-  const SectionHead = ({ label, onClick }) => (
-    <div onClick={onClick}
-      style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", cursor: onClick ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 5, transition: "color 0.15s" }}
-      onMouseEnter={e => onClick && (e.currentTarget.style.color = C.gold)}
-      onMouseLeave={e => (e.currentTarget.style.color = C.textMuted)}>
-      {label}{onClick && <span style={{ fontSize: 12 }}>→</span>}
-    </div>
-  );
-
   if (isLoading) return (
     <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: C.textMuted, fontFamily: sans, fontSize: 24, fontStyle: "italic" }}>Signal</div>
@@ -999,130 +991,6 @@ If no meaningful connections exist, return {"connections": []}`,
   if (!user) return (
     <div style={{ height: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: C.textMuted, fontFamily: sans, fontSize: 24, fontStyle: "italic" }}>Signal</div>
-    </div>
-  );
-
-  const DashboardView = () => (
-    <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "36px 44px" }}>
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ fontSize: 17, color: C.textPrimary, fontWeight: 500, letterSpacing: "-0.01em", marginBottom: 4 }}>{user.project_name}</div>
-        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>
-          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-        </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 36 }}>
-        {[
-          { label: "Ideas",       value: ideas.length,   color: C.gold,   sub: `${ideas.filter(i => Date.now() - new Date(i.created_at) < 7*864e5).length} this week`, dest: "library" },
-          { label: "Actions",     value: pending.length, color: C.red,    sub: `${deliverables.filter(d => d.is_complete).length} completed`, dest: "deliverables" },
-          { label: "Overdue",     value: deliverables.filter(d => !d.is_complete && d.due_date && d.due_date.slice(0,10) < new Date().toISOString().slice(0,10)).length, color: C.red, sub: "need attention", dest: "calendar" },
-          { label: "Canon",       value: activeCanon.length, color: C.purple, sub: "active sources", dest: "canon" },
-        ].map(s => (
-          <div key={s.label} onClick={() => navGo(s.dest)}
-            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "14px 14px", cursor: "pointer", transition: "border-color 0.15s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = s.color}
-            onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-            <div style={{ fontSize: 30, color: s.color, fontWeight: 300, lineHeight: 1, marginBottom: 6 }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 500, marginBottom: 2 }}>{s.label}</div>
-            <div style={{ fontSize: 12, color: C.textMuted }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}` }}>
-        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <SectionHead label="RECENT CAPTURES" onClick={() => navGo("library")} />
-          <span onClick={() => navGo("library")} style={{ fontSize: 12, color: C.gold, cursor: "pointer", fontFamily: mono }}>VIEW ALL →</span>
-        </div>
-        {ideas.length === 0
-          ? <div style={{ padding: "24px 20px", color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>No ideas yet.</div>
-          : ideas.slice(0, 6).map((idea, idx) => {
-              const cat = getCat(idea.category);
-              const daysAgo = Math.floor((Date.now() - new Date(idea.created_at)) / 864e5);
-              return (
-                <div key={idea.id} onClick={() => navGo("library", idea)}
-                  style={{ padding: "13px 18px", borderBottom: idx < 5 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12 }}
-                  onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <span style={{ fontSize: 12, color: cat.color, marginTop: 2, flexShrink: 0 }}>{cat.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>{idea.text}</div>
-                    <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, marginTop: 3 }}>
-                      {cat.label} · {daysAgo === 0 ? "today" : `${daysAgo}d ago`}
-                      {idea.signal_strength >= 4 && <span style={{ color: C.gold, marginLeft: 6 }}>◈</span>}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-        }
-      </div>
-      <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}` }}>
-        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <SectionHead label="OPEN INVITATIONS" onClick={() => navGo("deliverables")} />
-          <span onClick={() => navGo("deliverables")} style={{ fontSize: 12, color: C.gold, cursor: "pointer", fontFamily: mono }}>VIEW ALL →</span>
-        </div>
-        {pending.length === 0
-          ? <div style={{ padding: "24px 20px", color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>All caught up.</div>
-          : pending.slice(0, 5).map((task, idx, arr) => {
-              const cat = getCat(task.idea?.category);
-              return (
-                <div key={task.id} onClick={() => toggleDeliverable(task.id, task.is_complete)}
-                  style={{ padding: "13px 18px", borderBottom: idx < arr.length - 1 ? `1px solid ${C.borderSubtle}` : "none", cursor: "pointer", display: "flex", gap: 12 }}
-                  onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <div style={{ width: 14, height: 14, border: `2px solid ${C.border}`, flexShrink: 0, marginTop: 4 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>{task.text}</div>
-                    <div style={{ fontSize: 12, color: cat.color, fontFamily: mono, marginTop: 3 }}>{cat.icon} {cat.label}</div>
-                  </div>
-                </div>
-              );
-            })
-        }
-      </div>
-      {ideas.length > 0 && (
-        <div style={{ marginBottom: 24, background: C.surface, border: `1px solid ${C.border}`, padding: "16px 18px" }}>
-          <SectionHead label="SIGNAL DISTRIBUTION" onClick={() => navGo("library")} />
-          <div style={{ display: "flex", height: 5, borderRadius: 3, overflow: "hidden", gap: 1, margin: "12px 0" }}>
-            {CATEGORIES.map(cat => {
-              const count = ideas.filter(i => i.category === cat.id).length;
-              if (!count) return null;
-              return <div key={cat.id} title={`${cat.label}: ${count}`} style={{ flex: count, background: cat.color, opacity: 0.85 }} />;
-            })}
-          </div>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-            {CATEGORIES.filter(cat => ideas.some(i => i.category === cat.id)).map(cat => (
-              <span key={cat.id} onClick={() => { setFilterCat(cat.id); navGo("library"); }}
-                style={{ fontSize: 12, color: C.textMuted, cursor: "pointer", transition: "color 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.color = cat.color}
-                onMouseLeave={e => e.currentTarget.style.color = C.textMuted}>
-                <span style={{ color: cat.color }}>{cat.icon}</span> {cat.label} {ideas.filter(i => i.category === cat.id).length}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      {canonDocs.length > 0 && (
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, padding: "16px 18px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <SectionHead label="CANON LAYER" onClick={() => navGo("canon")} />
-            <span onClick={() => navGo("canon")} style={{ fontSize: 12, color: C.gold, cursor: "pointer", fontFamily: mono }}>MANAGE →</span>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {canonDocs.map(doc => (
-              <div key={doc.id} onClick={() => { setActiveDoc(doc); navGo("canon"); }}
-                style={{ background: C.surfaceHigh, border: `1px solid ${doc.is_active ? C.green + "50" : C.border}`, padding: "10px 14px", display: "flex", gap: 8, cursor: "pointer", transition: "border-color 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = doc.is_active ? C.green : C.textMuted}
-                onMouseLeave={e => e.currentTarget.style.borderColor = doc.is_active ? C.green + "50" : C.border}>
-                <span style={{ color: doc.is_active ? C.green : C.textDisabled }}>◈</span>
-                <div>
-                  <div style={{ fontSize: 12, color: doc.is_active ? C.textPrimary : C.textDisabled }}>{doc.title}</div>
-                  <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>{doc.is_active ? "active" : "inactive"}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 
@@ -2114,7 +1982,20 @@ If no meaningful connections exist, return {"connections": []}`,
           {view === "today"        && <TodayFocus deliverables={deliverables} connections={connections} calendarEvents={calendarEvents} onToggleDeliverable={toggleDeliverable} onNavigate={navGo} onAddToSession={addToSession} />}
           {view === "tasks"        && <TasksView deliverables={deliverables} onAddTask={addTask} onDeleteTask={deleteTask} onToggleDeliverable={toggleDeliverable} onUpdateTask={updateTask} onAddToSession={addToSession} onRemoveFromSession={removeFromSession} onStarTask={starTask} />}
           {view === "calendar"     && <CalendarView deliverables={deliverables} calendarEvents={calendarEvents} onToggleDeliverable={toggleDeliverable} onPushToCalendar={pushToGoogleCalendar} onNavigate={navGo} />}
-          {view === "dashboard"    && DashboardView()}
+          {view === "dashboard"    && (
+            <DashboardView
+              user={user}
+              ideas={ideas}
+              deliverables={deliverables}
+              pending={pending}
+              activeCanon={activeCanon}
+              canonDocs={canonDocs}
+              onNavigate={navGo}
+              onSetFilterCat={setFilterCat}
+              onSetActiveDoc={setActiveDoc}
+              onToggleDeliverable={toggleDeliverable}
+            />
+          )}
           {view === "capture"      && CaptureView()}
           {view === "library"      && LibraryView()}
           {view === "canon"        && CanonView()}
