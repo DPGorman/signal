@@ -220,51 +220,28 @@ Write the voice card.`;
     return res.status(e.status || 500).json({ error: e.body || e.message });
   }
 
-  // ─── 10. Determine new version ────────────────────────────────────────
-  const { data: currentActive } = await supabase
-    .from("user_voice_card")
-    .select("id, version")
-    .eq("user_id", user_id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  const newVersion = (currentActive?.version || 0) + 1;
-
-  // ─── 11. Deactivate old card (partial unique index requires this) ─────
-  if (currentActive) {
-    const { error: deactErr } = await supabase
-      .from("user_voice_card")
-      .update({ is_active: false })
-      .eq("id", currentActive.id);
-    if (deactErr) {
-      console.error("voicecard/generate: deactivate failed:", deactErr.message);
-      return res.status(500).json({ error: `Deactivate failed: ${deactErr.message}` });
+  // ─── 10. Atomic swap via swap_active_voice_card RPC ───────────────────
+  // The RPC runs deactivate + insert in a single transaction, so a mid-flight
+  // failure can't leave the user with no active card. The partial unique
+  // index on (user_id) WHERE is_active = TRUE is satisfied at commit time.
+  const { data: inserted, error: rpcErr } = await supabase.rpc(
+    "swap_active_voice_card",
+    {
+      p_user_id: user_id,
+      p_signature: signature,
+      p_is_user_edited: false,
     }
+  );
+  if (rpcErr) {
+    console.error("voicecard/generate: swap failed:", rpcErr.message);
+    return res.status(500).json({ error: `Swap failed: ${rpcErr.message}` });
   }
 
-  // ─── 12. Insert new card ──────────────────────────────────────────────
-  const { data: inserted, error: insertErr } = await supabase
-    .from("user_voice_card")
-    .insert({
-      user_id,
-      signature,
-      version: newVersion,
-      is_active: true,
-      is_user_edited: false,
-    })
-    .select()
-    .single();
-
-  if (insertErr) {
-    console.error("voicecard/generate: insert failed:", insertErr.message);
-    return res.status(500).json({ error: `Insert failed: ${insertErr.message}` });
-  }
-
-  // ─── 13. Done ─────────────────────────────────────────────────────────
+  // ─── 11. Done ─────────────────────────────────────────────────────────
   return res.status(200).json({
     success: true,
     card_id: inserted.id,
-    version: newVersion,
+    version: inserted.version,
     word_count: signature.split(/\s+/).filter(Boolean).length,
   });
 }
