@@ -281,12 +281,13 @@ export default function Signal() {
   };
 
   useEffect(() => {
-    // Gate on creative captures only — tasks/unclear/personal_note shouldn't
-    // trigger Studio (Studio is creative synthesis, not life-admin analysis).
-    const creativeCount = ideas.filter(i => !i.kind || i.kind === "project_material").length;
-    if (creativeCount > 1 && user && !studioFired.current && !studioLoading) {
+    // Gate AND payload on creative captures only — Studio is dramaturgy /
+    // synthesis, not life-admin. A "[task, signal 1] 'pick up dry cleaning'"
+    // entry in the prompt pollutes the provocation/pattern/blind-spot outputs.
+    const creative = ideas.filter(i => !i.kind || i.kind === "project_material");
+    if (creative.length > 1 && user && !studioFired.current && !studioLoading) {
       studioFired.current = true;
-      runStudio(ideas, user);
+      runStudio(creative, user);
     }
   }, [ideas, user]); // eslint-disable-line
 
@@ -1574,7 +1575,7 @@ If no meaningful connections exist, return {"connections": []}`,
           {/* Tool cards grid — NotebookLM style */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             {[
-              { label: "Insight",      icon: "✦",  color: C.gold,   action: () => { if (!studio) runStudio(ideas, user); setStudioTab("insight"); } },
+              { label: "Insight",      icon: "✦",  color: C.gold,   action: () => { if (!studio) runStudio(creativeIdeas, user); setStudioTab("insight"); } },
               { label: "Connections",   icon: "⬡",  color: C.blue,   action: () => navGo("connections") },
               { label: "Patterns",     icon: "◎",  color: C.purple, action: () => setStudioTab("patterns") },
               { label: "Audit",        icon: "⚑",  color: C.red,    action: () => { if (!auditing) auditLibrary(); } },
@@ -1653,14 +1654,14 @@ If no meaningful connections exist, return {"connections": []}`,
                       <ReplyBox section="urgent" compact replies={replies} onAddReply={addReply} />
                     </div>
                   )}
-                  <button onClick={() => { studioFired.current = false; setStudio(null); runStudio(ideas, user); }}
+                  <button onClick={() => { studioFired.current = false; setStudio(null); runStudio(creativeIdeas, user); }}
                     style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "7px", fontFamily: mono, fontSize: 12, letterSpacing: "0.1em", cursor: "pointer", marginTop: 4, borderRadius: 4 }}>
                     REFRESH ↻
                   </button>
                 </div>
               ) : creativeIdeas.length < 2
                 ? <div style={{ fontSize: 12, color: C.textDisabled, fontStyle: "italic", lineHeight: 1.8 }}>Capture a few ideas to activate the Studio.</div>
-                : <button onClick={() => runStudio(ideas, user)}
+                : <button onClick={() => runStudio(creativeIdeas, user)}
                     style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: mono, fontSize: 12, letterSpacing: "0.1em", cursor: "pointer", borderRadius: 4 }}>
                     GENERATE INSIGHT →
                   </button>
