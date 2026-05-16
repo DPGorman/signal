@@ -76,6 +76,14 @@ export default function Signal() {
   const [taskAdding,    setTaskAdding]    = useState(false);
   const [newTaskDuration, setNewTaskDuration] = useState("");
   const [calendarEvents, setCalendarEvents] = useState([]);
+  // Clarification flow state (voice doc v2.3 §2.5 + §2.7). When classify
+  // returns type=unclear AND round < 4, we DON'T persist the row — instead
+  // we surface the AI's clarifying question inline and let the user answer.
+  // Up to 4 rounds total before we give up and persist as kind=unclear.
+  // null when not in a clarification flow.
+  // shape: { originalText, originalContext, qaHistory: [{q, a}], round, currentQuestion }
+  const [clarification, setClarification] = useState(null);
+  const [clarifyAnswer, setClarifyAnswer] = useState("");
 
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
@@ -382,6 +390,154 @@ export default function Signal() {
     finally { setAuditing(false); }
   };
 
+  // Core two-step capture pipeline (voice doc v2.3 §2.5 + §2.7 multi-round).
+  // Call 1: classify — gate before craft analysis. Returns one of
+  //   project_material | task | personal_note | unclear.
+  // When type=unclear AND round < 4, surfaces a clarifying question UI
+  // instead of persisting; the user's answer recursively re-enters this
+  // function with qaHistory appended. Round 4 is the final attempt — if
+  // still unclear, persist as kind=unclear with the full Q&A transcript.
+  // Call 2 (craft analysis) fires only for project_material.
+  const runClassifyAndCapture = async ({ text, ctx, qaHistory = [], round = 1 }) => {
+    const activeDocs   = canonDocs.filter(d => d.is_active);
+    const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]:\n${d.content.slice(0, 800)}`).join("\n\n");
+    const existing     = ideas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
+    const openInvites  = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
+
+    const qaBlock = qaHistory.length
+      ? `\n\nCLARIFICATION HISTORY (rounds 1-${qaHistory.length}, you are now on round ${round}):\n` +
+        qaHistory.map((qa, i) => `Round ${i + 1}\n  AI asked: "${qa.q}"\n  User answered: "${qa.a}"`).join("\n")
+      : "";
+
+    const classifyContext = `PROJECT: ${user.project_name || "(no active project)"}
+CRAFT: ${user.craft || "screenwriter"}
+TODAY: ${new Date().toISOString().split("T")[0]}
+
+${canonContext ? `CANON (excerpts):\n${canonContext}\n\n` : ""}RECENT CAPTURES (for context — do not duplicate-check, that's a downstream call):
+${existing || "None yet."}${ctx ? `\n\nUSER'S FRAMING:\n"${ctx}"` : ""}${qaBlock}${round === 4 ? "\n\nFINAL ROUND — if still unclear, return type=unclear with clarifying_question=null per the multi-round protocol." : ""}`;
+
+    const classify = await callAIv2({
+      mode: "classify",
+      userId: user.id,
+      context: classifyContext,
+      message: `Capture: "${text}"`,
+      maxTokens: 300,
+    });
+
+    const kind = classify.type || "project_material";
+
+    // Unclear + still rounds left → surface clarification UI; don't persist yet.
+    if (kind === "unclear" && classify.clarifying_question && round < 4) {
+      setClarification({
+        originalText: text,
+        originalContext: ctx,
+        qaHistory,
+        round,
+        currentQuestion: classify.clarifying_question,
+      });
+      setIsAnalyzing(false);
+      notify(`Round ${round}: Signal needs more context.`, "info");
+      return;
+    }
+
+    // Off-topic branch (task | personal_note | unclear-final). Persist + done.
+    if (kind !== "project_material") {
+      // For unclear-final, save the full Q&A transcript into ai_note so the
+      // user can see what was asked and how they answered.
+      let aiNote = "";
+      if (kind === "unclear") {
+        const transcript = qaHistory.length
+          ? "Clarification attempts:\n" + qaHistory.map((qa, i) => `${i + 1}. Q: ${qa.q}\n   A: ${qa.a}`).join("\n")
+          : (classify.clarifying_question || "Signal couldn't place this capture. Edit to clarify.");
+        aiNote = transcript;
+      }
+      const { data: saved, error } = await supabase.from("ideas").insert([{
+        user_id: user.id, text, source: "app",
+        kind,
+        category:             kind,
+        auto_tag:             classify.auto_tag || null,
+        ai_note:              aiNote,
+        inspiration_question: ctx || null,
+        signal_strength:      1,
+        canon_resonance:      "",
+        project_id:           currentProject?.id || null,
+      }]).select().single();
+
+      if (error) { notify("Failed to save.", "error"); return; }
+
+      setClarification(null);
+      setClarifyAnswer("");
+      await loadAll(user.id);
+      setActiveIdea(saved);
+      if (kind === "task") {
+        notify(`Captured as task${classify.auto_tag ? ` · ${classify.auto_tag}` : ""}.`, "success");
+      } else if (kind === "personal_note") {
+        notify(`Captured as note${classify.auto_tag ? ` · ${classify.auto_tag}` : ""}.`, "success");
+      } else {
+        notify(`Captured as unclear after ${qaHistory.length} clarification round${qaHistory.length === 1 ? "" : "s"}. Edit to refine.`, "info");
+      }
+      studioFired.current = false;
+      return;
+    }
+
+    // Project_material — fire Call 2 (craft analysis) and persist with all the trimmings.
+    const analysis = await callAIv2({
+      mode: "capture",
+      userId: user.id,
+      context: `PROJECT: ${user.project_name}
+TODAY: ${new Date().toISOString().split("T")[0]} — for invitations, pick realistic due dates within the next 1-4 weeks, or null if none fits.
+
+${canonContext ? `CANON:\n${canonContext}\n\n` : ""}EXISTING IDEAS — don't duplicate:
+${existing || "None yet."}
+
+OPEN INVITATIONS — don't overlap:
+${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framing):\n"${ctx}"` : ""}${qaBlock}`,
+      message: `New idea: "${text}"`,
+      maxTokens: 1200,
+    });
+
+    const { data: saved, error } = await supabase.from("ideas").insert([{
+      user_id: user.id, text, source: "app",
+      kind:                 "project_material",
+      category:             analysis.category      || "premise",
+      auto_tag:             classify.auto_tag      || null,
+      ai_note:              analysis.aiNote         || "",
+      inspiration_question: ctx                     || null,
+      signal_strength:      analysis.signalStrength || 3,
+      canon_resonance:      analysis.canonResonance || "",
+      project_id:           currentProject?.id      || null,
+    }]).select().single();
+
+    if (error) { notify("Failed to save.", "error"); return; }
+
+    if (analysis.dimensions?.length)
+      await supabase.from("dimensions").insert(
+        analysis.dimensions.map(label => ({ idea_id: saved.id, label }))
+      );
+    if (analysis.invitations?.length)
+      await supabase.from("deliverables").insert(
+        analysis.invitations.map(inv => ({
+          idea_id: saved.id,
+          user_id: user.id,
+          text: typeof inv === "string" ? inv : inv.text,
+          due_date: (typeof inv === "object" && inv.due_date) ? inv.due_date : null,
+          duration_minutes: (typeof inv === "object" && inv.duration_minutes) ? inv.duration_minutes : null,
+          project_id: currentProject?.id || null,
+        }))
+      );
+
+    setClarification(null);
+    setClarifyAnswer("");
+    await loadAll(user.id);
+    setActiveIdea({ ...saved, dimensions: (analysis.dimensions || []).map(label => ({ label })) });
+    setView("library");
+    notify(qaHistory.length ? `Captured after ${qaHistory.length} clarification round${qaHistory.length === 1 ? "" : "s"}.` : "Signal captured.", "success");
+    studioFired.current = false;
+    // Generate connections in background
+    generateConnections(saved.id, text, user.id);
+  };
+
+  // Entry point: "SEND THE SIGNAL →" button. Starts a fresh capture flow.
   const captureIdea = async () => {
     const text = (captureInputRef.current?.value || "").trim();
     const ctx  = (contextInputRef.current?.value || "").trim();
@@ -391,118 +547,63 @@ export default function Signal() {
     setIsAnalyzing(true);
     notify("Analyzing...", "processing");
     try {
-      const activeDocs   = canonDocs.filter(d => d.is_active);
-      const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]:\n${d.content.slice(0, 800)}`).join("\n\n");
-      const existing     = ideas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
-      const openInvites  = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
+      await runClassifyAndCapture({ text, ctx, qaHistory: [], round: 1 });
+    } catch (e) {
+      console.error("Capture:", e);
+      notify("Analysis failed.", "error");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
-      // Two-step capture pipeline (voice doc v2.3 §2.5).
-      // Call 1: classify — gate before craft analysis. Routes by capture type.
-      const classifyContext = `PROJECT: ${user.project_name || "(no active project)"}
-CRAFT: ${user.craft || "screenwriter"}
-TODAY: ${new Date().toISOString().split("T")[0]}
-
-${canonContext ? `CANON (excerpts):\n${canonContext}\n\n` : ""}RECENT CAPTURES (for context — do not duplicate-check, that's a downstream call):
-${existing || "None yet."}${ctx ? `\n\nUSER'S FRAMING:\n"${ctx}"` : ""}`;
-
-      const classify = await callAIv2({
-        mode: "classify",
-        userId: user.id,
-        context: classifyContext,
-        message: `Capture: "${text}"`,
-        maxTokens: 300,
+  // Re-entry from the clarification panel. Appends the user's answer to qaHistory
+  // and re-runs classify (advancing the round counter).
+  const submitClarification = async () => {
+    const answer = clarifyAnswer.trim();
+    if (!answer || !clarification || isAnalyzing) return;
+    const nextHistory = [...clarification.qaHistory, { q: clarification.currentQuestion, a: answer }];
+    const nextRound = clarification.round + 1;
+    setClarifyAnswer("");
+    setIsAnalyzing(true);
+    notify(`Round ${nextRound}: re-classifying...`, "processing");
+    try {
+      await runClassifyAndCapture({
+        text: clarification.originalText,
+        ctx:  clarification.originalContext,
+        qaHistory: nextHistory,
+        round: nextRound,
       });
+    } catch (e) {
+      console.error("Clarify:", e);
+      notify("Clarification failed.", "error");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
-      const kind = classify.type || "project_material";
-
-      // Branch on type. Only project_material runs craft analysis (call 2).
-      if (kind !== "project_material") {
-        // task | personal_note | unclear — store with kind, auto_tag, no craft analysis.
-        const aiNote = kind === "unclear"
-          ? (classify.clarifying_question || "Signal couldn't place this capture. Edit to clarify.")
-          : "";
-        const { data: saved, error } = await supabase.from("ideas").insert([{
-          user_id: user.id, text, source: "app",
-          kind,
-          category:             kind,                                     // overload existing category for compat with library filters
-          auto_tag:             classify.auto_tag || null,
-          ai_note:              aiNote,
-          inspiration_question: ctx || null,
-          signal_strength:      1,                                        // off-topic = low signal by default
-          canon_resonance:      "",
-          project_id:           currentProject?.id || null,
-        }]).select().single();
-
-        if (error) { notify("Failed to save.", "error"); return; }
-
-        await loadAll(user.id);
-        setActiveIdea(saved);
-        if (kind === "task") {
-          notify(`Captured as task${classify.auto_tag ? ` · ${classify.auto_tag}` : ""}.`, "success");
-        } else if (kind === "personal_note") {
-          notify(`Captured as note${classify.auto_tag ? ` · ${classify.auto_tag}` : ""}.`, "success");
-        } else {
-          notify(`Captured — Signal asks: ${classify.clarifying_question || "more context?"}`, "info");
-        }
-        studioFired.current = false;
-        return;
-      }
-
-      // Call 2: craft analysis (only fires for project_material).
-      const analysis = await callAIv2({
-        mode: "capture",
-        userId: user.id,
-        context: `PROJECT: ${user.project_name}
-TODAY: ${new Date().toISOString().split("T")[0]} — for invitations, pick realistic due dates within the next 1-4 weeks, or null if none fits.
-
-${canonContext ? `CANON:\n${canonContext}\n\n` : ""}EXISTING IDEAS — don't duplicate:
-${existing || "None yet."}
-
-OPEN INVITATIONS — don't overlap:
-${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framing):\n"${ctx}"` : ""}`,
-        message: `New idea: "${text}"`,
-        maxTokens: 1200,
-      });
-
+  // User abandons the clarification flow — persist as unclear with the qaHistory so far.
+  const giveUpClarification = async () => {
+    if (!clarification || !user) return;
+    setIsAnalyzing(true);
+    try {
+      const transcript = clarification.qaHistory.length
+        ? "Clarification attempts:\n" + clarification.qaHistory.map((qa, i) => `${i + 1}. Q: ${qa.q}\n   A: ${qa.a}`).join("\n") + `\n${clarification.qaHistory.length + 1}. Q: ${clarification.currentQuestion}\n   A: (skipped)`
+        : `Signal asked: "${clarification.currentQuestion}" — skipped.`;
       const { data: saved, error } = await supabase.from("ideas").insert([{
-        user_id: user.id, text, source: "app",
-        kind:                 "project_material",
-        category:             analysis.category      || "premise",
-        auto_tag:             classify.auto_tag      || null,
-        ai_note:              analysis.aiNote         || "",
-        inspiration_question: ctx                     || null,
-        signal_strength:      analysis.signalStrength || 3,
-        canon_resonance:      analysis.canonResonance || "",
-        project_id:           currentProject?.id      || null,
+        user_id: user.id, text: clarification.originalText, source: "app",
+        kind: "unclear", category: "unclear", auto_tag: null,
+        ai_note: transcript,
+        inspiration_question: clarification.originalContext || null,
+        signal_strength: 1, canon_resonance: "",
+        project_id: currentProject?.id || null,
       }]).select().single();
-
       if (error) { notify("Failed to save.", "error"); return; }
-
-      if (analysis.dimensions?.length)
-        await supabase.from("dimensions").insert(
-          analysis.dimensions.map(label => ({ idea_id: saved.id, label }))
-        );
-      if (analysis.invitations?.length)
-        await supabase.from("deliverables").insert(
-          analysis.invitations.map(inv => ({
-            idea_id: saved.id,
-            user_id: user.id,
-            text: typeof inv === "string" ? inv : inv.text,
-            due_date: (typeof inv === "object" && inv.due_date) ? inv.due_date : null,
-            duration_minutes: (typeof inv === "object" && inv.duration_minutes) ? inv.duration_minutes : null,
-            project_id: currentProject?.id || null,
-          }))
-        );
-
+      setClarification(null);
+      setClarifyAnswer("");
       await loadAll(user.id);
-      setActiveIdea({ ...saved, dimensions: (analysis.dimensions || []).map(label => ({ label })) });
-      setView("library");
-      notify("Signal captured.", "success");
-      studioFired.current = false;
-      // Generate connections in background
-      generateConnections(saved.id, text, user.id);
-    } catch (e) { console.error("Capture:", e); notify("Analysis failed.", "error"); }
-    finally { setIsAnalyzing(false); }
+      setActiveIdea(saved);
+      notify("Saved as unclear. Edit to clarify later.", "info");
+    } finally { setIsAnalyzing(false); }
   };
 
   const generateConnections = async (newIdeaId, newIdeaText, userId) => {
@@ -1358,6 +1459,11 @@ If no meaningful connections exist, return {"connections": []}`,
               isAnalyzing={isAnalyzing}
               onCapture={captureIdea}
               onNavigate={navGo}
+              clarification={clarification}
+              clarifyAnswer={clarifyAnswer}
+              onClarifyAnswerChange={setClarifyAnswer}
+              onSubmitClarification={submitClarification}
+              onGiveUpClarification={giveUpClarification}
             />
           )}
           {view === "library"      && (
