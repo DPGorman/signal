@@ -1438,7 +1438,7 @@ If no meaningful connections exist, return {"connections": []}`,
           {view === "dashboard"    && (
             <DashboardView
               user={user}
-              ideas={ideas}
+              ideas={creativeIdeas}
               deliverables={deliverables}
               pending={pending}
               activeCanon={activeCanon}
@@ -1453,7 +1453,7 @@ If no meaningful connections exist, return {"connections": []}`,
             <CaptureView
               captureInputRef={captureInputRef}
               contextInputRef={contextInputRef}
-              ideas={ideas}
+              ideas={creativeIdeas}
               pending={pending}
               activeCanon={activeCanon}
               isAnalyzing={isAnalyzing}
