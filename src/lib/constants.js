@@ -16,14 +16,19 @@ export const C = {
 };
 
 export const CATEGORIES = [
-  { id: "premise",    label: "Premise",    icon: "◈", color: "#E8C547" },
-  { id: "character",  label: "Character",  icon: "◉", color: "#FFB27A" },
-  { id: "scene",      label: "Scene",      icon: "◫", color: "#7ABCFF" },
-  { id: "dialogue",   label: "Dialogue",   icon: "◌", color: "#CF9FFF" },
-  { id: "arc",        label: "Story Arc",  icon: "◎", color: "#6DD58C" },
-  { id: "production", label: "Production", icon: "◧", color: "#FF8A80" },
-  { id: "research",   label: "Research",   icon: "◐", color: "#A8D8A8" },
-  { id: "business",   label: "Business",   icon: "◑", color: "#FF8FB1" },
+  { id: "premise",        label: "Premise",    icon: "◈", color: "#E8C547" },
+  { id: "character",      label: "Character",  icon: "◉", color: "#FFB27A" },
+  { id: "scene",          label: "Scene",      icon: "◫", color: "#7ABCFF" },
+  { id: "dialogue",       label: "Dialogue",   icon: "◌", color: "#CF9FFF" },
+  { id: "arc",            label: "Story Arc",  icon: "◎", color: "#6DD58C" },
+  { id: "production",     label: "Production", icon: "◧", color: "#FF8A80" },
+  { id: "research",       label: "Research",   icon: "◐", color: "#A8D8A8" },
+  { id: "business",       label: "Business",   icon: "◑", color: "#FF8FB1" },
+  // Non-creative kinds (from classifier gate, v2.3 §2.5).
+  // Library filters these out; other surfaces (chat-style capture view, idea detail) render them.
+  { id: "task",           label: "Task",       icon: "☐", color: "#7A8899" },
+  { id: "personal_note",  label: "Note",       icon: "◯", color: "#7A8899" },
+  { id: "unclear",        label: "Unclear",    icon: "◇", color: "#B89968" },
 ];
 
 export const DOC_TYPES = [

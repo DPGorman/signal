@@ -839,11 +839,12 @@ If no meaningful connections exist, return {"connections": []}`,
 
   const pending     = deliverables.filter(d => !d.is_complete);
   const activeCanon = canonDocs.filter(d => d.is_active);
+  // Creative library: project_material kind only (legacy null treated as project_material).
+  // Tasks + personal_notes + unclear captures from the classify gate live in `ideas`
+  // but don't belong in the creative library view, category-filter row, or library count.
+  const creativeIdeas = ideas.filter(i => !i.kind || i.kind === "project_material");
   const filtered    = (() => {
-    // Library shows project_material only by default — tasks + personal_notes
-    // captured via the classify gate live in `ideas` but don't belong in the
-    // creative library view. Untagged legacy rows (kind == null) treated as project_material.
-    let f = ideas.filter(i => !i.kind || i.kind === "project_material");
+    let f = creativeIdeas;
     if (filterCat) f = f.filter(i => i.category === filterCat);
     if (signalFilter) f = f.filter(i => i.signal_strength >= 4);
     if (localSearch && localSearch.length >= 2) {
@@ -1171,9 +1172,9 @@ If no meaningful connections exist, return {"connections": []}`,
             <div style={{ padding: "8px 10px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
               <button onClick={() => setFilterCat(null)}
                 style={{ background: !filterCat ? C.gold : "transparent", color: !filterCat ? C.bg : C.textMuted, border: `1px solid ${!filterCat ? C.gold : C.border}`, padding: "3px 8px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
-                ALL {ideas.length}
+                ALL {creativeIdeas.length}
               </button>
-              {CATEGORIES.filter(cat => ideas.some(i => i.category === cat.id)).map(cat => (
+              {CATEGORIES.filter(cat => creativeIdeas.some(i => i.category === cat.id)).map(cat => (
                 <button key={cat.id} onClick={() => setFilterCat(cat.id === filterCat ? null : cat.id)}
                   style={{ background: filterCat === cat.id ? cat.color : "transparent", color: filterCat === cat.id ? C.bg : C.textMuted, border: `1px solid ${filterCat === cat.id ? cat.color : C.border}`, padding: "3px 8px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
                   {cat.icon} {cat.label}
