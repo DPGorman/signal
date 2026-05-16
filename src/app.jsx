@@ -9,6 +9,8 @@ import CalendarView from "./components/views/CalendarView.jsx";
 import TasksView from "./components/views/TasksView.jsx";
 import DashboardView from "./components/views/DashboardView.jsx";
 import CanonView from "./components/views/CanonView.jsx";
+import CaptureView from "./components/views/CaptureView.jsx";
+import LibraryView from "./components/views/LibraryView.jsx";
 import ComposeView from "./components/views/ComposeView.jsx";
 import OnboardingFlow from "./components/OnboardingFlow.jsx";
 
@@ -959,138 +961,7 @@ If no meaningful connections exist, return {"connections": []}`,
     </div>
   );
 
-  const CaptureView = () => (
-    <div style={{ flex: 1, overflowY: "auto", padding: "52px 56px" }}>
-      <div style={{ maxWidth: 660 }}>
-        <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 20, marginBottom: 48 }}>
-          <div style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 10 }}>TODAY'S INVITATION</div>
-          <div style={{ fontSize: 22, lineHeight: 1.9, color: C.textMuted, fontStyle: "italic" }}>{todayInvitation}</div>
-        </div>
-        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>WHAT'S IN YOUR HEAD RIGHT NOW</div>
-        <textarea ref={captureInputRef}
-          onKeyDown={e => { if (e.key === "Enter" && e.metaKey) captureIdea(); }}
-          placeholder="Don't edit. Don't qualify. Just send the signal."
-          rows={5}
-          style={{ ...inputBase, fontSize: 17, lineHeight: 1.9, resize: "vertical", marginBottom: 16 }}
-        />
-        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em", marginBottom: 8 }}>
-          WHY DOES THIS FEEL IMPORTANT? <span style={{ color: C.textDisabled }}>(optional)</span>
-        </div>
-        <input ref={contextInputRef}
-          placeholder="e.g. it reframes the protagonist's entire moral logic..."
-          style={{ ...inputBase, marginBottom: 24 }}
-        />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: C.textDisabled, fontFamily: mono }}>⌘ + ENTER</span>
-          <button onClick={captureIdea} disabled={isAnalyzing}
-            style={{ background: isAnalyzing ? C.surfaceHigh : C.gold, color: isAnalyzing ? C.textMuted : C.bg, border: "none", padding: "12px 32px", fontFamily: mono, fontSize: 12, letterSpacing: "0.1em", cursor: isAnalyzing ? "default" : "pointer" }}>
-            {isAnalyzing ? "ANALYZING..." : "SEND THE SIGNAL →"}
-          </button>
-        </div>
-        <div style={{ marginTop: 56, paddingTop: 32, borderTop: `1px solid ${C.border}`, display: "flex", gap: 48 }}>
-          {[
-            { l: "IDEAS CAPTURED",   v: ideas.length,       dest: "library"      },
-            { l: "OPEN INVITATIONS", v: pending.length,     dest: "deliverables" },
-            { l: "CANON DOCS",       v: activeCanon.length, dest: "canon"        },
-          ].map(s => (
-            <div key={s.l} onClick={() => navGo(s.dest)} style={{ cursor: "pointer" }}>
-              <div style={{ fontSize: 45, color: C.textPrimary, fontStyle: "italic", lineHeight: 1 }}>{s.v}</div>
-              <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginTop: 8 }}>{s.l}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 
-  const LibraryView = () => {
-    const displayIdea = activeIdea || filtered[0] || null;
-    return (
-      <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
-        {!displayIdea
-          ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>No ideas yet.</div>
-            : (() => {
-                const cat = getCat(displayIdea.category);
-                const ideaDels = deliverables.filter(d => d.idea_id === displayIdea.id);
-                return (
-                  <div style={{ maxWidth: 640 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-                      <span style={{ fontSize: 12, color: cat.color, fontFamily: mono, letterSpacing: "0.1em" }}>{cat.icon} {cat.label.toUpperCase()}</span>
-                      {displayIdea.signal_strength >= 4 && (
-                        <span
-                          onClick={() => setSignalFilter(s => !s)}
-                          title={signalFilter ? "Click to clear high-signal filter" : "Click to see all high-signal ideas"}
-                          style={{ fontSize: 12, color: signalFilter ? C.bg : C.gold, background: signalFilter ? C.gold : "transparent", fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer", transition: "background 0.15s" }}
-                          onMouseEnter={e => !signalFilter && (e.currentTarget.style.background = C.gold + "20")}
-                          onMouseLeave={e => !signalFilter && (e.currentTarget.style.background = "transparent")}
-                        >
-                          {signalFilter ? "✓ HIGH SIGNAL" : "HIGH SIGNAL"}
-                        </span>
-                      )}
-                      {searchHighlight && <span onClick={() => setSearchHighlight("")} style={{ fontSize: 12, color: C.gold, fontFamily: mono, border: `1px solid ${C.gold}40`, padding: "2px 10px", cursor: "pointer" }}>✕ CLEAR HIGHLIGHT</span>}
-                      <span style={{ flex: 1 }} />
-                      <button onClick={() => deleteIdea(displayIdea.id)}
-                        style={{ fontSize: 12, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "3px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4, opacity: 0.6 }}
-                        onMouseEnter={e => e.currentTarget.style.opacity = 1}
-                        onMouseLeave={e => e.currentTarget.style.opacity = 0.6}>
-                        DELETE
-                      </button>
-                      <span style={{ fontSize: 12, color: C.textDisabled, fontFamily: mono }}>
-                        {new Date(displayIdea.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.65, marginBottom: 28, fontFamily: sans }}><Highlight text={displayIdea.text} term={searchHighlight} /></div>
-                    {displayIdea.inspiration_question && (
-                      <div style={{ marginBottom: 32, padding: "16px 20px", background: C.surfaceHigh, borderLeft: `3px solid ${C.textMuted}` }}>
-                        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>WHY IT FELT IMPORTANT</div>
-                        <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65, fontStyle: "italic" }}><Highlight text={displayIdea.inspiration_question} term={searchHighlight} /></div>
-                      </div>
-                    )}
-                    {displayIdea.ai_note && (
-                      <div style={{ marginBottom: 32 }}>
-                        <div style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
-                        <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.ai_note} term={searchHighlight} /></div>
-                        <ReplyBox ideaId={displayIdea.id} section="ai_note" replies={replies} onAddReply={addReply} />
-                      </div>
-                    )}
-                    {displayIdea.canon_resonance && (
-                      <div style={{ marginBottom: 32 }}>
-                        <div style={{ fontSize: 12, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
-                        <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
-                        <ReplyBox ideaId={displayIdea.id} section="canon_resonance" replies={replies} onAddReply={addReply} />
-                      </div>
-                    )}
-                    {displayIdea.dimensions?.length > 0 && (
-                      <div style={{ marginBottom: 32 }}>
-                        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 12 }}>DIMENSIONS</div>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {displayIdea.dimensions.map((d, i) => (
-                            <span key={i} style={{ fontSize: 12, color: C.textSecondary, border: `1px solid ${C.border}`, padding: "5px 14px", fontFamily: mono }}>{d.label}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {ideaDels.length > 0 && (
-                      <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 28 }}>
-                        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 16 }}>INVITATIONS TO ACTION</div>
-                        {ideaDels.map(d => (
-                          <div key={d.id} onClick={() => toggleDeliverable(d.id, d.is_complete)}
-                            style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${C.borderSubtle}`, cursor: "pointer" }}
-                            onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                            <div style={{ width: 17, height: 17, border: `2px solid ${d.is_complete ? C.green : C.border}`, background: d.is_complete ? C.green + "25" : "transparent", flexShrink: 0, marginTop: 3 }} />
-                            <div style={{ fontSize: 12, color: d.is_complete ? C.textDisabled : C.textSecondary, lineHeight: 1.75, textDecoration: d.is_complete ? "line-through" : "none" }}>{d.text}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()
-          }
-        </div>
-    );
-  };
 
 
   const DeliverablesView = () => {
@@ -1861,8 +1732,33 @@ If no meaningful connections exist, return {"connections": []}`,
               onToggleDeliverable={toggleDeliverable}
             />
           )}
-          {view === "capture"      && CaptureView()}
-          {view === "library"      && LibraryView()}
+          {view === "capture"      && (
+            <CaptureView
+              captureInputRef={captureInputRef}
+              contextInputRef={contextInputRef}
+              ideas={ideas}
+              pending={pending}
+              activeCanon={activeCanon}
+              isAnalyzing={isAnalyzing}
+              onCapture={captureIdea}
+              onNavigate={navGo}
+            />
+          )}
+          {view === "library"      && (
+            <LibraryView
+              activeIdea={activeIdea}
+              filtered={filtered}
+              deliverables={deliverables}
+              replies={replies}
+              searchHighlight={searchHighlight}
+              signalFilter={signalFilter}
+              onSetSignalFilter={setSignalFilter}
+              onSetSearchHighlight={setSearchHighlight}
+              onDeleteIdea={deleteIdea}
+              onToggleDeliverable={toggleDeliverable}
+              onAddReply={addReply}
+            />
+          )}
           {view === "canon"        && (
             <CanonView
               showUpload={showUpload}
