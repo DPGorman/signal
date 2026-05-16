@@ -840,7 +840,11 @@ If no meaningful connections exist, return {"connections": []}`,
   const pending     = deliverables.filter(d => !d.is_complete);
   const activeCanon = canonDocs.filter(d => d.is_active);
   const filtered    = (() => {
-    let f = filterCat ? ideas.filter(i => i.category === filterCat) : ideas;
+    // Library shows project_material only by default — tasks + personal_notes
+    // captured via the classify gate live in `ideas` but don't belong in the
+    // creative library view. Untagged legacy rows (kind == null) treated as project_material.
+    let f = ideas.filter(i => !i.kind || i.kind === "project_material");
+    if (filterCat) f = f.filter(i => i.category === filterCat);
     if (signalFilter) f = f.filter(i => i.signal_strength >= 4);
     if (localSearch && localSearch.length >= 2) {
       const term = localSearch.toLowerCase();
