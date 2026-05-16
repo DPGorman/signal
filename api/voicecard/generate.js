@@ -26,6 +26,7 @@
 
 import { supabase } from "../_supabase.js";
 import { callClaude, HIGH_QUALITY_MODEL } from "../_anthropic.js";
+import { getAuthedUser } from "../_auth.js";
 import { BACKBONE } from "../_voice/backbone.js";
 import { OVERLAYS } from "../_voice/overlays.js";
 
@@ -38,13 +39,22 @@ const DEFAULT_CRAFT = "screenwriter";
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
+  // Require a signed-in user. Each generation costs Opus tokens and mutates
+  // user_voice_card (deactivates current, inserts new), so anonymous access
+  // is a drain/spam vector.
+  const authUser = await getAuthedUser(req);
+  if (!authUser) return res.status(401).json({ error: "Unauthorized" });
+
   const { user_id } = req.body || {};
   if (!user_id) return res.status(400).json({ error: "user_id required" });
 
-  // ─── 1. Load user profile ─────────────────────────────────────────────
+  // ─── 1. Load user profile + verify ownership ─────────────────────────
+  // Map the JWT's auth_id to the application users.id and confirm the body's
+  // user_id matches. Prevents an authenticated user from generating cards
+  // against someone else's account.
   const { data: user, error: userErr } = await supabase
     .from("users")
-    .select("id, craft, collaborator_name, project_name")
+    .select("id, auth_id, craft, collaborator_name, project_name")
     .eq("id", user_id)
     .single();
   if (userErr) {
@@ -52,6 +62,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: userErr.message });
   }
   if (!user) return res.status(404).json({ error: "user not found" });
+  if (user.auth_id !== authUser.id) {
+    return res.status(403).json({ error: "Forbidden: user_id does not match authenticated user" });
+  }
 
   // ─── 2. Load captures (most recent N) ─────────────────────────────────
   const { data: ideas, error: ideasErr } = await supabase
