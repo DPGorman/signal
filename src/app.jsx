@@ -10,6 +10,7 @@ import TasksView from "./components/views/TasksView.jsx";
 import DashboardView from "./components/views/DashboardView.jsx";
 import CanonView from "./components/views/CanonView.jsx";
 import CaptureView from "./components/views/CaptureView.jsx";
+import IncomingView from "./components/views/IncomingView.jsx";
 import LibraryView from "./components/views/LibraryView.jsx";
 import DeliverablesView from "./components/views/DeliverablesView.jsx";
 import ComposeView from "./components/views/ComposeView.jsx";
@@ -284,7 +285,8 @@ export default function Signal() {
     // Gate AND payload on creative captures only — Studio is dramaturgy /
     // synthesis, not life-admin. A "[task, signal 1] 'pick up dry cleaning'"
     // entry in the prompt pollutes the provocation/pattern/blind-spot outputs.
-    const creative = ideas.filter(i => !i.kind || i.kind === "project_material");
+    // Archived rows are excluded too — they're not active material.
+    const creative = ideas.filter(i => (!i.kind || i.kind === "project_material") && !i.is_archived);
     if (creative.length > 1 && user && !studioFired.current && !studioLoading) {
       studioFired.current = true;
       runStudio(creative, user);
@@ -403,7 +405,9 @@ export default function Signal() {
   const runClassifyAndCapture = async ({ text, ctx, qaHistory = [], round = 1 }) => {
     const activeDocs   = canonDocs.filter(d => d.is_active);
     const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]:\n${d.content.slice(0, 800)}`).join("\n\n");
-    const existing     = ideas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
+    // Only feed creative captures into the classify-context pool; non-creative (task/note/unclear)
+    // would bias the classifier toward those same kinds for fresh captures.
+    const existing     = ideas.filter(i => (!i.kind || i.kind === "project_material") && !i.is_archived).slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
     const openInvites  = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
 
     const qaBlock = qaHistory.length
@@ -612,7 +616,7 @@ ${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framin
     // Only build connections between creative captures — tasks / personal_note /
     // unclear aren't candidate partners for "thematic resonance, character
     // overlap, plot causality" connections.
-    const candidates = ideas.filter(i => !i.kind || i.kind === "project_material");
+    const candidates = ideas.filter(i => (!i.kind || i.kind === "project_material") && !i.is_archived);
     if (candidates.length < 1) return;
     try {
       const otherIdeas = candidates.filter(i => i.id !== newIdeaId).slice(0, 30);
@@ -769,6 +773,134 @@ If no meaningful connections exist, return {"connections": []}`,
     } catch (e) { console.error("Delete idea:", e); notify("Delete failed.", "error"); }
   };
 
+  // Incoming-view handlers: inline auto-tag edit, archive, re-classify (Move to project / Clarify).
+  const updateAutoTag = async (id, tag) => {
+    const { error } = await supabase.from("ideas").update({ auto_tag: tag }).eq("id", id);
+    if (error) { notify("Failed to update tag.", "error"); return; }
+    setIdeas(prev => prev.map(i => i.id === id ? { ...i, auto_tag: tag } : i));
+    notify(tag ? `Tagged · ${tag}` : "Tag removed.", "success");
+  };
+
+  const archiveIdea = async (id) => {
+    const { error } = await supabase.from("ideas").update({ is_archived: true }).eq("id", id);
+    if (error) { notify("Failed to archive.", "error"); return; }
+    setIdeas(prev => prev.map(i => i.id === id ? { ...i, is_archived: true } : i));
+    notify("Archived.", "info");
+  };
+
+  // Re-classify an Incoming row in place. intent="promote" nudges toward project_material
+  // (Move to project); intent="fresh" is an open re-evaluation (Clarify). Updates kind /
+  // category / auto_tag in place; if classifier returns project_material, also runs the
+  // capture-mode analysis to add ai_note, signal_strength, canon_resonance, dimensions,
+  // and invitations, then routes the user to Library.
+  const reclassifyIncoming = async (idea, intent) => {
+    if (!user || isAnalyzing) return;
+    setIsAnalyzing(true);
+    notify(intent === "promote" ? "Re-classifying as project material..." : "Re-classifying...", "processing");
+    try {
+      const activeDocs   = canonDocs.filter(d => d.is_active);
+      const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]:\n${d.content.slice(0, 800)}`).join("\n\n");
+      const existing     = creativeIdeas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
+
+      const intentBlock = intent === "promote"
+        ? `\n\nUSER ATTEMPT: User has flagged this capture as project material (it was originally classified as ${idea.kind}). Re-evaluate with this signal — they believe it belongs in the creative project. If on re-read it genuinely IS project_material, classify accordingly. If you still don't think so, return the kind you actually see (be honest, don't just rubber-stamp).`
+        : `\n\nUSER ATTEMPT: User asked for a re-classify (originally ${idea.kind}). Take a fresh pass — second opinion.`;
+
+      const classifyContext = `PROJECT: ${user.project_name || "(no active project)"}
+CRAFT: ${user.craft || "screenwriter"}
+TODAY: ${new Date().toISOString().split("T")[0]}
+
+${canonContext ? `CANON (excerpts):\n${canonContext}\n\n` : ""}RECENT CAPTURES:
+${existing || "None yet."}${intentBlock}`;
+
+      const classify = await callAIv2({
+        mode: "classify",
+        userId: user.id,
+        context: classifyContext,
+        message: `Capture: "${idea.text}"`,
+        maxTokens: 300,
+      });
+
+      const newKind = classify.type || idea.kind;
+
+      // Classifier still says non-project_material — update kind/category/auto_tag in place.
+      if (newKind !== "project_material") {
+        const { error } = await supabase.from("ideas").update({
+          kind: newKind,
+          category: newKind,
+          auto_tag: classify.auto_tag || idea.auto_tag,
+        }).eq("id", idea.id);
+        if (error) { notify("Re-classify failed.", "error"); return; }
+        await loadAll(user.id);
+        if (intent === "promote" && newKind !== idea.kind) {
+          notify(`Classifier disagreed — re-tagged as ${newKind}.`, "info");
+        } else if (intent === "promote") {
+          notify(`Classifier still says ${newKind}.`, "info");
+        } else {
+          notify(`Re-classified as ${newKind}.`, "info");
+        }
+        return;
+      }
+
+      // Project_material — fire capture-mode analysis + update row in place to a full creative idea.
+      const openInvites = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
+      const analysis = await callAIv2({
+        mode: "capture",
+        userId: user.id,
+        context: `PROJECT: ${user.project_name}
+TODAY: ${new Date().toISOString().split("T")[0]} — for invitations, pick realistic due dates within the next 1-4 weeks, or null if none fits.
+
+${canonContext ? `CANON:\n${canonContext}\n\n` : ""}EXISTING IDEAS — don't duplicate:
+${existing || "None yet."}
+
+OPEN INVITATIONS — don't overlap:
+${openInvites || "None yet."}`,
+        message: `New idea: "${idea.text}"`,
+        maxTokens: 1200,
+      });
+
+      const { error: updErr } = await supabase.from("ideas").update({
+        kind: "project_material",
+        category: analysis.category || "premise",
+        ai_note: analysis.aiNote || "",
+        signal_strength: analysis.signalStrength || 3,
+        canon_resonance: analysis.canonResonance || "",
+        auto_tag: classify.auto_tag || idea.auto_tag,
+      }).eq("id", idea.id);
+      if (updErr) { notify("Re-classify failed.", "error"); return; }
+
+      if (analysis.dimensions?.length) {
+        await supabase.from("dimensions").insert(
+          analysis.dimensions.map(label => ({ idea_id: idea.id, label }))
+        );
+      }
+      if (analysis.invitations?.length) {
+        await supabase.from("deliverables").insert(
+          analysis.invitations.map(inv => ({
+            idea_id: idea.id,
+            user_id: user.id,
+            text: typeof inv === "string" ? inv : inv.text,
+            due_date: (typeof inv === "object" && inv.due_date) ? inv.due_date : null,
+            duration_minutes: (typeof inv === "object" && inv.duration_minutes) ? inv.duration_minutes : null,
+            project_id: currentProject?.id || null,
+          }))
+        );
+      }
+
+      await loadAll(user.id);
+      const promoted = { ...idea, kind: "project_material", category: analysis.category || "premise" };
+      setActiveIdea(promoted);
+      setView("library");
+      notify(`Moved to project as ${analysis.category || "premise"}.`, "success");
+      generateConnections(idea.id, idea.text, user.id);
+    } catch (e) {
+      console.error("Reclassify:", e);
+      notify("Re-classify failed.", "error");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const toggleDeliverable = async (id, current) => {
     if (!current) {
       setJustDone(prev => new Set([...prev, id]));
@@ -846,11 +978,11 @@ If no meaningful connections exist, return {"connections": []}`,
       const term = q.toLowerCase();
       const results = [];
       const inTab = view;
-      const searchIdeas = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "library");
+      const searchIdeas = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "library" || inTab === "incoming");
       const searchCanon = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "canon");
       const searchCompose = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "compose");
       const searchDeliverables = (inTab === "dashboard" || inTab === "capture" || inTab === "connections" || inTab === "deliverables");
-      if (searchIdeas) ideas.forEach(i => {
+      if (searchIdeas) ideas.filter(i => !i.is_archived).forEach(i => {
         if (i.text.toLowerCase().includes(term) || (i.ai_note || "").toLowerCase().includes(term))
           results.push({ type: "idea", item: i, label: i.text.slice(0, 80), sub: getCat(i.category).label, color: getCat(i.category).color });
       });
@@ -959,7 +1091,16 @@ If no meaningful connections exist, return {"connections": []}`,
   // Creative library: project_material kind only (legacy null treated as project_material).
   // Tasks + personal_notes + unclear captures from the classify gate live in `ideas`
   // but don't belong in the creative library view, category-filter row, or library count.
-  const creativeIdeas = ideas.filter(i => !i.kind || i.kind === "project_material");
+  // Archived rows are hidden from every surface (visible only via direct SQL).
+  const creativeIdeas = ideas.filter(i => (!i.kind || i.kind === "project_material") && !i.is_archived);
+  // Incoming: task | personal_note | unclear captures awaiting triage. Excludes archived.
+  const incomingIdeas = ideas.filter(i => i.kind && i.kind !== "project_material" && !i.is_archived)
+    .sort((a, b) => {
+      // unclear first (most actionable), then by recency
+      if (a.kind === "unclear" && b.kind !== "unclear") return -1;
+      if (a.kind !== "unclear" && b.kind === "unclear") return 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
   const filtered    = (() => {
     let f = creativeIdeas;
     if (filterCat) f = f.filter(i => i.category === filterCat);
@@ -1198,7 +1339,12 @@ If no meaningful connections exist, return {"connections": []}`,
                   <div key={i} onClick={() => {
                     const term = globalSearch;
                     setSearchHighlight(term);
-                    if (r.type === "idea") { setActiveIdea(r.item); navGo("library"); }
+                    if (r.type === "idea") {
+                      // Route incoming-kind ideas to the Incoming tab (Library hides them).
+                      const isIncoming = r.item.kind && r.item.kind !== "project_material";
+                      if (isIncoming) navGo("incoming");
+                      else { setActiveIdea(r.item); navGo("library"); }
+                    }
                     else if (r.type === "canon") { setActiveDoc(r.item); navGo("canon"); }
                     else if (r.type === "compose") { setActiveCompose(r.item); navGo("compose"); }
                     else if (r.type === "deliverable") {
@@ -1251,6 +1397,7 @@ If no meaningful connections exist, return {"connections": []}`,
             { id: "tasks",        icon: "☑", label: "Tasks",    color: C.gold },
             { id: "calendar",     icon: "▦", label: "Calendar", color: C.blue },
             { id: "capture",      icon: "◈", label: "Capture",  color: C.blue },
+            { id: "incoming",     icon: "▼", label: "Incoming", color: "#B89968" },
             { id: "deliverables", icon: "☐", label: "Actions",  color: C.gold },
             { id: "library",      icon: "▤", label: "Library",  color: C.textSecondary },
             { id: "canon",        icon: "◆", label: "Canon",    color: C.green },
@@ -1396,7 +1543,7 @@ If no meaningful connections exist, return {"connections": []}`,
               <div style={{ padding: "14px 8px 4px", fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", fontWeight: 500 }}>
                 RECENT IDEAS
               </div>
-              {ideas.slice(0, 8).map(idea => {
+              {creativeIdeas.slice(0, 8).map(idea => {
                 const cat = getCat(idea.category);
                 const isActive = activeIdea?.id === idea.id;
                 return (
@@ -1425,7 +1572,7 @@ If no meaningful connections exist, return {"connections": []}`,
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: C.bg, borderRadius: 12 }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
-            {{ today: "TODAY'S FOCUS", calendar: "CALENDAR", dashboard: "OVERVIEW", capture: "CAPTURE", library: "LIBRARY", canon: "CANON", deliverables: "ACTIONS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
+            {{ today: "TODAY'S FOCUS", calendar: "CALENDAR", dashboard: "OVERVIEW", capture: "CAPTURE", incoming: "INCOMING", library: "LIBRARY", canon: "CANON", deliverables: "ACTIONS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
             <span
@@ -1480,6 +1627,16 @@ If no meaningful connections exist, return {"connections": []}`,
               onClarifyAnswerChange={setClarifyAnswer}
               onSubmitClarification={submitClarification}
               onGiveUpClarification={giveUpClarification}
+            />
+          )}
+          {view === "incoming"     && (
+            <IncomingView
+              incomingIdeas={incomingIdeas}
+              isAnalyzing={isAnalyzing}
+              onUpdateAutoTag={updateAutoTag}
+              onArchive={archiveIdea}
+              onMoveToProject={(idea) => reclassifyIncoming(idea, "promote")}
+              onClarify={(idea) => reclassifyIncoming(idea, "fresh")}
             />
           )}
           {view === "library"      && (
