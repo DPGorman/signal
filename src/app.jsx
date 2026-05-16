@@ -610,9 +610,13 @@ ${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framin
   };
 
   const generateConnections = async (newIdeaId, newIdeaText, userId) => {
-    if (ideas.length < 1) return;
+    // Only build connections between creative captures — tasks / personal_note /
+    // unclear aren't candidate partners for "thematic resonance, character
+    // overlap, plot causality" connections.
+    const candidates = ideas.filter(i => !i.kind || i.kind === "project_material");
+    if (candidates.length < 1) return;
     try {
-      const otherIdeas = ideas.filter(i => i.id !== newIdeaId).slice(0, 30);
+      const otherIdeas = candidates.filter(i => i.id !== newIdeaId).slice(0, 30);
       if (!otherIdeas.length) return;
       const ideaList = otherIdeas.map((i, n) => `${n}|${i.id}|${i.category}|${i.text.slice(0, 120)}`).join("\n");
       const result = await callAI(
@@ -820,12 +824,14 @@ If no meaningful connections exist, return {"connections": []}`,
     document.body.style.userSelect = "none";
   };
 
-  // Auto-select first item when entering list views with nothing selected
+  // Auto-select first item when entering list views with nothing selected.
+  // Library shows project_material only, so the auto-selected item must match
+  // — otherwise the highlight points at a row the user can't see.
   useEffect(() => {
-    if (view === "library" && !activeIdea && ideas.length) setActiveIdea(ideas[0]);
+    if (view === "library" && !activeIdea && creativeIdeas.length) setActiveIdea(creativeIdeas[0]);
     if (view === "canon" && !activeDoc && canonDocs.length) setActiveDoc(canonDocs[0]);
     if (view === "compose" && !activeCompose && composeDocs.length) setActiveCompose(composeDocs[0]);
-  }, [view, ideas.length, canonDocs.length, composeDocs.length]);
+  }, [view, creativeIdeas.length, canonDocs.length, composeDocs.length]);
 
   const searchAll = (q) => {
     if (!q || q.length < 2) return [];
