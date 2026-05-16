@@ -396,6 +396,59 @@ export default function Signal() {
       const existing     = ideas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
       const openInvites  = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
 
+      // Two-step capture pipeline (voice doc v2.3 §2.5).
+      // Call 1: classify — gate before craft analysis. Routes by capture type.
+      const classifyContext = `PROJECT: ${user.project_name || "(no active project)"}
+CRAFT: ${user.craft || "screenwriter"}
+TODAY: ${new Date().toISOString().split("T")[0]}
+
+${canonContext ? `CANON (excerpts):\n${canonContext}\n\n` : ""}RECENT CAPTURES (for context — do not duplicate-check, that's a downstream call):
+${existing || "None yet."}${ctx ? `\n\nUSER'S FRAMING:\n"${ctx}"` : ""}`;
+
+      const classify = await callAIv2({
+        mode: "classify",
+        userId: user.id,
+        context: classifyContext,
+        message: `Capture: "${text}"`,
+        maxTokens: 300,
+      });
+
+      const kind = classify.type || "project_material";
+
+      // Branch on type. Only project_material runs craft analysis (call 2).
+      if (kind !== "project_material") {
+        // task | personal_note | unclear — store with kind, auto_tag, no craft analysis.
+        const aiNote = kind === "unclear"
+          ? (classify.clarifying_question || "Signal couldn't place this capture. Edit to clarify.")
+          : "";
+        const { data: saved, error } = await supabase.from("ideas").insert([{
+          user_id: user.id, text, source: "app",
+          kind,
+          category:             kind,                                     // overload existing category for compat with library filters
+          auto_tag:             classify.auto_tag || null,
+          ai_note:              aiNote,
+          inspiration_question: ctx || null,
+          signal_strength:      1,                                        // off-topic = low signal by default
+          canon_resonance:      "",
+          project_id:           currentProject?.id || null,
+        }]).select().single();
+
+        if (error) { notify("Failed to save.", "error"); return; }
+
+        await loadAll(user.id);
+        setActiveIdea(saved);
+        if (kind === "task") {
+          notify(`Captured as task${classify.auto_tag ? ` · ${classify.auto_tag}` : ""}.`, "success");
+        } else if (kind === "personal_note") {
+          notify(`Captured as note${classify.auto_tag ? ` · ${classify.auto_tag}` : ""}.`, "success");
+        } else {
+          notify(`Captured — Signal asks: ${classify.clarifying_question || "more context?"}`, "info");
+        }
+        studioFired.current = false;
+        return;
+      }
+
+      // Call 2: craft analysis (only fires for project_material).
       const analysis = await callAIv2({
         mode: "capture",
         userId: user.id,
@@ -413,7 +466,9 @@ ${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framin
 
       const { data: saved, error } = await supabase.from("ideas").insert([{
         user_id: user.id, text, source: "app",
+        kind:                 "project_material",
         category:             analysis.category      || "premise",
+        auto_tag:             classify.auto_tag      || null,
         ai_note:              analysis.aiNote         || "",
         inspiration_question: ctx                     || null,
         signal_strength:      analysis.signalStrength || 3,
