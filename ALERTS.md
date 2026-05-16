@@ -49,3 +49,10 @@
 **Recommended action:** No action needed — known pre-launch baseline. Notable: new model migration deployed (sonnet-4-6 → opus-4-6, Anthropic retiring sonnet-4-6); deploy appears successful.
 **Raw data:** multi=403/0.37s, navy=403/0.61s; deploy dpl_98u6Wad5rFRZQTLNuUjss3pk8SsV READY (da009dd "ai: migrate sonnet-4-6 to opus-4-6"); 1 benign DEP0169 deprecation warning on /api/activation (200 OK); new-signups=0; total-users=5; last-commit=da009dd 1h41m ago, deploy followed immediately.
 ---
+
+## [SIGNAL YELLOW] 2026-05-16T05:02:49Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.22s / 0.19s). 8th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: latest deploy dpl_Fn5J6WAxsKNFuDLMAmP1hmJWuGq6 READY (commit 1573786 "fix: auth on /api/voicecard/generate"); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. 0 runtime 5xx errors in last 6h.
+**Recommended action:** No action needed — known pre-launch baseline. Active development: 8 deploys shipped since last check (~18h); latest voicecard auth fix live. Note: sonnet-4-6 was briefly migrated to opus-4-6 then reverted to sonnet-4-6 same day (cost decision).
+**Raw data:** multi=403/0.22s, navy=403/0.19s; latest deploy dpl_Fn5J6WAxsKNFuDLMAmP1hmJWuGq6 READY (1573786 "voicecard auth fix", 11min ago at check time); runtime logs (6h): 0 5xx, 2×401 on /api/voicecard/generate at 04:52 UTC (benign — 1min post-deploy test traffic, not server errors); new-signups=0; total-users=5; last-commit=1573786 11min ago, fully deployed.
+---
