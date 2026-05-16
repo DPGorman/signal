@@ -373,9 +373,7 @@ export default function Signal() {
 
       if (toDelete.length > 0) {
         for (const id of toDelete) {
-          await supabase.from("deliverables").delete().eq("idea_id", id);
-          await supabase.from("dimensions").delete().eq("idea_id", id);
-          await supabase.from("ideas").delete().eq("id", id);
+          await cascadeDeleteIdea(id);
         }
         studioFired.current = false;
         await loadAll(user.id);
@@ -744,16 +742,24 @@ If no meaningful connections exist, return {"connections": []}`,
     finally { setIsUploading(false); }
   };
 
+  // Cascade-delete an idea + all FK-referencing rows. Single source of truth
+  // for both the user-initiated delete and the audit-library cleanup. Without
+  // this, the audit path was leaving orphan connections / replies /
+  // whatsapp_messages rows pointing at deleted idea_ids.
+  const cascadeDeleteIdea = async (id) => {
+    await supabase.from("connections").delete().or(`idea_id_a.eq.${id},idea_id_b.eq.${id}`);
+    await supabase.from("deliverables").delete().eq("idea_id", id);
+    await supabase.from("dimensions").delete().eq("idea_id", id);
+    await supabase.from("replies").delete().eq("idea_id", id);
+    await supabase.from("whatsapp_messages").delete().eq("idea_id", id);
+    const { error } = await supabase.from("ideas").delete().eq("id", id);
+    if (error) throw error;
+  };
+
   const deleteIdea = async (id) => {
     if (!confirm("Delete this idea? This also removes its deliverables and connections.")) return;
     try {
-      await supabase.from("connections").delete().or(`idea_id_a.eq.${id},idea_id_b.eq.${id}`);
-      await supabase.from("deliverables").delete().eq("idea_id", id);
-      await supabase.from("dimensions").delete().eq("idea_id", id);
-      await supabase.from("replies").delete().eq("idea_id", id);
-      await supabase.from("whatsapp_messages").delete().eq("idea_id", id);
-      const { error } = await supabase.from("ideas").delete().eq("id", id);
-      if (error) throw error;
+      await cascadeDeleteIdea(id);
       setIdeas(prev => prev.filter(i => i.id !== id));
       setDeliverables(prev => prev.filter(d => d.idea_id !== id));
       setConnections(prev => prev.filter(c => c.idea_id_a !== id && c.idea_id_b !== id));
