@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase.js";
 import { C, CATEGORIES, DOC_TYPES, DAILY_INVITATIONS, getCat, todayInvitation, callAI } from "./lib/constants.js";
 import Highlight from "./components/Highlight.jsx";
+import ReplyBox from "./components/ReplyBox.jsx";
 import TodayFocus from "./components/TodayFocus.jsx";
 import CalendarIntegration from "./components/CalendarIntegration.jsx";
 import CalendarView from "./components/views/CalendarView.jsx";
 import TasksView from "./components/views/TasksView.jsx";
 import DashboardView from "./components/views/DashboardView.jsx";
+import CanonView from "./components/views/CanonView.jsx";
+import ComposeView from "./components/views/ComposeView.jsx";
 import OnboardingFlow from "./components/OnboardingFlow.jsx";
 
 const formatDuration = (mins) => { if (!mins) return null; if (mins < 60) return `${mins}m`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h}h ${m}m` : `${h}h`; };
@@ -79,9 +82,6 @@ export default function Signal() {
   const studioFired = useRef(false);
   const captureInputRef = useRef(null);
   const contextInputRef = useRef(null);
-  const composeContentRef = useRef(null);
-  const composeTitleRef = useRef(null);
-  const composeSaveTimer = useRef(null);
   const mapContainerRef = useRef(null);
   const globalSearchRef = useRef(null);
   const localSearchRef = useRef(null);
@@ -529,41 +529,6 @@ If no meaningful connections exist, return {"connections": []}`,
     } catch (e) { console.error("Reply:", e); notify("Failed to save.", "error"); return false; }
   };
 
-  const ReplyBox = ({ ideaId, section, compact }) => {
-    const [draft, setDraft] = useState("");
-    const existing = replies.filter(r =>
-      ideaId ? (r.idea_id === ideaId && r.target_section === section)
-             : (!r.idea_id && r.target_section === `studio_${section}`)
-    );
-    const send = async () => {
-      if (await addReply(ideaId, section, draft)) setDraft("");
-    };
-    return (
-      <div style={{ marginTop: 10 }}>
-        {existing.map(r => (
-          <div key={r.id} style={{ padding: "10px 14px", background: C.bg, borderLeft: `3px solid ${C.blue}`, marginBottom: 8 }}>
-            <div style={{ fontSize: 12, color: C.blue, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 4 }}>
-              YOU · {new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </div>
-            <div style={{ fontSize: compact ? 13 : 15, color: C.textPrimary, lineHeight: 1.65 }}>{r.content}</div>
-          </div>
-        ))}
-        <div style={{ display: "flex", gap: 6 }}>
-          <input value={draft} onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && draft.trim()) send(); }}
-            placeholder="Respond..."
-            style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, padding: compact ? "7px 10px" : "9px 12px", fontFamily: sans, fontSize: compact ? 13 : 14, outline: "none" }}
-          />
-          {draft.trim() && (
-            <button onClick={send}
-              style={{ background: C.blue, border: "none", color: C.bg, padding: "7px 12px", fontFamily: mono, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
-              ↵
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   const processFile = async (file) => {
     if (!file || isProcessing) return;
@@ -1085,14 +1050,14 @@ If no meaningful connections exist, return {"connections": []}`,
                       <div style={{ marginBottom: 32 }}>
                         <div style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
                         <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.ai_note} term={searchHighlight} /></div>
-                        <ReplyBox ideaId={displayIdea.id} section="ai_note" />
+                        <ReplyBox ideaId={displayIdea.id} section="ai_note" replies={replies} onAddReply={addReply} />
                       </div>
                     )}
                     {displayIdea.canon_resonance && (
                       <div style={{ marginBottom: 32 }}>
                         <div style={{ fontSize: 12, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
                         <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
-                        <ReplyBox ideaId={displayIdea.id} section="canon_resonance" />
+                        <ReplyBox ideaId={displayIdea.id} section="canon_resonance" replies={replies} onAddReply={addReply} />
                       </div>
                     )}
                     {displayIdea.dimensions?.length > 0 && (
@@ -1127,59 +1092,6 @@ If no meaningful connections exist, return {"connections": []}`,
     );
   };
 
-  const CanonView = () => (
-    <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
-      {showUpload && (
-        <div style={{ maxWidth: 500, marginBottom: 32, padding: "20px 24px", background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 6 }}>
-          <input value={canonUpload.title} onChange={e => setCanonUpload(p => ({ ...p, title: e.target.value }))}
-            placeholder="Document title"
-            style={{ ...inputBase, marginBottom: 10, fontSize: 12 }} />
-          <select value={canonUpload.type} onChange={e => setCanonUpload(p => ({ ...p, type: e.target.value }))}
-            style={{ ...inputBase, marginBottom: 10, fontSize: 12 }}>
-            {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 6, fontWeight: 500 }}>UPLOAD FILE</div>
-          <label style={{ display: "block", marginBottom: 10 }}>
-            <input type="file" accept=".pdf,.doc,.docx,.txt,.md" style={{ display: "none" }} disabled={isProcessing}
-              onChange={async (e) => { const file = e.target.files[0]; if (file) await processFile(file); e.target.value = ""; }} />
-            <div style={{ background: isProcessing ? C.border : C.bg, border: `1px solid ${isProcessing ? C.gold : uploadedName ? C.green : C.border}`, color: isProcessing ? C.gold : uploadedName ? C.green : C.textSecondary, padding: "10px 14px", fontFamily: mono, fontSize: 12, cursor: isProcessing ? "default" : "pointer", borderRadius: 4 }}>
-              {isProcessing ? "READING FILE..." : uploadedName ? `✓ ${uploadedName}` : "CHOOSE FILE →"}
-            </div>
-          </label>
-          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.1em", marginBottom: 6, fontWeight: 500 }}>OR PASTE TEXT</div>
-          <textarea value={canonUpload.content} onChange={e => setCanonUpload(p => ({ ...p, content: e.target.value }))}
-            placeholder="Paste document text here..." rows={5}
-            style={{ ...inputBase, fontSize: 12, resize: "vertical", marginBottom: 8 }} />
-          <button onClick={uploadCanon} disabled={isUploading || !canonUpload.title || !canonUpload.content}
-            style={{ width: "100%", background: C.gold, border: "none", color: C.bg, padding: "10px", fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.05em", cursor: "pointer", borderRadius: 4 }}>
-            {isUploading ? "SAVING..." : "ADD TO CANON →"}
-          </button>
-        </div>
-      )}
-      {!activeDoc
-        ? <div style={{ color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>Select a document from the sidebar.</div>
-        : (
-          <div style={{ maxWidth: 680 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <div style={{ fontSize: 17, color: C.textPrimary, fontWeight: 500 }}><Highlight text={activeDoc.title} term={searchHighlight} /></div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => toggleCanon(activeDoc.id, activeDoc.is_active)}
-                  style={{ fontSize: 12, color: activeDoc.is_active ? C.textMuted : C.green, background: "transparent", border: `1px solid ${C.border}`, padding: "4px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}>
-                  {activeDoc.is_active ? "DEACTIVATE" : "ACTIVATE"}
-                </button>
-                <button onClick={() => deleteCanon(activeDoc.id)}
-                  style={{ fontSize: 12, color: C.red, background: "transparent", border: `1px solid ${C.border}`, padding: "4px 10px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}>
-                  DELETE
-                </button>
-              </div>
-            </div>
-            <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, marginBottom: 32 }}>{activeDoc.content?.length?.toLocaleString()} chars · {activeDoc.is_active ? "active" : "inactive"}</div>
-            <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: sans }}><Highlight text={activeDoc.content} term={searchHighlight} /></div>
-          </div>
-        )
-      }
-    </div>
-  );
 
   const DeliverablesView = () => {
     const completed = deliverables.filter(d => d.is_complete);
@@ -1430,54 +1342,7 @@ If no meaningful connections exist, return {"connections": []}`,
     notify("Document deleted.", "info");
   };
 
-  const autoSaveCompose = (id) => {
-    if (composeSaveTimer.current) clearTimeout(composeSaveTimer.current);
-    composeSaveTimer.current = setTimeout(() => {
-      const content = composeContentRef.current?.value || "";
-      const title = composeTitleRef.current?.value || "Untitled";
-      saveComposeDoc(id, { title, content });
-    }, 1500);
-  };
 
-  const ComposeView = () => (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {!activeCompose
-        ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDisabled, fontStyle: "italic", fontSize: 12 }}>Select or create a document.</div>
-        : (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "36px 48px", overflow: "hidden" }}>
-            <input
-              ref={composeTitleRef}
-              key={activeCompose.id + "-title"}
-              defaultValue={activeCompose.title}
-              placeholder="Document title..."
-              onChange={() => autoSaveCompose(activeCompose.id)}
-              style={{ background: "transparent", border: "none", color: C.textPrimary, fontSize: 17, fontWeight: 500, outline: "none", marginBottom: 20, fontFamily: sans }}
-            />
-            <textarea
-              ref={composeContentRef}
-              key={activeCompose.id + "-content"}
-              defaultValue={activeCompose.content}
-              placeholder="Start writing, or paste content here..."
-              onChange={() => autoSaveCompose(activeCompose.id)}
-              style={{ flex: 1, background: C.surfaceHigh, border: `1px solid ${C.border}`, color: C.textPrimary, padding: "20px 24px", fontFamily: sans, fontSize: 12, lineHeight: 1.9, outline: "none", resize: "none", overflowY: "auto", borderRadius: 6 }}
-            />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-              <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono }}>Auto-saves as you type</span>
-              <button onClick={() => {
-                const content = composeContentRef.current?.value || "";
-                const title = composeTitleRef.current?.value || "Untitled";
-                saveComposeDoc(activeCompose.id, { title, content });
-                notify("Saved.", "success");
-              }}
-                style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "6px 14px", fontFamily: mono, fontSize: 12, cursor: "pointer", borderRadius: 4 }}>
-                SAVE NOW
-              </button>
-            </div>
-          </div>
-        )
-      }
-    </div>
-  );
 
   const MindMapView = () => {
 
@@ -1998,9 +1863,30 @@ If no meaningful connections exist, return {"connections": []}`,
           )}
           {view === "capture"      && CaptureView()}
           {view === "library"      && LibraryView()}
-          {view === "canon"        && CanonView()}
+          {view === "canon"        && (
+            <CanonView
+              showUpload={showUpload}
+              canonUpload={canonUpload}
+              isProcessing={isProcessing}
+              isUploading={isUploading}
+              uploadedName={uploadedName}
+              onChangeUpload={setCanonUpload}
+              onProcessFile={processFile}
+              onUpload={uploadCanon}
+              activeDoc={activeDoc}
+              searchHighlight={searchHighlight}
+              onToggleCanon={toggleCanon}
+              onDeleteCanon={deleteCanon}
+            />
+          )}
           {view === "deliverables" && DeliverablesView()}
-          {view === "compose"      && ComposeView()}
+          {view === "compose"      && (
+            <ComposeView
+              activeCompose={activeCompose}
+              onSave={saveComposeDoc}
+              onNotify={notify}
+            />
+          )}
           {view === "connections"  && MindMapView()}
         </div>
       </div>
@@ -2086,20 +1972,20 @@ If no meaningful connections exist, return {"connections": []}`,
                   <div style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>PROVOCATION</div>
                     <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.65, borderLeft: `3px solid ${C.gold}`, paddingLeft: 10 }}>{studio.provocation}</div>
-                    <ReplyBox section="provocation" compact />
+                    <ReplyBox section="provocation" compact replies={replies} onAddReply={addReply} />
                   </div>
                   {studio.blind_spot && (
                     <div style={{ marginBottom: 18 }}>
                       <div style={{ fontSize: 12, color: C.red, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>BLIND SPOT</div>
                       <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.75 }}>{studio.blind_spot}</div>
-                      <ReplyBox section="blind_spot" compact />
+                      <ReplyBox section="blind_spot" compact replies={replies} onAddReply={addReply} />
                     </div>
                   )}
                   {studio.urgentIdea && (
                     <div style={{ marginBottom: 18 }}>
                       <div style={{ fontSize: 12, color: C.green, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 8 }}>ACT ON THIS NOW</div>
                       <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.75, fontStyle: "italic" }}>{studio.urgentIdea}</div>
-                      <ReplyBox section="urgent" compact />
+                      <ReplyBox section="urgent" compact replies={replies} onAddReply={addReply} />
                     </div>
                   )}
                   <button onClick={() => { studioFired.current = false; setStudio(null); runStudio(ideas, user); }}
