@@ -70,3 +70,10 @@
 **Recommended action:** No action needed — known pre-launch baseline. Note: 1 ERROR deploy in batch (dpl_Bn3P5p6AYrLEiWGUfAvB2E874Ygz, "feat: Incoming tab — triage surface for non-creative captures"), since superseded by 3 successful READY deploys; no user impact.
 **Raw data:** multi=403/0.26s, navy=403/0.29s; latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f, ~4h ago at check time); 8 new deploys since last check; 1 ERROR deploy (Incoming tab, recovered); runtime logs (6h): no entries; new-signups=0; total-users=5; last-commit=df1a99f 4h ago, fully deployed.
 ---
+
+## [SIGNAL YELLOW] 2026-05-17T11:02:58Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.22s / 0.34s). 11th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f "feat: capture-mode prompt rewired against AI Behavior Spec v1"); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. 0 runtime errors in last 6h. Quiet session — no new deploys since the 05:08Z check.
+**Recommended action:** No action needed — known pre-launch baseline.
+**Raw data:** multi=403/0.22s, navy=403/0.34s; latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f, 9h55m ago); no new deploys since last check; runtime logs (6h): no entries; new-signups=0; total-users=5; last-commit=df1a99f 9h55m ago, fully deployed.
+---
