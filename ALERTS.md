@@ -63,3 +63,10 @@
 **Recommended action:** No action needed — known pre-launch baseline. Very active dev session: 11 deploys since last check (6h), including full app.jsx componentization (waves 1–5), classifier integration, LibraryView filters, CATEGORIES extension, ai_observations writer, and multi-round clarifying-question UI.
 **Raw data:** multi=403/0.32s, navy=403/0.75s; latest deploy dpl_3UNfxpX9k4ni3CzU6UgFefDmLzdF READY (1011679 "multi-round clarifying-question UI", 1h27m ago); runtime logs (6h): no entries; new-signups=0; total-users=5; last-commit=1011679 1h27m ago, fully deployed.
 ---
+
+## [SIGNAL YELLOW] 2026-05-17T05:08:08Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.26s / 0.29s). 10th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f "capture-mode prompt rewired against AI Behavior Spec v1"); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. 0 runtime errors in last 6h.
+**Recommended action:** No action needed — known pre-launch baseline. Note: 1 ERROR deploy in batch (dpl_Bn3P5p6AYrLEiWGUfAvB2E874Ygz, "feat: Incoming tab — triage surface for non-creative captures"), since superseded by 3 successful READY deploys; no user impact.
+**Raw data:** multi=403/0.26s, navy=403/0.29s; latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f, ~4h ago at check time); 8 new deploys since last check; 1 ERROR deploy (Incoming tab, recovered); runtime logs (6h): no entries; new-signups=0; total-users=5; last-commit=df1a99f 4h ago, fully deployed.
+---
