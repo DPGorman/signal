@@ -84,3 +84,10 @@
 **Recommended action:** No action needed — known pre-launch baseline.
 **Raw data:** multi=403/0.46s, navy=403/0.31s; latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f, 28h ago); no new deploys since last check; runtime logs (6h): no entries; new-signups=0; total-users=5; last-commit=df1a99f 28h ago, fully deployed.
 ---
+
+## [SIGNAL YELLOW] 2026-05-18T11:11:17Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.66s / 0.50s). 13th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f "feat: capture-mode prompt rewired against AI Behavior Spec v1"); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. 0 runtime errors in last 6h.
+**Recommended action:** No action needed — known pre-launch baseline.
+**Raw data:** multi=403/0.66s, navy=403/0.50s; latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f, ~34h ago); no new deploys since last check (~6h); runtime logs (6h): 1 entry — GET /api/refresh-voicecards 200 (cron, healthy); new-signups=0; total-users=5; last-commit=df1a99f 34h ago, fully deployed.
+---
