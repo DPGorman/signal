@@ -98,3 +98,10 @@
 **Recommended action:** No action needed — known pre-launch baseline.
 **Raw data:** multi=403/0.44s, navy=403/0.72s; latest deploy dpl_FYdqPzzSVvvk3yiuzvAjf3a2K81h READY (df1a99f, ~52h ago); no new deploys since last check; runtime logs (6h): no entries; new-signups=0; total-users=5; last-commit=df1a99f 52h ago, fully deployed.
 ---
+
+## [SIGNAL YELLOW] 2026-05-19T11:09:33Z
+**What's off:** Both signal-multi and signal-navy-five returning HTTP 403 (0.32s / 0.31s). 15th consecutive check with same result.
+**Why this severity:** Protocol classifies 4xx as YELLOW. Cross-check: latest deploy dpl_FrVYFRpHi72SAiJ46yxypiYTLdqH READY (7a3e117 "feat: studio + pulse prompts rewired against AI Behavior Spec v1", ~10:07 UTC today); fast sub-second 403s confirm Vercel Deployment Protection, not an app failure. Runtime logs confirm live /api/ai traffic (200s at 10:24 and 10:28 UTC). 0 runtime errors.
+**Recommended action:** No action needed — known pre-launch baseline. Active dev: 2 new deploys since last check (both READY, same commit 7a3e117).
+**Raw data:** multi=403/0.32s, navy=403/0.31s; latest deploy dpl_FrVYFRpHi72SAiJ46yxypiYTLdqH READY (7a3e117, ~1h ago); runtime logs (6h): POST /api/ai 200 @ 10:24 UTC, POST /api/ai 200 @ 10:28 UTC, GET /api/health 200 @ 10:08 UTC (1x DEP0169 deprecation warning, benign); new-signups=0; total-users=5.
+---
