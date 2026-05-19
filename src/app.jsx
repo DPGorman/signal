@@ -1,3 +1,8 @@
+// TDZ note: any derived value (filters, memoized selectors, etc.) referenced
+// in a useEffect dependency array must be declared ABOVE the useEffect.
+// Vite's minifier sometimes implicitly hoists, sometimes doesn't — don't
+// depend on it, or you'll hit "Cannot access 'X' before initialization."
+
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase.js";
 import { C, CATEGORIES, DOC_TYPES, DAILY_INVITATIONS, getCat, todayInvitation, callAI } from "./lib/constants.js";
