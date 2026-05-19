@@ -15,3 +15,4 @@
 | 2026-05-17T11:02:58Z | YELLOW | 403/0.22s | 403/0.34s | READY | 0 | 0 | 5 | 9h55m | 403s=deployment-protection (11th consecutive, deploy READY); no new deploys since last check; 0 runtime errors; no new signups |
 | 2026-05-18T05:09:21Z | YELLOW | 403/0.46s | 403/0.31s | READY | 0 | 0 | 5 | 28h | 403s=deployment-protection (12th consecutive, deploy READY); no new deploys since last check; 0 runtime errors; no new signups |
 | 2026-05-18T11:11:17Z | YELLOW | 403/0.66s | 403/0.50s | READY | 0 | 0 | 5 | 34h | 403s=deployment-protection (13th consecutive, deploy READY); no new deploys since last check (~6h); 1 cron hit /api/refresh-voicecards 200; 0 runtime errors; no new signups |
+| 2026-05-19T05:10:48Z | YELLOW | 403/0.44s | 403/0.72s | READY | 0 | 0 | 5 | 52h | 403s=deployment-protection (14th consecutive, deploy READY); no new deploys since last check (~18h); 0 runtime errors; no new signups |
