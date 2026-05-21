@@ -112,3 +112,10 @@
 **Recommended action:** Grant persistent allow-list approval for `mcp__Vercel__*` and `mcp__Supabase__execute_sql` in Claude Code session settings (run `/fewer-permission-prompts`). Verify environment network allowlist includes `vercel.app` / `supabase.co` for direct HTTP checks.
 **Raw data:** `curl https://signal-multi.vercel.app/api/health` → `Host not in allowlist 403 0.21s`; all 6 MCP calls → `MCP tool call requires approval`; git last commit `7a3e117` @ `2026-05-19T10:06:55Z` (~41h ago), no deploy state verifiable.
 ---
+
+## [SIGNAL YELLOW] 2026-05-21T11:10:37Z
+**What's off:** Same dual blocker as morning run — health check cannot complete for the 2nd consecutive time this cycle.
+**Why this severity:** (1) Env network policy still rejecting outbound curl to `vercel.app` with 403 "Host not in allowlist" (0.33s, 0.07s, 0.82s); (2) Vercel and Supabase MCP calls still return "MCP tool call requires approval" — no pre-authorization persisted from morning session.
+**Recommended action:** Same as 05:03Z alert — run `/fewer-permission-prompts` to persist MCP approvals across automated sessions. Last known good state was GREEN at 2026-05-20T11:07:18Z (~24h ago); no reason to believe Signal is down, but the check toolchain needs fixing.
+**Raw data:** `/api/health` → 403 "Host not in allowlist" 0.33s; multi → 403 0.07s; navy → 403 0.82s (all env-blocked, not Vercel responses); all Vercel+Supabase MCP calls → "MCP tool call requires approval"; last commit `7a3e117` @ `2026-05-19T10:06:55Z` (~49h ago).
+---
