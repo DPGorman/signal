@@ -105,3 +105,10 @@
 **Recommended action:** No action needed — known pre-launch baseline. Active dev: 2 new deploys since last check (both READY, same commit 7a3e117).
 **Raw data:** multi=403/0.32s, navy=403/0.31s; latest deploy dpl_FrVYFRpHi72SAiJ46yxypiYTLdqH READY (7a3e117, ~1h ago); runtime logs (6h): POST /api/ai 200 @ 10:24 UTC, POST /api/ai 200 @ 10:28 UTC, GET /api/health 200 @ 10:08 UTC (1x DEP0169 deprecation warning, benign); new-signups=0; total-users=5.
 ---
+
+## [SIGNAL YELLOW] 2026-05-21T05:03:42Z
+**What's off:** Automated health check could not complete — zero checks returned valid data.
+**Why this severity:** Two structural blockers: (1) remote execution environment network policy rejects all outbound requests to `vercel.app` ("Host not in allowlist"), so curl and WebFetch both 403 instantly without reaching Vercel; (2) Vercel and Supabase MCP tool calls all returned "MCP tool call requires approval" — not pre-authorized for automated runs.
+**Recommended action:** Grant persistent allow-list approval for `mcp__Vercel__*` and `mcp__Supabase__execute_sql` in Claude Code session settings (run `/fewer-permission-prompts`). Verify environment network allowlist includes `vercel.app` / `supabase.co` for direct HTTP checks.
+**Raw data:** `curl https://signal-multi.vercel.app/api/health` → `Host not in allowlist 403 0.21s`; all 6 MCP calls → `MCP tool call requires approval`; git last commit `7a3e117` @ `2026-05-19T10:06:55Z` (~41h ago), no deploy state verifiable.
+---
