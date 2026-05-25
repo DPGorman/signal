@@ -299,6 +299,7 @@ export default function Signal() {
   }, [ideas, user]); // eslint-disable-line
 
   const loadAll = async (uid, projId = null) => {
+    let activePid = null;
     try {
       // Load user + projects first
       const [{ data: users }, { data: projs }] = await Promise.all([
@@ -317,6 +318,7 @@ export default function Signal() {
 
       // Load data scoped to project
       const pid = activeProj?.id;
+      activePid = pid;
       let ideasQ = supabase.from("ideas").select("*, dimensions(*)").eq("user_id", uid).order("created_at", { ascending: false });
       let delsQ = supabase.from("deliverables").select("*, idea:ideas(text,category)").eq("user_id", uid).order("created_at", { ascending: false });
       let canonQ = supabase.from("canon_documents").select("*").eq("user_id", uid).order("created_at", { ascending: false });
@@ -341,7 +343,11 @@ export default function Signal() {
       if (cd) setComposeDocs(cd);
     } catch (e) { console.warn("Compose:", e); }
     try {
-      const { data: cn } = await supabase.from("connections").select("*");
+      // Scope connections to the active project (matches ideas/deliverables/canon above).
+      // Without this, the mind-map and counts leak across all of the user's projects.
+      let cnQ = supabase.from("connections").select("*");
+      if (activePid) cnQ = cnQ.eq("project_id", activePid);
+      const { data: cn } = await cnQ;
       if (cn) setConnections(cn);
     } catch (e) { console.warn("Connections:", e); }
   };
