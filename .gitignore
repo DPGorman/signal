@@ -18,3 +18,6 @@ node_modules/
 # macOS Finder metadata
 .DS_Store
 **/.DS_Store
+
+# graphify knowledge graph output
+graphify-out/
