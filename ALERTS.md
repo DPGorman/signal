@@ -119,3 +119,10 @@
 **Recommended action:** Same as 05:03Z alert — run `/fewer-permission-prompts` to persist MCP approvals across automated sessions. Last known good state was GREEN at 2026-05-20T11:07:18Z (~24h ago); no reason to believe Signal is down, but the check toolchain needs fixing.
 **Raw data:** `/api/health` → 403 "Host not in allowlist" 0.33s; multi → 403 0.07s; navy → 403 0.82s (all env-blocked, not Vercel responses); all Vercel+Supabase MCP calls → "MCP tool call requires approval"; last commit `7a3e117` @ `2026-05-19T10:06:55Z` (~49h ago).
 ---
+
+## [SIGNAL YELLOW] 2026-05-26T05:10:10Z
+**What's off:** commit `f17aa9a` ("Merge pull request #2 from DPGorman/fix/connections-project-scope") was merged to `origin/main` at 2026-05-25T13:28 UTC (~15.7h ago), but no Vercel deploy reflects this commit. Most recent production deploy (READY) is `7a3e117` ("feat: studio + pulse prompts rewired against AI Behavior Spec v1"), created ~7 days ago.
+**Why this severity:** A commit on main with no follow-up deploy means production is running stale code. The 60-min threshold in the health-check spec is a floor — at 15.7h this is clearly actionable. All prior main commits have matching deploys; this one doesn't.
+**Recommended action:** If signal-multi relies on manual deploy (CLAUDE.md says `vercel --prod`): run `vercel --prod` from `signal/` to deploy PR #2. If GitHub auto-deploy should have fired, check the Vercel/GitHub integration for a failed or missing webhook.
+**Raw data:** `origin/main` HEAD=`f17aa9a` (2026-05-25T13:28 UTC); last Vercel deploy `dpl_FrVYFRpHi72SAiJ46yxypiYTLdqH` READY (`7a3e117`, ~7d ago); multi=200 HTML serving correctly; navy=200 HTML serving correctly; `/api/health` untested (Vercel MCP `web_fetch_vercel_url` cannot reach serverless function routes); 0 runtime errors (6h window); new-signups=0; total-users=5.
+---
