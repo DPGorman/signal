@@ -130,3 +130,7 @@
 **Recommended action:** If signal-multi relies on manual deploy (CLAUDE.md says `vercel --prod`): run `vercel --prod` from `signal/` to deploy PR #2. If GitHub auto-deploy should have fired, check the Vercel/GitHub integration for a failed or missing webhook.
 **Raw data:** `origin/main` HEAD=`f17aa9a` (2026-05-25T13:28 UTC); last Vercel deploy `dpl_FrVYFRpHi72SAiJ46yxypiYTLdqH` READY (`7a3e117`, ~7d ago); multi=200 HTML serving correctly; navy=200 HTML serving correctly; `/api/health` untested (Vercel MCP `web_fetch_vercel_url` cannot reach serverless function routes); 0 runtime errors (6h window); new-signups=0; total-users=5.
 ---
+
+## [SIGNAL INFO] 2026-05-27T11:12:01Z — new signups
+1 new in last 12 hours (already flagged in noon run at 05:10Z). Emails: dpgorman+1@gmail.com (Daniel alias). Total users: 6.
+---
