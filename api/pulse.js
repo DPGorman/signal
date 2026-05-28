@@ -35,13 +35,35 @@ export default async function handler(req, res) {
   // Mixed-auth: cron requests (Vercel cron, internal hops from activation/telegram)
   // carry CRON_SECRET in the Authorization header. Frontend user-triggered nudges
   // carry the user's Supabase JWT. Either is sufficient.
-  if (!isCronAuthorized(req)) {
-    const user = await getAuthedUser(req);
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const isCron = isCronAuthorized(req);
+  let authedAuthUser = null;
+  if (!isCron) {
+    authedAuthUser = await getAuthedUser(req);
+    if (!authedAuthUser) return res.status(401).json({ error: "Unauthorized" });
   }
 
   const mode = req.query?.mode || req.body?.mode || "nudge";
-  const userId = req.body?.user_id || req.query?.user_id || null;
+  let userId = req.body?.user_id || req.query?.user_id || null;
+
+  // For JWT-authed (frontend) calls, ALWAYS scope the pulse to the
+  // verified user's public.users row — regardless of what user_id the
+  // client sent. Fixes two bugs:
+  //   (1) the client was sending no user_id, so the fallback "oldest
+  //       user by created_at" was returning a seed test row's pulse
+  //       instead of the caller's;
+  //   (2) any future client could have spoofed user_id to read another
+  //       user's project context.
+  // Cron path (no JWT) keeps the existing body/query→oldest-user
+  // fallback, which is how the daily cron-triggered Telegram check-in
+  // intentionally targets Daniel's solo account.
+  if (authedAuthUser) {
+    const { data: ownRows } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_id", authedAuthUser.id)
+      .limit(1);
+    if (ownRows?.[0]?.id) userId = ownRows[0].id;
+  }
 
   try {
     let q = supabase.from("users").select("*");
