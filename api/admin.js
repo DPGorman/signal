@@ -27,16 +27,6 @@ function median(values) {
     : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-function checkMetricsAuth(req) {
-  const expected = process.env.CRON_SECRET || "signal-recrawl-2024";
-  const header = req.headers?.authorization || "";
-  const queryKey = req.query?.key || "";
-  return (
-    header === `Bearer ${expected}` ||
-    header === expected ||
-    queryKey === expected
-  );
-}
 
 export default async function handler(req, res) {
   const mode = req.query?.mode || "health";
@@ -75,7 +65,7 @@ async function handleHealth(req, res) {
 // 5/7 activation pattern lock §5 + retention memo §5.
 async function handleMetrics(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  if (!checkMetricsAuth(req)) return res.status(401).json({ error: "Unauthorized" });
+  if (!isCronAuthorized(req)) return res.status(401).json({ error: "Unauthorized" });
 
   try {
     const now = Date.now();
