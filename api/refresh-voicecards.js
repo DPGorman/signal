@@ -73,10 +73,13 @@ export default async function handler(req, res) {
 }
 
 async function findEligibleUsers() {
+  // The per-user "has active card + age/captures threshold" check below
+  // is the real eligibility gate. The onboarding_complete column is
+  // vestigial — iOS stopped writing it 2026-05-29 — and a user without
+  // an active voice card is skipped a few lines down anyway.
   const { data: users, error: usersErr } = await supabase
     .from("users")
-    .select("id")
-    .eq("onboarding_complete", true);
+    .select("id");
   if (usersErr) throw new Error(`users load failed: ${usersErr.message}`);
 
   const eligible = [];
