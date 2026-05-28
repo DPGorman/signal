@@ -16,6 +16,7 @@
 
 import { supabase } from "./_supabase.js";
 import { isCronAuthorized } from "./_auth.js";
+import { sendPush } from "./_push.js";
 
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT  = process.env.TELEGRAM_CHAT_ID;
@@ -56,12 +57,25 @@ async function fireDay3Pulse(user) {
   const url = `${APP_URL}/api/pulse?user_id=${user.id}&mode=nudge`;
   const headers = CRON_SECRET ? { Authorization: `Bearer ${CRON_SECRET}` } : {};
   const res = await fetch(url, { method: "GET", headers });
+
+  // Parallel iOS push (Telegram already fired inside /api/pulse).
+  // Tap → /(tabs)/studio/pulse where the user can request another nudge.
+  await sendPush(user.expo_push_token, {
+    userId: user.id,
+    title: "Your first Pulse is ready",
+    body: "Pattern is starting to show. Tap to see your Pulse.",
+    data: { type: "day3-pulse" },
+  });
+
   return res.ok;
 }
 
 async function fireDay3SilentPresence(user) {
   const name = user.collaborator_name || "Signal";
   // Deliberately NOT labeled as a Pulse — see voice doc §1.7 + retention memo §6.
+  // Silent-presence is intentionally quiet (low-capture user): Telegram only,
+  // NO push notification. A loud push would defeat the entire point of the
+  // silent-presence variant.
   const msg = `Still here when you are. — ${name}`;
   await sendTelegram(msg);
   return true;
@@ -72,6 +86,15 @@ async function fireDay7StudioAnnouncement(user) {
   const project = user.project_name || "your project";
   const msg = `Your first Studio re-read on *${project}* is ready. Open Signal and tap Studio to see what's pattern in your captures so far.\n\n— ${name}\n${APP_URL}`;
   await sendTelegram(msg);
+
+  // Parallel iOS push. Tap → /(tabs)/studio (the new index-style hub).
+  await sendPush(user.expo_push_token, {
+    userId: user.id,
+    title: `Your first Studio re-read is ready`,
+    body: `${project} — tap to see what's pattern in your captures so far.`,
+    data: { type: "day7-studio" },
+  });
+
   return true;
 }
 
@@ -132,7 +155,7 @@ export default async function handler(req, res) {
   try {
     let q = supabase
       .from("users")
-      .select("id, project_name, collaborator_name, created_at, day3_pulse_sent_at, day7_studio_sent_at");
+      .select("id, project_name, collaborator_name, created_at, day3_pulse_sent_at, day7_studio_sent_at, expo_push_token");
     if (userId) q = q.eq("id", userId);
 
     const { data: users, error } = await q;
