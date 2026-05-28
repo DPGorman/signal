@@ -61,10 +61,13 @@ export default async function handler(req, res) {
   } else {
     if (!isCronAuthorized(req)) return res.status(401).json({ error: "Unauthorized" });
     const sinceIso = new Date(Date.now() - USER_LOOKBACK_DAYS * 86400_000).toISOString();
+    // The MIN_CAPTURES-recent gate below is the real eligibility check —
+    // it implicitly filters out anyone who hasn't actually used the app,
+    // which is a stronger signal than the vestigial onboarding_complete
+    // column (the iOS app stopped writing to it 2026-05-29).
     const { data: users, error: usersErr } = await supabase
       .from("users")
-      .select("id")
-      .eq("onboarding_complete", true);
+      .select("id");
     if (usersErr) return res.status(500).json({ error: usersErr.message });
     const eligible = [];
     for (const u of users || []) {
