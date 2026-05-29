@@ -6,8 +6,8 @@ For the latest project-wide state, **read `/Users/dpg/MOTHERSHIP/signal/docs/SIG
 ## Overview
 Signal is a creative ideation and production management platform for screenwriters and other creative professionals (10 V1 craft overlays). Capture raw creative impulses, get AI analysis via Claude, generate actionable next steps, and track production work.
 
-**Deployed (canonical):** `signal-multi.vercel.app` — manual deploys via `vercel --prod` from `signal/` (linked Vercel project).
-**Old deploy (PARKED, still live on pre-migration code):** `signal-navy-five.vercel.app` — auto-deploys from `DPGorman/signal` main. The signal-multi migration commit is on branch `activation-pattern-2026-05-07`, NOT pushed to main, so signal-navy-five remains on old code talking to the old (parked) Supabase project. Don't push that branch to main without thinking about it.
+**Deployed (canonical):** `signal-multi.vercel.app` — **MANUAL** deploys via `./scripts/deploy-prod.sh` from `signal/desktop/`. The Vercel project is linked but intentionally not GitHub-auto-deploy connected; `git push` alone does NOT update production. The script handles git-sync + safety checks; see `DEPLOYMENT_RULES.md` §3 and the script header for details.
+**Sibling deploy:** `signal-navy-five.vercel.app` — auto-deploys this repo's `main` to a separate Vercel project (`signal`). Same code as signal-multi (NOT pre-migration code, despite older notes), but it's a build-canary, NOT the user-facing API. iOS / Telegram cron / production traffic all hit `signal-multi.vercel.app`.
 **Database:** Supabase project `czgjbblkoyyojnaziyuy` (signal-multi). 16 tables, RLS enabled on all via `auth.uid()`-indirected policies through `users.auth_id`. NOT `krhidwibweznwakaoxjw` (old project, parked).
 **AI:** Anthropic Claude via `/api/ai` proxy (service-role key bypasses RLS).
 

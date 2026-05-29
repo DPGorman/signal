@@ -76,19 +76,26 @@ git push origin --delete fix/short-description    # remote delete
 
 ### 3. Verify the live deployment after every push to `main`
 
-**Deploy model note (as of 2026-05-12):** the canonical signal-multi.vercel.app is MANUAL-deploy via `vercel --prod` from `signal/` (the project is linked but not GitHub-connected for auto-deploys). The old signal-navy-five.vercel.app still auto-deploys from this repo's `main` but is on pre-migration code and is parked. So after pushing to main: run `vercel --prod` to push the change to the canonical URL, then verify.
+**Deploy model (as of 2026-05-29):** canonical `signal-multi.vercel.app` is **MANUAL-deploy via `scripts/deploy-prod.sh`**. The Vercel project is linked but intentionally not GitHub-auto-deploy connected — pushing to `main` does NOT update the live API. The script wraps `vercel --prod` with the safety checks `vercel --prod` alone doesn't do (see the script header for details — it refuses to deploy if local diverges from origin/main, working tree is dirty, or you're not on main).
 
-After pushing:
+A separate Vercel project `signal` continues to auto-deploy this repo's `main` to `signal-navy-five.vercel.app`. That URL is NOT the API the iOS app / Telegram cron / production traffic hits — those all hit `signal-multi.vercel.app`. Treat signal-navy-five as a build-canary: if it deploys cleanly, the code at least compiles, but the only deploy that matters for users is the manual one below.
+
+After pushing to `main`:
 
 ```bash
-# Wait ~60 seconds for the deploy
-# Open https://signal-multi.vercel.app in incognito (⌘+Shift+N)
-# Repeat the smoke test from step 1
+cd ~/MOTHERSHIP/SIGNAL/desktop
+./scripts/deploy-prod.sh                 # walks you through git-sync + vercel --prod
+# Wait ~30s for the build, then:
+curl -s -o /dev/null -w '%{http_code}\n' https://signal-multi.vercel.app/api/health
+# Expect 200
+# Open https://signal-multi.vercel.app in incognito (⌘+Shift+N) and re-run the smoke test from §1.
 # If it broke in production but worked locally → revert immediately:
 git revert HEAD
 git push
-# This creates a new commit that undoes the bad one. main returns to working.
+./scripts/deploy-prod.sh                 # redeploy the revert so production catches up
 ```
+
+**Critical:** `git push` alone does NOT update production. Every backend change needs the script run as a separate step. Forgetting this is how stale code stays live indefinitely — see the 2026-05-29 incident where 5 backend commits sat on `main` for 24+ hours before anyone noticed they hadn't deployed.
 
 ---
 
@@ -147,4 +154,6 @@ The rules in this document exist because beta testers are coming, and beta teste
 
 ---
 
-*Last updated: 2026-05-12 — refreshed backend URL (signal-multi), deploy model (manual `vercel --prod`), and old-project parked status.*
+*Last updated: 2026-05-29 — added `scripts/deploy-prod.sh` wrapper; corrected stale claim about signal-navy-five being on pre-migration code (it auto-deploys current main, but isn't the user-facing API); added the "git push doesn't deploy production" critical note after the 2026-05-29 stale-code incident.*
+
+*Prior: 2026-05-12 — refreshed backend URL (signal-multi), deploy model (manual `vercel --prod`), and old-project parked status.*
