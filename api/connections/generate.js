@@ -74,7 +74,7 @@ export default async function handler(req, res) {
       strength: c.strength,
       project_id: projectId,
     }));
-    await supabase.from("connections").insert(rows);
+    await supabase.from("connections").upsert(rows, { onConflict: "idea_id_a,idea_id_b" });
   }
 
   return res.status(200).json({ count: conns.length });
