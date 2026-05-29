@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         role: "user",
         content: `Find meaningful connections between these ideas. Return ONLY raw JSON — no markdown, no explanation:\n{"connections":[{"idea_id_a":"<uuid>","idea_id_b":"<uuid>","reason":"why they connect","strength":3}]}\n\nstrength: 1–5 (only include strength >= 2). Empty array if none.\n\nIDEAS:\n${ideaList}`,
       }],
-      maxTokens: 1500,
+      maxTokens: 4000,
       model: "claude-haiku-4-5-20251001",
     });
   } catch (e) {
