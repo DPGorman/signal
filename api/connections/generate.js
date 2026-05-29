@@ -36,15 +36,20 @@ export default async function handler(req, res) {
 
   const ideaList = ideas.map((i, n) => `${n}|${i.id}|${i.category || "idea"}|${i.text.slice(0, 150)}`).join("\n");
 
-  const data = await callClaude({
-    system: `You find meaningful creative connections between ideas. Only return genuine thematic, narrative, or conceptual relationships — not just similar categories. Be selective: a weak connection is worse than none.`,
-    messages: [{
-      role: "user",
-      content: `Find meaningful connections between these ideas. Return ONLY raw JSON — no markdown, no explanation:\n{"connections":[{"idea_id_a":"<uuid>","idea_id_b":"<uuid>","reason":"why they connect","strength":3}]}\n\nstrength: 1–5 (only include strength >= 2). Empty array if none.\n\nIDEAS:\n${ideaList}`,
-    }],
-    maxTokens: 1500,
-    model: "claude-haiku-4-5-20251001",
-  });
+  let data;
+  try {
+    data = await callClaude({
+      system: `You find meaningful creative connections between ideas. Only return genuine thematic, narrative, or conceptual relationships — not just similar categories. Be selective: a weak connection is worse than none.`,
+      messages: [{
+        role: "user",
+        content: `Find meaningful connections between these ideas. Return ONLY raw JSON — no markdown, no explanation:\n{"connections":[{"idea_id_a":"<uuid>","idea_id_b":"<uuid>","reason":"why they connect","strength":3}]}\n\nstrength: 1–5 (only include strength >= 2). Empty array if none.\n\nIDEAS:\n${ideaList}`,
+      }],
+      maxTokens: 1500,
+      model: "claude-haiku-4-5-20251001",
+    });
+  } catch (e) {
+    return res.status(500).json({ error: `AI call failed: ${e.message}` });
+  }
 
   let parsed;
   try {
