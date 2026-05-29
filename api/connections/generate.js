@@ -66,9 +66,6 @@ export default async function handler(req, res) {
     (c) => c.idea_id_a && c.idea_id_b && c.strength >= 2
   );
 
-  // Clean remap — delete existing connections for this project
-  await supabase.from("connections").delete().eq("project_id", projectId);
-
   if (conns.length > 0) {
     const rows = conns.map((c) => ({
       idea_id_a: c.idea_id_a,
