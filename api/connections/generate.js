@@ -53,10 +53,13 @@ export default async function handler(req, res) {
 
   let parsed;
   try {
-    const raw = extractText(data).replace(/```json|```/g, "").trim();
-    parsed = JSON.parse(raw);
-  } catch {
-    return res.status(500).json({ error: "Failed to parse AI response" });
+    const full = extractText(data);
+    const start = full.indexOf("{");
+    const end = full.lastIndexOf("}");
+    if (start === -1 || end === -1) throw new Error("no JSON object in response");
+    parsed = JSON.parse(full.slice(start, end + 1));
+  } catch (e) {
+    return res.status(500).json({ error: `Failed to parse AI response: ${e.message}` });
   }
 
   const conns = (parsed.connections || []).filter(
