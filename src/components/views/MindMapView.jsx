@@ -6,6 +6,7 @@ export default function MindMapView({
   connections,
   user,
   onGenerateConnections,
+  onMapAll,
   onLoadAll,
   onSetActiveIdea,
   onNavigate,
@@ -80,17 +81,10 @@ export default function MindMapView({
             <option key={cat.id} value={cat.id}>{cat.icon} {cat.label}</option>
           ))}
         </select>
-        <button onClick={async () => {
+        <button onClick={() => {
           if (!user || ideas.length < 2) return;
-          onNotify("Mapping connections...", "processing");
-          for (const idea of ideas) {
-            const existing = connections.filter(c => c.idea_id_a === idea.id || c.idea_id_b === idea.id);
-            if (existing.length < 2) {
-              await onGenerateConnections(idea.id, idea.text, user.id);
-            }
-          }
-          await onLoadAll(user.id);
-          onNotify("Connections mapped.", "success");
+          // One server call links the whole project (vs. the old per-idea loop).
+          onMapAll();
         }}
           style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "5px 12px", fontFamily: mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", borderRadius: 4, flexShrink: 0 }}>
           MAP ALL

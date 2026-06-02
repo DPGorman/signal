@@ -684,6 +684,33 @@ If no meaningful connections exist, return {"connections": []}`,
     } catch (e) { console.warn("Connection generation:", e); }
   };
 
+  // 1.1 — batch link generation for the whole active project, in ONE server call.
+  // Wires the purpose-built /api/connections/generate endpoint (previously
+  // orphaned) to the Map's "MAP ALL" button. This is what lights up the existing
+  // corpus — captures that arrived via iOS / Telegram / WhatsApp never ran the
+  // per-capture web generator, so the Map can sit empty across dozens of ideas.
+  const mapAllConnections = async () => {
+    if (!user) return;
+    if (!currentProject?.id) { notify("Open a project first.", "info"); return; }
+    notify("Mapping connections across all ideas...", "processing");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+      const res = await fetch("/api/connections/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify({ project_id: currentProject.id }),
+      });
+      if (!res.ok) { notify("Mapping failed.", "error"); return; }
+      const out = await res.json();
+      await loadAll(user.id);
+      notify(out.count > 0 ? `Mapped ${out.count} connection${out.count === 1 ? "" : "s"}.` : "No new connections found.", out.count > 0 ? "success" : "info");
+    } catch (e) {
+      console.error("Map all:", e);
+      notify("Mapping failed.", "error");
+    }
+  };
+
   const addReply = async (ideaId, section, text) => {
     if (!text.trim() || !user) return false;
     try {
@@ -1775,6 +1802,7 @@ ${openInvites || "None yet."}`,
               connections={connections}
               user={user}
               onGenerateConnections={generateConnections}
+              onMapAll={mapAllConnections}
               onLoadAll={loadAll}
               onSetActiveIdea={setActiveIdea}
               onNavigate={navGo}
