@@ -64,6 +64,9 @@ export default function Signal() {
   const [composeDocs,   setComposeDocs]   = useState([]);
   const [activeCompose,  setActiveCompose] = useState(null);
   const [connections,   setConnections]   = useState([]);
+  // 1.1 — at-capture link suggestion. Set when background connection generation
+  // finds links for a just-captured idea; rendered as a floating "Signal noticed" card.
+  const [linkSuggestion, setLinkSuggestion] = useState(null);
   const [globalSearch,  setGlobalSearch]  = useState("");
   const [localSearch,   setLocalSearch]   = useState("");
   const [searchHighlight, setSearchHighlight] = useState("");
@@ -653,17 +656,30 @@ If no meaningful connections exist, return {"connections": []}`,
         `NEW IDEA: "${newIdeaText}"\n\nEXISTING IDEAS (index|id|category|text):\n${ideaList}`,
         800
       );
-      const newConns = (result.connections || [])
-        .filter(c => c.index >= 0 && c.index < otherIdeas.length && c.strength >= 2)
-        .map(c => ({
-          idea_id_a: newIdeaId,
-          idea_id_b: otherIdeas[c.index].id,
-          reason: c.relationship,
-          strength: c.strength,
-        }));
+      const picked = (result.connections || [])
+        .filter(c => c.index >= 0 && c.index < otherIdeas.length && c.strength >= 2);
+      const newConns = picked.map(c => ({
+        idea_id_a: newIdeaId,
+        idea_id_b: otherIdeas[c.index].id,
+        reason: c.relationship,
+        strength: c.strength,
+      }));
       if (newConns.length > 0) {
         await supabase.from("connections").insert(newConns);
         setConnections(prev => [...prev, ...newConns]);
+        // 1.1 — surface the strongest links the instant they're found, so capture
+        // proposes "this connects to X" instead of silently filing it away.
+        const links = picked
+          .map(c => ({
+            partnerText: otherIdeas[c.index].text,
+            partnerCategory: otherIdeas[c.index].category,
+            partnerId: otherIdeas[c.index].id,
+            reason: c.relationship,
+            strength: c.strength,
+          }))
+          .sort((a, b) => (b.strength || 0) - (a.strength || 0))
+          .slice(0, 3);
+        setLinkSuggestion({ newIdeaText, links });
       }
     } catch (e) { console.warn("Connection generation:", e); }
   };
@@ -1321,6 +1337,38 @@ ${openInvites || "None yet."}`,
       {notification && (
         <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: C.surfaceHigh, border: `1px solid ${notification.type === "success" ? C.green : notification.type === "error" ? C.red : C.border}`, color: C.textPrimary, padding: "10px 22px", fontFamily: mono, fontSize: 12, letterSpacing: "0.1em", zIndex: 1000, borderRadius: 8 }}>
           {notification.msg}
+        </div>
+      )}
+
+      {/* 1.1 — "Signal noticed" at-capture link suggestion. Floats bottom-right when
+          background connection generation finds links for a just-captured idea. */}
+      {linkSuggestion && (
+        <div style={{ position: "fixed", bottom: 20, right: 20, width: 340, background: C.surface, border: `1px solid ${C.blue}`, borderRadius: 10, padding: "16px 18px", zIndex: 1000, boxShadow: "0 8px 28px rgba(0,0,0,0.45)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <span style={{ fontSize: 11, color: C.blue, fontFamily: mono, letterSpacing: "0.12em" }}>⬡ SIGNAL NOTICED</span>
+            <span onClick={() => setLinkSuggestion(null)} style={{ fontSize: 16, color: C.textMuted, cursor: "pointer", lineHeight: 1 }}>×</span>
+          </div>
+          <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5, marginBottom: 12 }}>
+            Your capture connects to {linkSuggestion.links.length} earlier idea{linkSuggestion.links.length > 1 ? "s" : ""}:
+          </div>
+          {linkSuggestion.links.map((l, i) => {
+            const cat = getCat(l.partnerCategory);
+            return (
+              <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: C.bg, borderRadius: 6, border: `1px solid ${C.borderSubtle}` }}>
+                <div style={{ fontSize: 12, color: cat.color, fontFamily: mono, marginBottom: 3 }}>
+                  {cat.icon} {l.partnerText.slice(0, 46)}{l.partnerText.length > 46 ? "…" : ""}
+                </div>
+                <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.45 }}>
+                  {(l.reason || "").slice(0, 90)}{(l.reason || "").length > 90 ? "…" : ""}
+                  {l.strength >= 4 && <span style={{ color: C.gold, fontFamily: mono }}> ◈ STRONG</span>}
+                </div>
+              </div>
+            );
+          })}
+          <div onClick={() => { setLinkSuggestion(null); navGo("connections"); }}
+            style={{ marginTop: 6, textAlign: "right", fontSize: 12, color: C.gold, fontFamily: mono, cursor: "pointer" }}>
+            OPEN MAP →
+          </div>
         </div>
       )}
 
