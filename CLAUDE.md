@@ -8,7 +8,7 @@ Signal is a creative ideation and production management platform for screenwrite
 
 **Deployed (canonical):** `signal-multi.vercel.app` — **MANUAL** deploys via `./scripts/deploy-prod.sh` from `signal/desktop/`. The Vercel project is linked but intentionally not GitHub-auto-deploy connected; `git push` alone does NOT update production. The script handles git-sync + safety checks; see `DEPLOYMENT_RULES.md` §3 and the script header for details.
 **Sibling deploy:** `signal-navy-five.vercel.app` — auto-deploys this repo's `main` to a separate Vercel project (`signal`). Same code as signal-multi (NOT pre-migration code, despite older notes), but it's a build-canary, NOT the user-facing API. iOS / Telegram cron / production traffic all hit `signal-multi.vercel.app`.
-**Database:** Supabase project `czgjbblkoyyojnaziyuy` (signal-multi). 16 tables, RLS enabled on all via `auth.uid()`-indirected policies through `users.auth_id`. NOT `krhidwibweznwakaoxjw` (old project, parked).
+**Database:** Supabase project `czgjbblkoyyojnaziyuy` (signal-multi). 17 tables, RLS enabled on all via `auth.uid()`-indirected policies through `users.auth_id` (verified 2026-06-01 — every table has 1 policy except `ai_observations`, which is RLS-on with 0 policies, i.e. default-deny / server-role-only access). NOT `krhidwibweznwakaoxjw` (old project, parked).
 **AI:** Anthropic Claude via `/api/ai` proxy (service-role key bypasses RLS).
 
 ## Tech Stack
@@ -24,7 +24,7 @@ Signal is a creative ideation and production management platform for screenwrite
 - **Deferred until Apple Dev clearance:** Apple, Google, Passkey
 
 ## Project Structure
-- `src/app.jsx` — Main application logic (large monolithic file, ~2,300 lines, slated for componentization)
+- `src/app.jsx` — Main application logic (~1,926 lines as of 2026-06-01; major screens already extracted to `src/components/views/`, the remaining shell still slated for further componentization)
 - `src/components/views/` — Major view components
 - `src/components/OnboardingFlow.jsx` — 4-step onboarding (name → craft → collaborator → canon teach)
 - `src/lib/constants.js` — Design tokens, categories, typography (single source of truth; app.jsx imports from here)

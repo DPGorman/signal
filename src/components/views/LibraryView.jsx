@@ -7,6 +7,7 @@ export default function LibraryView({
   filtered,
   deliverables,
   replies,
+  canonDocs = [],
   searchHighlight,
   signalFilter,
   onSetSignalFilter,
@@ -14,8 +15,17 @@ export default function LibraryView({
   onDeleteIdea,
   onToggleDeliverable,
   onAddReply,
+  onOpenCanon,
 }) {
   const displayIdea = activeIdea || filtered[0] || null;
+  // 1.3 — source-cited answers: any active canon doc whose title is named in the
+  // analysis (resonance, tension, or note) becomes a clickable source chip that
+  // opens the canon. Works retroactively — no schema change, no migration.
+  const citedCanon = (idea) => {
+    if (!idea) return [];
+    const hay = `${idea.ai_note || ""}\n${idea.canon_resonance || ""}\n${idea.canon_tension || ""}`.toLowerCase();
+    return (canonDocs || []).filter(d => d.is_active && d.title && hay.includes(d.title.toLowerCase()));
+  };
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
       {!displayIdea
@@ -69,6 +79,32 @@ export default function LibraryView({
                     <div style={{ fontSize: 12, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
                     <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
                     <ReplyBox ideaId={displayIdea.id} section="canon_resonance" replies={replies} onAddReply={onAddReply} />
+                  </div>
+                )}
+                {/* 2.1 — contradiction detection: Signal's sharpest, most ownable move.
+                    Says "this CONTRADICTS your canon," not just "this relates." */}
+                {displayIdea.canon_tension && (
+                  <div style={{ marginBottom: 32, padding: "16px 20px", background: `${C.red}12`, borderLeft: `3px solid ${C.red}`, borderRadius: 4 }}>
+                    <div style={{ fontSize: 12, color: C.red, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>⚠ TENSION WITH CANON</div>
+                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_tension} term={searchHighlight} /></div>
+                    <ReplyBox ideaId={displayIdea.id} section="canon_tension" replies={replies} onAddReply={onAddReply} />
+                  </div>
+                )}
+                {/* 1.3 — source-cited answers: click straight through to the canon the analysis rests on. */}
+                {citedCanon(displayIdea).length > 0 && (
+                  <div style={{ marginBottom: 32 }}>
+                    <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>SOURCES</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {citedCanon(displayIdea).map(d => (
+                        <span key={d.id} onClick={() => onOpenCanon && onOpenCanon(d.id)}
+                          title="Open in Canon"
+                          style={{ fontSize: 12, color: C.gold, border: `1px solid ${C.gold}40`, padding: "5px 12px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}
+                          onMouseEnter={e => e.currentTarget.style.background = C.gold + "18"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          ◈ {d.title}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {displayIdea.dimensions?.length > 0 && (

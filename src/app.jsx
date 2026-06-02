@@ -525,6 +525,7 @@ ${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framin
       inspiration_question: ctx                     || null,
       signal_strength:      analysis.signalStrength || 3,
       canon_resonance:      analysis.canonResonance || "",
+      canon_tension:        analysis.contradiction  || "",
       project_id:           currentProject?.id      || null,
     }]).select().single();
 
@@ -919,6 +920,7 @@ ${openInvites || "None yet."}`,
         ai_note: analysis.aiNote || "",
         signal_strength: analysis.signalStrength || 3,
         canon_resonance: analysis.canonResonance || "",
+        canon_tension: analysis.contradiction || "",
         auto_tag: classify.auto_tag || idea.auto_tag,
       }).eq("id", idea.id);
       if (updErr) { notify("Re-classify failed.", "error"); return; }
@@ -1742,6 +1744,7 @@ ${openInvites || "None yet."}`,
               filtered={filtered}
               deliverables={deliverables}
               replies={replies}
+              canonDocs={canonDocs}
               searchHighlight={searchHighlight}
               signalFilter={signalFilter}
               onSetSignalFilter={setSignalFilter}
@@ -1749,6 +1752,7 @@ ${openInvites || "None yet."}`,
               onDeleteIdea={deleteIdea}
               onToggleDeliverable={toggleDeliverable}
               onAddReply={addReply}
+              onOpenCanon={() => navGo("canon")}
             />
           )}
           {view === "canon"        && (
