@@ -1,6 +1,7 @@
 import { supabase } from "../_supabase.js";
 import { callClaude, extractText } from "../_anthropic.js";
 import { getAuthedUser } from "../_auth.js";
+import { resolveConnectionRows } from "./_resolve.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -67,23 +68,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: `Failed to parse AI response: ${e.message}` });
   }
 
-  // Resolve model indices -> real idea UUIDs. Drop anything out of range or
-  // self-referential, then normalize each pair's order (smaller UUID first) and
-  // dedupe — both guard the unique (idea_id_a, idea_id_b) index so a reversed or
-  // repeated pair can't fail the batch upsert.
-  const seen = new Set();
-  const rows = [];
-  for (const c of parsed.connections || []) {
-    if (!Number.isInteger(c.a) || !Number.isInteger(c.b)) continue;
-    if (c.a < 0 || c.a >= ideas.length || c.b < 0 || c.b >= ideas.length) continue;
-    if (c.a === c.b || !(c.strength >= 2)) continue;
-    let [ida, idb] = [ideas[c.a].id, ideas[c.b].id];
-    if (ida > idb) [ida, idb] = [idb, ida];
-    const key = `${ida}|${idb}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push({ idea_id_a: ida, idea_id_b: idb, reason: c.reason, strength: c.strength, project_id: projectId });
-  }
+  // Resolve model indices -> real, FK-safe rows (normalize order + dedupe).
+  // Logic lives in ./_resolve.js so it's unit-tested (test/resolve.test.js).
+  const rows = resolveConnectionRows(parsed.connections, ideas, projectId);
 
   if (rows.length === 0) return res.status(200).json({ count: 0 });
 
