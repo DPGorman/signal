@@ -34,7 +34,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ count: 0, message: "Not enough ideas to connect" });
   }
 
-  const ideaList = ideas.map((i, n) => `${n}|${i.id}|${i.category || "idea"}|${i.text.slice(0, 150)}`).join("\n");
+  // Each idea is keyed by its list index, NOT its UUID. The model references
+  // ideas by index; we resolve index -> real UUID server-side below. This is the
+  // same robust pattern the per-capture generator uses (src/app.jsx) — never trust
+  // the model to reproduce 36-char UUIDs verbatim, or one bad character fails the
+  // whole FK-constrained insert.
+  const ideaList = ideas.map((i, n) => `${n}|${i.category || "idea"}|${i.text.slice(0, 150)}`).join("\n");
 
   let data;
   try {
@@ -42,7 +47,7 @@ export default async function handler(req, res) {
       system: `You find meaningful creative connections between ideas. Only return genuine thematic, narrative, or conceptual relationships — not just similar categories. Be selective: a weak connection is worse than none.`,
       messages: [{
         role: "user",
-        content: `Find meaningful connections between these ideas. Return ONLY raw JSON — no markdown, no explanation:\n{"connections":[{"idea_id_a":"<uuid>","idea_id_b":"<uuid>","reason":"why they connect","strength":3}]}\n\nstrength: 1–5 (only include strength >= 2). Empty array if none.\n\nIDEAS:\n${ideaList}`,
+        content: `Find meaningful connections between these ideas. Each idea is listed as "index|category|text". Reference ideas by their integer index. Return ONLY raw JSON — no markdown, no explanation:\n{"connections":[{"a":<index>,"b":<index>,"reason":"why they connect","strength":3}]}\n\na and b are the integer indices of the two connected ideas (a != b). strength: 1–5 (only include strength >= 2). Empty array if none.\n\nIDEAS:\n${ideaList}`,
       }],
       maxTokens: 4000,
       model: "claude-haiku-4-5-20251001",
@@ -62,20 +67,34 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: `Failed to parse AI response: ${e.message}` });
   }
 
-  const conns = (parsed.connections || []).filter(
-    (c) => c.idea_id_a && c.idea_id_b && c.strength >= 2
-  );
-
-  if (conns.length > 0) {
-    const rows = conns.map((c) => ({
-      idea_id_a: c.idea_id_a,
-      idea_id_b: c.idea_id_b,
-      reason: c.reason,
-      strength: c.strength,
-      project_id: projectId,
-    }));
-    await supabase.from("connections").upsert(rows, { onConflict: "idea_id_a,idea_id_b" });
+  // Resolve model indices -> real idea UUIDs. Drop anything out of range or
+  // self-referential, then normalize each pair's order (smaller UUID first) and
+  // dedupe — both guard the unique (idea_id_a, idea_id_b) index so a reversed or
+  // repeated pair can't fail the batch upsert.
+  const seen = new Set();
+  const rows = [];
+  for (const c of parsed.connections || []) {
+    if (!Number.isInteger(c.a) || !Number.isInteger(c.b)) continue;
+    if (c.a < 0 || c.a >= ideas.length || c.b < 0 || c.b >= ideas.length) continue;
+    if (c.a === c.b || !(c.strength >= 2)) continue;
+    let [ida, idb] = [ideas[c.a].id, ideas[c.b].id];
+    if (ida > idb) [ida, idb] = [idb, ida];
+    const key = `${ida}|${idb}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ idea_id_a: ida, idea_id_b: idb, reason: c.reason, strength: c.strength, project_id: projectId });
   }
 
-  return res.status(200).json({ count: conns.length });
+  if (rows.length === 0) return res.status(200).json({ count: 0 });
+
+  // Return the REAL persisted count, and surface write errors instead of
+  // swallowing them — the old code reported the model's count even when the
+  // insert failed, so "Mapped N connections" could be a lie.
+  const { data: inserted, error } = await supabase
+    .from("connections")
+    .upsert(rows, { onConflict: "idea_id_a,idea_id_b" })
+    .select("id");
+  if (error) return res.status(500).json({ error: `Failed to save connections: ${error.message}` });
+
+  return res.status(200).json({ count: inserted?.length ?? rows.length });
 }
