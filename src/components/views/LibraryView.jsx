@@ -24,7 +24,15 @@ export default function LibraryView({
   const citedCanon = (idea) => {
     if (!idea) return [];
     const hay = `${idea.ai_note || ""}\n${idea.canon_resonance || ""}\n${idea.canon_tension || ""}`.toLowerCase();
-    return (canonDocs || []).filter(d => d.is_active && d.title && hay.includes(d.title.toLowerCase()));
+    return (canonDocs || []).filter(d => {
+      if (!d.is_active || !d.title) return false;
+      const t = d.title.toLowerCase();
+      // Prefer the explicit bracketed citation the analysis prompt emits ("[Series Bible]").
+      if (hay.includes(`[${t}]`)) return true;
+      // Unbracketed fallback: only trust a bare title mention when it's specific
+      // enough not to fire on a common word — guards the citation against false positives.
+      return t.length >= 4 && hay.includes(t);
+    });
   };
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
