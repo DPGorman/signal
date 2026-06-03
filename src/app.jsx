@@ -1805,9 +1805,7 @@ ${openInvites || "None yet."}`,
               ideas={ideas}
               connections={connections}
               user={user}
-              onGenerateConnections={generateConnections}
               onMapAll={mapAllConnections}
-              onLoadAll={loadAll}
               onSetActiveIdea={setActiveIdea}
               onNavigate={navGo}
               onNotify={notify}

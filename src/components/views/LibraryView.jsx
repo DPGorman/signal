@@ -41,6 +41,7 @@ export default function LibraryView({
         : (() => {
             const cat = getCat(displayIdea.category);
             const ideaDels = deliverables.filter(d => d.idea_id === displayIdea.id);
+            const cited = citedCanon(displayIdea);
             return (
               <div style={{ maxWidth: 640 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
@@ -99,11 +100,11 @@ export default function LibraryView({
                   </div>
                 )}
                 {/* 1.3 — source-cited answers: click straight through to the canon the analysis rests on. */}
-                {citedCanon(displayIdea).length > 0 && (
+                {cited.length > 0 && (
                   <div style={{ marginBottom: 32 }}>
                     <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>SOURCES</div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {citedCanon(displayIdea).map(d => (
+                      {cited.map(d => (
                         <span key={d.id} onClick={() => onOpenCanon && onOpenCanon(d.id)}
                           title="Open in Canon"
                           style={{ fontSize: 12, color: C.gold, border: `1px solid ${C.gold}40`, padding: "5px 12px", fontFamily: mono, cursor: "pointer", borderRadius: 4 }}
