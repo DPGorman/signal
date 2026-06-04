@@ -82,6 +82,6 @@ vercel --prod  # Manual deploy to signal-multi.vercel.app
 - No test suite (no Jest/Vitest)
 - WhatsApp integration is capture-only stub
 - No pagination on large idea lists
-- `MindMapView.jsx` is ~195 lines; serial `for ... await` over all ideas in `handleMapAll()` will lag past ~50 nodes — performance concern at scale
+- `MindMapView.jsx` "Remap" / `mapAllConnections` is **one** batch server call (`/api/connections/generate` → a single Haiku 4.5 call, maxTokens 4000) — NOT the old serial per-idea loop, so it's fast at small N (≈seconds at 44 ideas). The real scaling limit is one-shot pairwise reasoning quality + the 4000-token output cap truncating connections past a few hundred ideas — not client-side lag. (Corrected 2026-06-04; the prior "serial for…await lags past 50" note described removed code.) Map now auto-catches-up on open (once per project per session, silent) so the user never presses a button.
 - Error handling is generic ("success"/"error" notifications)
 - Canon teach screen wording in `OnboardingFlow.jsx` step 4 is NOT YET the locked copy ("You technically can skip this for now, but you shouldn't"); needs ~5-min sweep for lock parity with iOS

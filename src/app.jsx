@@ -690,10 +690,13 @@ If no meaningful connections exist, return {"connections": []}`,
   // orphaned) to the Map's "MAP ALL" button. This is what lights up the existing
   // corpus — captures that arrived via iOS / Telegram / WhatsApp never ran the
   // per-capture web generator, so the Map can sit empty across dozens of ideas.
-  const mapAllConnections = async () => {
+  // `silent` = background auto-catch-up (fired when the Map opens with unlinked
+  // ideas). Quiet on start/empty/failure; only speaks up to announce NEW links,
+  // so the graph self-populates without the user pressing anything.
+  const mapAllConnections = async (silent = false) => {
     if (!user) return;
-    if (!currentProject?.id) { notify("Open a project first.", "info"); return; }
-    notify("Mapping connections across all ideas...", "processing");
+    if (!currentProject?.id) { if (!silent) notify("Open a project first.", "info"); return; }
+    if (!silent) notify("Mapping connections across all ideas...", "processing");
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
@@ -702,13 +705,14 @@ If no meaningful connections exist, return {"connections": []}`,
         headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify({ project_id: currentProject.id }),
       });
-      if (!res.ok) { notify("Mapping failed.", "error"); return; }
+      if (!res.ok) { if (!silent) notify("Mapping failed.", "error"); return; }
       const out = await res.json();
       await loadAll(user.id);
-      notify(out.count > 0 ? `Mapped ${out.count} connection${out.count === 1 ? "" : "s"}.` : "No new connections found.", out.count > 0 ? "success" : "info");
+      if (out.count > 0) notify(`Signal mapped ${out.count} new connection${out.count === 1 ? "" : "s"}.`, "success");
+      else if (!silent) notify("No new connections found.", "info");
     } catch (e) {
       console.error("Map all:", e);
-      notify("Mapping failed.", "error");
+      if (!silent) notify("Mapping failed.", "error");
     }
   };
 
@@ -1802,9 +1806,10 @@ ${openInvites || "None yet."}`,
           )}
           {view === "connections"  && (
             <MindMapView
-              ideas={ideas}
+              ideas={ideas.filter(i => !i.kind || i.kind === "project_material")}
               connections={connections}
               user={user}
+              projectId={currentProject?.id}
               onMapAll={mapAllConnections}
               onSetActiveIdea={setActiveIdea}
               onNavigate={navGo}

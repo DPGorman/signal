@@ -5,11 +5,13 @@ export default function MindMapView({
   ideas,
   connections,
   user,
+  projectId,
   onMapAll,
   onSetActiveIdea,
   onNavigate,
   onNotify,
 }) {
+  const autoMapped = useRef(false);
   const [mapNodes, setMapNodes] = useState([]);
   const [hoveredNode, setHoveredNode] = useState(null);
   const [dragNode, setDragNode] = useState(null);
@@ -38,6 +40,22 @@ export default function MindMapView({
     });
     setMapNodes(nodes);
   }, [ideas.length, connections.length]); // eslint-disable-line
+
+  // Auto-catch-up: when the Map opens with unlinked ideas, link the corpus once
+  // per project per session — so the graph is never half-empty and the user never
+  // has to press a button. Connections should always be current; "Remap" is just
+  // a manual nudge, not the way the map gets populated.
+  useEffect(() => {
+    if (autoMapped.current) return;
+    if (!projectId || ideas.length < 2) return;
+    const sessKey = `signal_mapped_${projectId}`;
+    if (sessionStorage.getItem(sessKey)) { autoMapped.current = true; return; }
+    const unlinked = ideas.filter(i => !connections.some(c => c.idea_id_a === i.id || c.idea_id_b === i.id));
+    if (unlinked.length === 0) return;
+    autoMapped.current = true;
+    sessionStorage.setItem(sessKey, "1");
+    onMapAll(true); // silent background run
+  }, [ideas.length, connections.length, projectId]); // eslint-disable-line
 
   const getNode = (id) => mapNodes.find(n => n.id === id);
 
@@ -81,11 +99,13 @@ export default function MindMapView({
         </select>
         <button onClick={() => {
           if (!user || ideas.length < 2) return;
-          // One server call links the whole project (vs. the old per-idea loop).
+          // Manual nudge only — the map auto-populates on open (see auto-catch-up
+          // effect). One server call re-links the whole project.
           onMapAll();
         }}
+          title="Re-scan the whole project for new connections"
           style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, padding: "5px 12px", fontFamily: mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", borderRadius: 4, flexShrink: 0 }}>
-          MAP ALL
+          ↻ Remap
         </button>
       </div>
       <div ref={mapContainerRef}
