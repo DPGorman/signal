@@ -1,12 +1,26 @@
 import { C, getCat, mono, sans } from "../../lib/constants";
 import Highlight from "../Highlight";
 import ReplyBox from "../ReplyBox";
+import CorrectionBox from "../CorrectionBox";
+
+// The AI's original words stay visible but de-emphasized once corrected —
+// provenance is immutable; the user's truth sits beneath it (CorrectionBox).
+const CORRECTED_STYLE = { opacity: 0.5, textDecoration: "line-through", textDecorationColor: `${C.gold}99` };
+
+function CorrectedBadge() {
+  return (
+    <span style={{ fontSize: 10, color: C.gold, border: `1px solid ${C.gold}66`, borderRadius: 3, padding: "1px 6px", letterSpacing: "0.08em", fontFamily: mono }}>
+      CORRECTED
+    </span>
+  );
+}
 
 export default function LibraryView({
   activeIdea,
   filtered,
   deliverables,
   replies,
+  corrections = [],
   canonDocs = [],
   searchHighlight,
   signalFilter,
@@ -15,9 +29,14 @@ export default function LibraryView({
   onDeleteIdea,
   onToggleDeliverable,
   onAddReply,
+  onCorrect,
   onOpenCanon,
 }) {
   const displayIdea = activeIdea || filtered[0] || null;
+  // A section is "corrected" when an active correction exists for this idea+section.
+  // The AI's original words stay visible but dimmed + badged (provenance is immutable).
+  const isCorrected = (ideaId, section) =>
+    (corrections || []).some(c => c.idea_id === ideaId && c.target_section === section && c.is_active);
   // 1.3 — source-cited answers: any active canon doc whose title is named in the
   // analysis (resonance, tension, or note) becomes a clickable source chip that
   // opens the canon. Works retroactively — no schema change, no migration.
@@ -78,15 +97,23 @@ export default function LibraryView({
                 )}
                 {displayIdea.ai_note && (
                   <div style={{ marginBottom: 32 }}>
-                    <div style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>DRAMATURGICAL ANALYSIS</div>
-                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.ai_note} term={searchHighlight} /></div>
+                    <div style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                      DRAMATURGICAL ANALYSIS
+                      {isCorrected(displayIdea.id, "ai_note") && <CorrectedBadge />}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65, ...(isCorrected(displayIdea.id, "ai_note") ? CORRECTED_STYLE : {}) }}><Highlight text={displayIdea.ai_note} term={searchHighlight} /></div>
+                    <CorrectionBox idea={displayIdea} section="ai_note" aiOriginal={displayIdea.ai_note} corrections={corrections} onCorrect={onCorrect} />
                     <ReplyBox ideaId={displayIdea.id} section="ai_note" replies={replies} onAddReply={onAddReply} />
                   </div>
                 )}
                 {displayIdea.canon_resonance && (
                   <div style={{ marginBottom: 32 }}>
-                    <div style={{ fontSize: 12, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>CANON RESONANCE</div>
-                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
+                    <div style={{ fontSize: 12, color: C.purple, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                      CANON RESONANCE
+                      {isCorrected(displayIdea.id, "canon_resonance") && <CorrectedBadge />}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65, ...(isCorrected(displayIdea.id, "canon_resonance") ? CORRECTED_STYLE : {}) }}><Highlight text={displayIdea.canon_resonance} term={searchHighlight} /></div>
+                    <CorrectionBox idea={displayIdea} section="canon_resonance" aiOriginal={displayIdea.canon_resonance} corrections={corrections} onCorrect={onCorrect} />
                     <ReplyBox ideaId={displayIdea.id} section="canon_resonance" replies={replies} onAddReply={onAddReply} />
                   </div>
                 )}
@@ -94,8 +121,12 @@ export default function LibraryView({
                     Says "this CONTRADICTS your canon," not just "this relates." */}
                 {displayIdea.canon_tension && (
                   <div style={{ marginBottom: 32, padding: "16px 20px", background: `${C.red}12`, borderLeft: `3px solid ${C.red}`, borderRadius: 4 }}>
-                    <div style={{ fontSize: 12, color: C.red, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10 }}>⚠ TENSION WITH CANON</div>
-                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}><Highlight text={displayIdea.canon_tension} term={searchHighlight} /></div>
+                    <div style={{ fontSize: 12, color: C.red, fontFamily: mono, letterSpacing: "0.12em", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                      ⚠ TENSION WITH CANON
+                      {isCorrected(displayIdea.id, "canon_tension") && <CorrectedBadge />}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.65, ...(isCorrected(displayIdea.id, "canon_tension") ? CORRECTED_STYLE : {}) }}><Highlight text={displayIdea.canon_tension} term={searchHighlight} /></div>
+                    <CorrectionBox idea={displayIdea} section="canon_tension" aiOriginal={displayIdea.canon_tension} corrections={corrections} onCorrect={onCorrect} />
                     <ReplyBox ideaId={displayIdea.id} section="canon_tension" replies={replies} onAddReply={onAddReply} />
                   </div>
                 )}

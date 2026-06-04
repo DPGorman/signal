@@ -9,6 +9,11 @@ import { MODES } from "./modes.js";
 const SEPARATOR = "\n\n---\n\n";
 const DEFAULT_CRAFT = "screenwriter"; // fallback if user has no craft set
 const LEXICON_LIMIT = 30;
+// Active corrections folded into every analysis prompt. Newest-first; capped so
+// a runaway count can't blow the runtime block. 40 active corrections is already
+// a heavily-taught project; beyond that the oldest are dropped from conditioning
+// (they remain on the "What I've taught Signal" surface).
+const CORRECTIONS_LIMIT = 40;
 
 /**
  * Format the user-layer block from extracted lexicon + voice card + collaborator name.
@@ -59,6 +64,38 @@ function formatRuntimeContext(runtimeContext) {
   if (runtimeContext.openDeliverables) lines.push(`OPEN DELIVERABLES:\n${runtimeContext.openDeliverables}`);
   if (runtimeContext.extra) lines.push(runtimeContext.extra);
   return lines.join("\n\n");
+}
+
+/**
+ * Format the user's active corrections into a binding context block.
+ *
+ * BINDING (locked with Daniel 2026-06-04): "fact accepted, challenge preserved."
+ * A correction is treated as settled truth the model won't re-litigate — but it
+ * NEVER softens a challenge. The model must keep surfacing real contradictions,
+ * including any new tension a correction itself creates.
+ *
+ * Returns empty string if there are no active corrections.
+ */
+function formatCorrectionsBlock(corrections) {
+  if (!corrections || corrections.length === 0) return "";
+
+  const sectionLabel = {
+    ai_note: "your dramaturgical analysis",
+    canon_resonance: "a canon-resonance note",
+    canon_tension: "a tension-with-canon note",
+  };
+
+  const items = corrections.map(c => {
+    const where = sectionLabel[c.target_section] || "an earlier analysis";
+    const original = (c.ai_original || "").slice(0, 300);
+    return `- In ${where} you wrote: "${original}"\n  The user corrected this. The truth is: "${c.correction_text}"`;
+  }).join("\n");
+
+  return `CORRECTIONS THE USER HAS TAUGHT YOU (binding — read before analyzing):
+The user has reviewed your earlier analysis and corrected the following. Treat each as established truth about this project. Do NOT repeat or re-assert the mistaken original claim in any future analysis.
+${items}
+
+These corrections fix FACTS. They do NOT soften your job. Keep challenging. Keep surfacing genuine contradictions and tensions — including any NEW tension a correction itself creates. A correction settles a fact; it never buys agreement, praise, or a gentler read. If taking a correction as true exposes a fresh problem in the work, say so plainly.`;
 }
 
 /**
@@ -131,7 +168,7 @@ export function toCacheableSystemContent({ stable, runtime } = {}) {
  *
  * @returns {Promise<{stable: string, runtime: string}>}
  */
-export async function assembleSystemPrompt({ supabase, userId, mode, runtimeContext }) {
+export async function assembleSystemPrompt({ supabase, userId, mode, runtimeContext, projectId }) {
   if (!supabase) throw new Error("assembleSystemPrompt: supabase client required");
   if (!userId) throw new Error("assembleSystemPrompt: userId required");
   if (!mode) throw new Error("assembleSystemPrompt: mode required");
@@ -171,7 +208,34 @@ export async function assembleSystemPrompt({ supabase, userId, mode, runtimeCont
     console.warn(`assembleSystemPrompt: could not load voice card for ${userId}:`, vcErr.message);
   }
 
-  return composePrompt({
+  // Active corrections — the user's taught truths. Folded into EVERY analysis
+  // path (capture, re-analyze, studio, pulse, etc.) because every consumer of
+  // the voice system routes through here. Project-scoped when a projectId is
+  // known; a null-project correction conditions all of the user's analysis.
+  let correctionRows = [];
+  {
+    let q = supabase
+      .from("corrections")
+      .select("target_section, ai_original, correction_text")
+      .eq("user_id", userId)
+      .eq("is_active", true);
+    if (projectId) q = q.or(`project_id.eq.${projectId},project_id.is.null`);
+    const { data, error: corrErr } = await q
+      .order("created_at", { ascending: false })
+      .limit(CORRECTIONS_LIMIT);
+    if (corrErr) {
+      console.warn(`assembleSystemPrompt: could not load corrections for ${userId}:`, corrErr.message);
+    } else {
+      correctionRows = data || [];
+      // No silent caps: if we hit the limit, oldest active corrections are NOT
+      // conditioning this call. Surface it so the truncation is visible in logs.
+      if (correctionRows.length === CORRECTIONS_LIMIT) {
+        console.warn(`assembleSystemPrompt: corrections capped at ${CORRECTIONS_LIMIT} for ${userId} — oldest active corrections excluded from conditioning.`);
+      }
+    }
+  }
+
+  const parts = composePrompt({
     craft: user?.craft,
     lexicon: lexiconRows || [],
     voiceCard: voiceCardRow?.signature,
@@ -179,6 +243,15 @@ export async function assembleSystemPrompt({ supabase, userId, mode, runtimeCont
     mode,
     runtimeContext,
   });
+
+  // Corrections live in the RUNTIME block (not the cached stable prefix) — they
+  // change as the user teaches, so they must never be frozen into a cache hit.
+  const correctionsBlock = formatCorrectionsBlock(correctionRows);
+  if (correctionsBlock) {
+    parts.runtime = [parts.runtime, correctionsBlock].filter(Boolean).join(SEPARATOR);
+  }
+
+  return parts;
 }
 
 // Named exports for callers

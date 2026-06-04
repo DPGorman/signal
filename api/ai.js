@@ -49,7 +49,7 @@ function flattenLexicon(lex) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { system, message, maxTokens, file, mode, userId, context } = req.body;
+  const { system, message, maxTokens, file, mode, userId, context, projectId } = req.body;
 
   // Resolve the system prompt:
   //   - New shape ({mode, userId}) → assemble {stable, runtime}, build a cacheable
@@ -77,6 +77,7 @@ export default async function handler(req, res) {
         userId,
         mode,
         runtimeContext,
+        projectId,
       });
       systemPrompt = toCacheableSystemContent(parts);
     } catch (e) {

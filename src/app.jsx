@@ -14,6 +14,7 @@ import CalendarView from "./components/views/CalendarView.jsx";
 import TasksView from "./components/views/TasksView.jsx";
 import DashboardView from "./components/views/DashboardView.jsx";
 import CanonView from "./components/views/CanonView.jsx";
+import TeachingsView from "./components/views/TeachingsView.jsx";
 import CaptureView from "./components/views/CaptureView.jsx";
 import IncomingView from "./components/views/IncomingView.jsx";
 import LibraryView from "./components/views/LibraryView.jsx";
@@ -26,11 +27,11 @@ const formatDuration = (mins) => { if (!mins) return null; if (mins < 60) return
 
 // Voice-overlay shape: server assembles backbone + craft overlay + user-layer + mode contract.
 // See api/_voice/* and SIGNAL_VOICE_AND_OVERLAYS_2026-05-06_v2.1.md.
-async function callAIv2({ mode, userId, context, message = "", maxTokens = 1000 }) {
+async function callAIv2({ mode, userId, context, message = "", maxTokens = 1000, projectId = null }) {
   const res = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode, userId, context, message, maxTokens }),
+    body: JSON.stringify({ mode, userId, context, message, maxTokens, projectId }),
   });
   if (!res.ok) throw new Error(`AI proxy error: ${res.status}`);
   return res.json();
@@ -61,6 +62,7 @@ export default function Signal() {
   const [studioTab,     setStudioTab]     = useState("insight");
   const [auditing,      setAuditing]      = useState(false);
   const [replies,       setReplies]       = useState([]);
+  const [corrections,   setCorrections]   = useState([]);
   const [composeDocs,   setComposeDocs]   = useState([]);
   const [activeCompose,  setActiveCompose] = useState(null);
   const [connections,   setConnections]   = useState([]);
@@ -341,6 +343,15 @@ export default function Signal() {
       const { data: r } = await supabase.from("replies").select("*").eq("user_id", uid).order("created_at", { ascending: true });
       if (r) setReplies(r);
     } catch (e) { console.warn("Replies:", e); }
+    // Corrections — the user's taught truths. Load all (active + undone) so the
+    // "What I've taught Signal" surface can show in-force vs undone; line-marking
+    // filters to is_active. Scoped to the active project when one is set.
+    try {
+      let corrQ = supabase.from("corrections").select("*").eq("user_id", uid).order("created_at", { ascending: false });
+      if (activePid) corrQ = corrQ.or(`project_id.eq.${activePid},project_id.is.null`);
+      const { data: corr } = await corrQ;
+      if (corr) setCorrections(corr);
+    } catch (e) { console.warn("Corrections:", e); }
     try {
       const { data: cd } = await supabase.from("compose_documents").select("*").eq("user_id", uid).order("updated_at", { ascending: false });
       if (cd) setComposeDocs(cd);
@@ -366,6 +377,7 @@ export default function Signal() {
         mode: "studio",
         userId: userObj?.id,
         context: `PROJECT: ${userObj?.project_name || "Film Series"}\n\nALL IDEAS (${ideasList.length} total):\n${allIdeas}`,
+        projectId: currentProject?.id,
       });
       setStudio(result);
     } catch (e) { console.error("Studio:", e); }
@@ -442,6 +454,7 @@ ${existing || "None yet."}${ctx ? `\n\nUSER'S FRAMING:\n"${ctx}"` : ""}${qaBlock
       context: classifyContext,
       message: `Capture: "${text}"`,
       maxTokens: 300,
+      projectId: currentProject?.id,
     });
 
     const kind = classify.type || "project_material";
@@ -514,6 +527,7 @@ OPEN INVITATIONS — don't overlap:
 ${openInvites || "None yet."}${ctx ? `\n\nWHY THIS FELT IMPORTANT (user's framing):\n"${ctx}"` : ""}${qaBlock}`,
       message: `New idea: "${text}"`,
       maxTokens: 1200,
+      projectId: currentProject?.id,
     });
 
     const { data: saved, error } = await supabase.from("ideas").insert([{
@@ -731,6 +745,97 @@ If no meaningful connections exist, return {"connections": []}`,
     } catch (e) { console.error("Reply:", e); notify("Failed to save.", "error"); return false; }
   };
 
+  // Re-run craft analysis on an already-classified idea, in place. Used after a
+  // correction so the idea's analysis immediately reflects the taught truth.
+  // Corrections are injected server-side (assembleSystemPrompt), so this plain
+  // capture-mode call already carries them.
+  const reanalyzeIdea = async (idea) => {
+    if (!user || !idea) return;
+    const activeDocs   = canonDocs.filter(d => d.is_active);
+    const canonContext = activeDocs.slice(0, 3).map(d => `[${d.title}]:\n${d.content.slice(0, 800)}`).join("\n\n");
+    const existing     = creativeIdeas.slice(0, 20).map(i => `"${i.text.slice(0, 100)}"`).join("\n");
+    const openInvites  = deliverables.filter(d => !d.is_complete).slice(0, 15).map(d => `"${d.text}"`).join("\n");
+    const analysis = await callAIv2({
+      mode: "capture",
+      userId: user.id,
+      context: `PROJECT: ${user.project_name}
+TODAY: ${new Date().toISOString().split("T")[0]} — for invitations, pick realistic due dates within the next 1-4 weeks, or null if none fits.
+
+${canonContext ? `CANON:\n${canonContext}\n\n` : ""}EXISTING IDEAS — don't duplicate:
+${existing || "None yet."}
+
+OPEN INVITATIONS — don't overlap:
+${openInvites || "None yet."}`,
+      message: `New idea: "${idea.text}"`,
+      maxTokens: 1200,
+      projectId: currentProject?.id,
+    });
+    await supabase.from("ideas").update({
+      ai_note:         analysis.aiNote         || "",
+      signal_strength: analysis.signalStrength || idea.signal_strength || 3,
+      canon_resonance: analysis.canonResonance || "",
+      canon_tension:   analysis.contradiction  || "",
+    }).eq("id", idea.id);
+  };
+
+  // Record a correction against a wrong analysis line, then re-analyze the idea
+  // so it immediately reflects the taught truth. The AI's original words are
+  // preserved verbatim (ai_original) — the UI keeps them visible, marked
+  // "corrected by you". The correction becomes project canon and conditions all
+  // future analysis (server-side).
+  const createCorrection = async (idea, section, aiOriginal, correctionText) => {
+    if (!correctionText.trim() || !user || !idea || isAnalyzing) return false;
+    setIsAnalyzing(true);
+    try {
+      const { data, error } = await supabase.from("corrections").insert([{
+        user_id: user.id,
+        idea_id: idea.id,
+        project_id: currentProject?.id || null,
+        target_section: section,
+        ai_original: aiOriginal || "",
+        correction_text: correctionText.trim(),
+      }]).select().single();
+      if (error) throw error;
+      setCorrections(prev => [data, ...prev]);
+      notify("Correction saved — re-analyzing with it…", "processing");
+      try {
+        await reanalyzeIdea(idea);
+      } catch (e) { console.error("Re-analyze after correction:", e); }
+      await loadAll(user.id, currentProject?.id);
+      notify("Signal learned it. Future analysis will respect this.", "success");
+      return true;
+    } catch (e) {
+      console.error("Correction:", e);
+      notify("Failed to save correction.", "error");
+      return false;
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Withdraw a correction: stop it conditioning future analysis. Soft
+  // (is_active=false) so the teaching history stays on the review surface.
+  const undoCorrection = async (id) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.from("corrections").update({ is_active: false }).eq("id", id);
+      if (error) throw error;
+      setCorrections(prev => prev.map(c => c.id === id ? { ...c, is_active: false } : c));
+      notify("Correction withdrawn — it no longer conditions analysis.", "info");
+    } catch (e) { console.error("Undo correction:", e); notify("Failed to undo.", "error"); }
+  };
+
+  // Re-apply a previously withdrawn correction.
+  const restoreCorrection = async (id) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.from("corrections").update({ is_active: true }).eq("id", id);
+      if (error) throw error;
+      setCorrections(prev => prev.map(c => c.id === id ? { ...c, is_active: true } : c));
+      notify("Correction reinstated — it conditions analysis again.", "success");
+    } catch (e) { console.error("Restore correction:", e); notify("Failed to restore.", "error"); }
+  };
+
 
   const processFile = async (file) => {
     if (!file || isProcessing) return;
@@ -878,6 +983,7 @@ ${existing || "None yet."}${intentBlock}`;
         context: classifyContext,
         message: `Capture: "${idea.text}"`,
         maxTokens: 300,
+        projectId: currentProject?.id,
       });
 
       const newKind = classify.type || idea.kind;
@@ -916,6 +1022,7 @@ OPEN INVITATIONS — don't overlap:
 ${openInvites || "None yet."}`,
         message: `New idea: "${idea.text}"`,
         maxTokens: 1200,
+        projectId: currentProject?.id,
       });
 
       const { error: updErr } = await supabase.from("ideas").update({
@@ -1675,7 +1782,7 @@ ${openInvites || "None yet."}`,
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: C.bg, borderRadius: 12 }}>
         <div style={{ padding: "10px 28px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, letterSpacing: "0.15em" }}>
-            {{ today: "TODAY'S FOCUS", calendar: "CALENDAR", dashboard: "OVERVIEW", capture: "CAPTURE", incoming: "INCOMING", library: "LIBRARY", canon: "CANON", deliverables: "ACTIONS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
+            {{ today: "TODAY'S FOCUS", calendar: "CALENDAR", dashboard: "OVERVIEW", capture: "CAPTURE", incoming: "INCOMING", library: "LIBRARY", canon: "CANON", teachings: "WHAT I'VE TAUGHT SIGNAL", deliverables: "ACTIONS", compose: "COMPOSE", connections: "CONNECTIONS" }[view]}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
             <span
@@ -1748,6 +1855,7 @@ ${openInvites || "None yet."}`,
               filtered={filtered}
               deliverables={deliverables}
               replies={replies}
+              corrections={corrections}
               canonDocs={canonDocs}
               searchHighlight={searchHighlight}
               signalFilter={signalFilter}
@@ -1756,6 +1864,7 @@ ${openInvites || "None yet."}`,
               onDeleteIdea={deleteIdea}
               onToggleDeliverable={toggleDeliverable}
               onAddReply={addReply}
+              onCorrect={createCorrection}
               onOpenCanon={() => navGo("canon")}
             />
           )}
@@ -1773,6 +1882,17 @@ ${openInvites || "None yet."}`,
               searchHighlight={searchHighlight}
               onToggleCanon={toggleCanon}
               onDeleteCanon={deleteCanon}
+              correctionCount={corrections.filter(c => c.is_active).length}
+              onOpenTeachings={() => navGo("teachings")}
+            />
+          )}
+          {view === "teachings"    && (
+            <TeachingsView
+              corrections={corrections}
+              ideas={ideas}
+              onUndo={undoCorrection}
+              onRestore={restoreCorrection}
+              onOpenIdea={(id) => navGo("library", ideas.find(i => i.id === id) || null)}
             />
           )}
           {view === "deliverables" && (

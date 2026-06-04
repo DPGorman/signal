@@ -14,9 +14,24 @@ export default function CanonView({
   searchHighlight,
   onToggleCanon,
   onDeleteCanon,
+  correctionCount = 0,
+  onOpenTeachings,
 }) {
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
+      {onOpenTeachings && (
+        <div
+          onClick={onOpenTeachings}
+          title="Everything you've corrected — reviewable and undoable"
+          style={{ maxWidth: 500, marginBottom: 24, padding: "12px 16px", background: `${C.gold}0D`, border: `1px solid ${C.gold}40`, borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+          onMouseEnter={e => e.currentTarget.style.background = `${C.gold}1A`}
+          onMouseLeave={e => e.currentTarget.style.background = `${C.gold}0D`}>
+          <span style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.08em" }}>
+            ⚡ What you've taught Signal{correctionCount > 0 ? ` — ${correctionCount} correction${correctionCount === 1 ? "" : "s"}` : ""}
+          </span>
+          <span style={{ fontSize: 14, color: C.gold }}>›</span>
+        </div>
+      )}
       {showUpload && (
         <div style={{ maxWidth: 500, marginBottom: 32, padding: "20px 24px", background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 6 }}>
           <input value={canonUpload.title} onChange={e => onChangeUpload(p => ({ ...p, title: e.target.value }))}
