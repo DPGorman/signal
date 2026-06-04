@@ -755,6 +755,32 @@ If no meaningful connections exist, return {"connections": []}`,
     }
   };
 
+  // Feature 5 — "your material is yours." Export the whole active project
+  // (every idea incl. tasks/archived, canon, connections, deliverables + the AI's
+  // analysis) to a plain JSON file the user can keep. Client-side: the data is
+  // already loaded in state, so no server round-trip and nothing leaves except to
+  // the user's own disk. Creative IP is sensitive — ownership is a buying reason.
+  const exportProject = () => {
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const projName = currentProject?.name || user?.project_name || "signal";
+      const bundle = {
+        exported_at: new Date().toISOString(),
+        project: { id: currentProject?.id || null, name: projName },
+        counts: { ideas: ideas.length, canon: canonDocs.length, connections: connections.length, deliverables: deliverables.length },
+        ideas, canon: canonDocs, connections, deliverables,
+      };
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `signal-${projName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${stamp}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      notify("Exported your project — it's yours to keep.", "success");
+    } catch (e) { console.error("Export:", e); notify("Export failed.", "error"); }
+  };
+
   const addReply = async (ideaId, section, text) => {
     if (!text.trim() || !user) return false;
     try {
@@ -2021,6 +2047,7 @@ ${openInvites || "None yet."}`,
               { label: "Patterns",     icon: "◎",  color: C.purple, action: () => setStudioTab("patterns") },
               { label: "Audit",        icon: "⚑",  color: C.red,    action: () => { if (!auditing) auditLibrary(); } },
               { label: "Compose",      icon: "✎",  color: C.green,  action: () => navGo("compose") },
+              { label: "Export",       icon: "⤓",  color: C.blue,   action: () => exportProject() },
               { label: "Stats",        icon: "▦",  color: C.textMuted, action: () => setStudioTab("stats") },
               { label: "Pulse",        icon: "↯",  color: C.gold,      action: async () => {
                 // 1.2 / Feature 6 — surface the Pulse IN-APP, not only on Telegram.
