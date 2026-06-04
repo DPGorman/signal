@@ -11,7 +11,7 @@ export default function MindMapView({
   onNavigate,
   onNotify,
 }) {
-  const autoMapped = useRef(false);
+  const autoMapped = useRef(null); // holds the projectId we've auto-mapped, so a project switch re-arms it
   const [mapNodes, setMapNodes] = useState([]);
   const [hoveredNode, setHoveredNode] = useState(null);
   const [dragNode, setDragNode] = useState(null);
@@ -46,13 +46,13 @@ export default function MindMapView({
   // has to press a button. Connections should always be current; "Remap" is just
   // a manual nudge, not the way the map gets populated.
   useEffect(() => {
-    if (autoMapped.current) return;
     if (!projectId || ideas.length < 2) return;
+    if (autoMapped.current === projectId) return; // already handled THIS project this mount
     const sessKey = `signal_mapped_${projectId}`;
-    if (sessionStorage.getItem(sessKey)) { autoMapped.current = true; return; }
+    if (sessionStorage.getItem(sessKey)) { autoMapped.current = projectId; return; }
     const unlinked = ideas.filter(i => !connections.some(c => c.idea_id_a === i.id || c.idea_id_b === i.id));
     if (unlinked.length === 0) return;
-    autoMapped.current = true;
+    autoMapped.current = projectId;
     sessionStorage.setItem(sessKey, "1");
     onMapAll(true); // silent background run
   }, [ideas.length, connections.length, projectId]); // eslint-disable-line
