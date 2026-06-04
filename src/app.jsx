@@ -1733,6 +1733,14 @@ ${openInvites || "None yet."}`,
                   ⚠ TENSIONS {tn}
                 </button>
               ); })()}
+              {/* Feature 10 — re-slice by property: a one-click High-Signal slice
+                  (alongside category + tension), so the corpus bends to the work. */}
+              {(() => { const hs = creativeIdeas.filter(i => i.signal_strength >= 4).length; return hs > 0 && (
+                <button onClick={() => setSignalFilter(v => !v)}
+                  style={{ background: signalFilter ? C.gold : "transparent", color: signalFilter ? C.bg : C.gold, border: `1px solid ${C.gold}`, padding: "3px 8px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
+                  ◈ HIGH SIGNAL {hs}
+                </button>
+              ); })()}
               {CATEGORIES.filter(cat => creativeIdeas.some(i => i.category === cat.id)).map(cat => (
                 <button key={cat.id} onClick={() => setFilterCat(cat.id === filterCat ? null : cat.id)}
                   style={{ background: filterCat === cat.id ? cat.color : "transparent", color: filterCat === cat.id ? C.bg : C.textMuted, border: `1px solid ${filterCat === cat.id ? cat.color : C.border}`, padding: "3px 8px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
