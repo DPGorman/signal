@@ -70,6 +70,7 @@ export default function Signal() {
   // 1.1 — at-capture link suggestion. Set when background connection generation
   // finds links for a just-captured idea; rendered as a floating "Signal noticed" card.
   const [linkSuggestion, setLinkSuggestion] = useState(null);
+  const [pulse, setPulse] = useState(null); // Feature 6 — in-app Pulse surface: {loading} | {text}
   const [globalSearch,  setGlobalSearch]  = useState("");
   const [localSearch,   setLocalSearch]   = useState("");
   const [searchHighlight, setSearchHighlight] = useState("");
@@ -1540,6 +1541,26 @@ ${openInvites || "None yet."}`,
         </div>
       )}
 
+      {/* Feature 6 — in-app Pulse surface. The proactive nudge, shown in the app
+          the moment the creator asks for it (also pushed to Telegram by the server). */}
+      {pulse && (
+        <div onClick={() => setPulse(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: 460, maxWidth: "100%", background: C.surface, border: `1px solid ${C.gold}`, borderRadius: 12, padding: "22px 24px", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <span style={{ fontSize: 12, color: C.gold, fontFamily: mono, letterSpacing: "0.14em" }}>↯ PULSE</span>
+              <span onClick={() => setPulse(null)} style={{ fontSize: 18, color: C.textMuted, cursor: "pointer", lineHeight: 1 }}>×</span>
+            </div>
+            {pulse.loading ? (
+              <div style={{ fontSize: 13, color: C.textMuted, fontStyle: "italic" }}>Reading the whole project for the one move that matters…</div>
+            ) : (
+              <div style={{ fontSize: 15, color: C.textPrimary, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{pulse.text}</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ─── LEFT COLUMN: Sources + Navigation ─── */}
       <div style={{ width: leftW, background: C.surface, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden", borderRadius: 12 }}>
         <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
@@ -1992,15 +2013,20 @@ ${openInvites || "None yet."}`,
               { label: "Compose",      icon: "✎",  color: C.green,  action: () => navGo("compose") },
               { label: "Stats",        icon: "▦",  color: C.textMuted, action: () => setStudioTab("stats") },
               { label: "Pulse",        icon: "↯",  color: C.gold,      action: async () => {
-                notify("Sending pulse...", "processing");
+                // 1.2 / Feature 6 — surface the Pulse IN-APP, not only on Telegram.
+                // The server still also pushes to Telegram (parity with the iOS Pulse
+                // screen); the win here is the creator sees the nudge in the app the
+                // instant they ask for it, instead of only as "sent to Telegram."
+                notify("Reading your project...", "processing");
+                setPulse({ loading: true, text: null });
                 try {
                   const { data: { session } } = await supabase.auth.getSession();
                   const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
                   const r = await fetch("/api/pulse", { method: "POST", headers: { "Content-Type": "application/json", ...authHeader }, body: JSON.stringify({ mode: "nudge", user_id: user?.id }) });
                   const d = await r.json();
-                  if (d.sent) notify("Pulse sent to Telegram.", "success");
-                  else notify("Pulse failed: " + (d.error || "unknown"), "error");
-                } catch (e) { notify("Pulse failed.", "error"); }
+                  if (d.sent && d.message) { setPulse({ loading: false, text: d.message }); notify("Pulse ready.", "success"); }
+                  else { setPulse(null); notify("Pulse failed: " + (d.error || "unknown"), "error"); }
+                } catch (e) { setPulse(null); notify("Pulse failed.", "error"); }
               }},
             ].map(tool => (
               <button key={tool.label} onClick={tool.action}
