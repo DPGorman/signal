@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase.js";
 import { C, CATEGORIES, DOC_TYPES, DAILY_INVITATIONS, getCat, todayInvitation, callAI } from "./lib/constants.js";
+import { pickSynthesisPair, buildInsightMessage, extractSynthesis } from "./lib/synthesis.js";
 import Highlight from "./components/Highlight.jsx";
 import ReplyBox from "./components/ReplyBox.jsx";
 import TodayFocus from "./components/TodayFocus.jsx";
@@ -695,6 +696,28 @@ If no meaningful connections exist, return {"connections": []}`,
           .sort((a, b) => (b.strength || 0) - (a.strength || 0))
           .slice(0, 3);
         setLinkSuggestion({ newIdeaText, links });
+
+        // Feature 7 — the headline "Signal noticed…" synthesis. When a genuine
+        // collision lands (strongest link strength >= 4), collide the two captures
+        // into ONE new thought via insight mode and promote it to the hero of the
+        // card. Fire-and-forget: the link list shows instantly; the synthesis fills
+        // in when ready. The newIdeaText guard avoids a stale write if the user has
+        // already captured something newer by the time this resolves.
+        const pair = pickSynthesisPair(links);
+        if (pair) {
+          callAIv2({
+            mode: "insight",
+            userId,
+            message: buildInsightMessage(newIdeaText, pair.partnerText),
+            maxTokens: 160,
+            projectId: currentProject?.id || null,
+          })
+            .then(r => {
+              const synthesis = extractSynthesis(r);
+              if (synthesis) setLinkSuggestion(prev => (prev && prev.newIdeaText === newIdeaText ? { ...prev, synthesis } : prev));
+            })
+            .catch(e => console.warn("Synthesis:", e));
+        }
       }
     } catch (e) { console.warn("Connection generation:", e); }
   };
@@ -1488,8 +1511,13 @@ ${openInvites || "None yet."}`,
             <span style={{ fontSize: 11, color: C.blue, fontFamily: mono, letterSpacing: "0.12em" }}>⬡ SIGNAL NOTICED</span>
             <span onClick={() => setLinkSuggestion(null)} style={{ fontSize: 16, color: C.textMuted, cursor: "pointer", lineHeight: 1 }}>×</span>
           </div>
+          {linkSuggestion.synthesis && (
+            <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.5, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.borderSubtle}`, fontStyle: "italic" }}>
+              {linkSuggestion.synthesis}
+            </div>
+          )}
           <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5, marginBottom: 12 }}>
-            Your capture connects to {linkSuggestion.links.length} earlier idea{linkSuggestion.links.length > 1 ? "s" : ""}:
+            {linkSuggestion.synthesis ? "Drawn from:" : <>Your capture connects to {linkSuggestion.links.length} earlier idea{linkSuggestion.links.length > 1 ? "s" : ""}:</>}
           </div>
           {linkSuggestion.links.map((l, i) => {
             const cat = getCat(l.partnerCategory);
