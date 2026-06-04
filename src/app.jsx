@@ -53,6 +53,7 @@ export default function Signal() {
   const [notification,  setNotification]  = useState(null);
   const [filterCat,     setFilterCat]     = useState(null);
   const [signalFilter,  setSignalFilter]  = useState(false);
+  const [tensionFilter, setTensionFilter] = useState(false); // Feature 9 — show only ideas that contradict canon
   const [showUpload,    setShowUpload]    = useState(false);
   const [canonUpload,   setCanonUpload]   = useState({ title: "", type: "reference", content: "" });
   const [isUploading,   setIsUploading]   = useState(false);
@@ -1307,6 +1308,7 @@ ${openInvites || "None yet."}`,
     let f = creativeIdeas;
     if (filterCat) f = f.filter(i => i.category === filterCat);
     if (signalFilter) f = f.filter(i => i.signal_strength >= 4);
+    if (tensionFilter) f = f.filter(i => (i.canon_tension || "").trim());
     if (localSearch && localSearch.length >= 2) {
       const term = localSearch.toLowerCase();
       f = f.filter(i => i.text.toLowerCase().includes(term) || (i.ai_note || "").toLowerCase().includes(term));
@@ -1697,6 +1699,14 @@ ${openInvites || "None yet."}`,
                 style={{ background: !filterCat ? C.gold : "transparent", color: !filterCat ? C.bg : C.textMuted, border: `1px solid ${!filterCat ? C.gold : C.border}`, padding: "3px 8px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
                 ALL {creativeIdeas.length}
               </button>
+              {/* Feature 9 — proactive contradiction surfacing: every idea that
+                  contradicts canon, in one place, instead of buried per-idea. */}
+              {(() => { const tn = creativeIdeas.filter(i => (i.canon_tension || "").trim()).length; return tn > 0 && (
+                <button onClick={() => setTensionFilter(v => !v)}
+                  style={{ background: tensionFilter ? C.red : "transparent", color: tensionFilter ? C.bg : C.red, border: `1px solid ${C.red}`, padding: "3px 8px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
+                  ⚠ TENSIONS {tn}
+                </button>
+              ); })()}
               {CATEGORIES.filter(cat => creativeIdeas.some(i => i.category === cat.id)).map(cat => (
                 <button key={cat.id} onClick={() => setFilterCat(cat.id === filterCat ? null : cat.id)}
                   style={{ background: filterCat === cat.id ? cat.color : "transparent", color: filterCat === cat.id ? C.bg : C.textMuted, border: `1px solid ${filterCat === cat.id ? cat.color : C.border}`, padding: "3px 8px", fontSize: 12, fontFamily: sans, fontWeight: 500, cursor: "pointer", borderRadius: 4 }}>
