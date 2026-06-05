@@ -1633,7 +1633,7 @@ ${openInvites || "None yet."}`,
                       if (isIncoming) navGo("incoming");
                       else { setActiveIdea(r.item); navGo("library"); }
                     }
-                    else if (r.type === "canon") { setActiveDoc(r.item); navGo("canon"); }
+                    else if (r.type === "canon") { setActiveDoc(r.item); setCitationHighlight(null); navGo("canon"); }
                     else if (r.type === "compose") { setActiveCompose(r.item); navGo("compose"); }
                     else if (r.type === "deliverable") {
                       navGo("deliverables");
@@ -1784,7 +1784,7 @@ ${openInvites || "None yet."}`,
             </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               {canonDocs.map(doc => (
-                <div key={doc.id} onClick={() => setActiveDoc(doc)}
+                <div key={doc.id} onClick={() => { setActiveDoc(doc); setCitationHighlight(null); }}
                   style={{ padding: "10px 12px", cursor: "pointer", display: "flex", gap: 8, alignItems: "center", borderBottom: `1px solid ${C.borderSubtle}`, borderLeft: activeDoc?.id === doc.id ? `3px solid ${C.green}` : "3px solid transparent", background: activeDoc?.id === doc.id ? C.surfaceHigh : "transparent" }}
                   onMouseEnter={e => activeDoc?.id !== doc.id && (e.currentTarget.style.background = C.surfaceHigh)}
                   onMouseLeave={e => activeDoc?.id !== doc.id && (e.currentTarget.style.background = "transparent")}>
@@ -1834,7 +1834,7 @@ ${openInvites || "None yet."}`,
             </div>
             <div style={{ overflowY: "auto", padding: "0 4px" }}>
               {canonDocs.map(doc => (
-                <div key={doc.id} onClick={() => { setActiveDoc(doc); navGo("canon"); }}
+                <div key={doc.id} onClick={() => { setActiveDoc(doc); setCitationHighlight(null); navGo("canon"); }}
                   style={{ padding: "6px 10px", cursor: "pointer", display: "flex", gap: 8, alignItems: "center", borderRadius: 4, marginBottom: 1 }}
                   onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
