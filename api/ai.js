@@ -16,7 +16,7 @@
 // Exactly one of {system} or {mode + userId} must be provided.
 
 import { supabase } from "./_supabase.js";
-import { callClaude } from "./_anthropic.js";
+import { callClaude, HIGH_QUALITY_MODEL } from "./_anthropic.js";
 import { assembleSystemPrompt, toCacheableSystemContent } from "./_voice/assemble.js";
 import { getUpcomingEvents, formatEventsForContext } from "./_calendar/get-events.js";
 
@@ -129,14 +129,27 @@ export default async function handler(req, res) {
     userContent = mode ? `Begin ${mode}.` : "Begin.";
   }
 
+  // F4 — voice cleanup pass (capture mode only).
+  // Strips spoken fillers before analysis so the AI works on signal, not noise.
+  // Only the analysis input is cleaned — stored text and displayed text are untouched.
+  if (mode === "capture" && typeof userContent === "string") {
+    userContent = userContent
+      .replace(/\b(um+|uh+|er+|ah+|hmm+|like,?\s+(?=\w)|you know,?\s+|I mean,?\s+|sort of,?\s+|kind of,?\s+|basically,?\s+|literally,?\s+|right\?,?\s+|okay so,?\s+)\b/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
   try {
     let data;
     try {
+      // insight (synthesis) mode runs on Opus — it's the most voice-sensitive output.
+      const modelOverride = mode === "insight" ? HIGH_QUALITY_MODEL : undefined;
       data = await callClaude({
         system: systemPrompt,
         messages: [{ role: "user", content: userContent }],
         maxTokens: maxTokens || 1000,
         betas: ["pdfs-2024-09-25"],
+        ...(modelOverride && { model: modelOverride }),
       });
     } catch (e) {
       return res.status(e.status || 500).json({ error: e.body || e.message });
