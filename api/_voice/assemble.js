@@ -5,6 +5,7 @@
 import { BACKBONE } from "./backbone.js";
 import { OVERLAYS } from "./overlays.js";
 import { MODES } from "./modes.js";
+import { CRAFT_SCHEMAS } from "./schemas.js";
 
 const SEPARATOR = "\n\n---\n\n";
 const DEFAULT_CRAFT = "screenwriter"; // fallback if user has no craft set
@@ -99,6 +100,26 @@ These corrections fix FACTS. They do NOT soften your job. Keep challenging. Keep
 }
 
 /**
+ * Build a short per-craft output schema addendum for capture mode.
+ * Injected into the stable block so it's part of the cached prefix.
+ * Returns empty string for crafts with no schema entry or non-capture modes.
+ */
+function formatCraftSchemaAddendum(craft, mode) {
+  if (mode !== "capture") return "";
+  const schema = CRAFT_SCHEMAS[craft];
+  if (!schema) return "";
+
+  const dimList = schema.dimensions.join(" · ");
+  const durEntries = Object.entries(schema.durations)
+    .map(([cat, min]) => `${cat} ${min}m`)
+    .join(" · ");
+
+  return `OUTPUT SCHEMA ADDENDUM — ${craft}:
+- dimensions: choose 2–3 labels from: ${dimList}
+- invitations: default duration_minutes — ${durEntries}`;
+}
+
+/**
  * Pure prompt composition. No I/O, no DB. Easy to test in isolation.
  *
  * Splits the assembled prompt into a STABLE part (backbone + craft overlay
@@ -128,8 +149,9 @@ export function composePrompt({ craft, lexicon, voiceCard, collaboratorName, mod
 
   const userLayer = formatUserLayer({ lexicon, voiceCard, collaboratorName });
   const runtime = formatRuntimeContext(runtimeContext);
+  const schemaAddendum = formatCraftSchemaAddendum(overlayKey, mode);
 
-  const stable = [BACKBONE, overlay, userLayer, modeContract]
+  const stable = [BACKBONE, overlay, userLayer, modeContract, schemaAddendum]
     .filter(Boolean)
     .join(SEPARATOR);
 

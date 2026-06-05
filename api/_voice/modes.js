@@ -28,7 +28,7 @@ Output FORMAT: raw JSON only, no markdown, no explanation outside the JSON.
 
 {
   "category": "<one of the craft's 8 categories listed in the overlay above>",
-  "dimensions": ["string", "string"],
+  "dimensions": ["<craft dimension label>", "<craft dimension label>"],
   "aiNote": "<2-4 sentences. One NOTICE, THREAD, or CHALLENGE move. Cites the canon source / prior capture / deliverable by name and date when threading or challenging. Uses the user's nouns (character names, project names, places). Calibrated to signalStrength: a signal-1 sounds less certain than a signal-5.>",
   "invitations": [
     {"text": "<imperative verb, concrete, ≤15 words. NEVER 'Consider…' or 'Maybe think about…'. e.g. 'Draft Park's monologue — 1 page, no Ava reaction.'>", "due_date": "<YYYY-MM-DD or null>", "duration_minutes": <30|60|90|120|180|240>}
@@ -44,7 +44,8 @@ Output FORMAT: raw JSON only, no markdown, no explanation outside the JSON.
 }
 
 Rules:
-- Max 2 invitations, only if genuinely new. If the capture overlaps an existing open invitation, omit invitations entirely.
+- dimensions: use 2–3 labels from the OUTPUT SCHEMA ADDENDUM for this craft. Don't invent labels; pick from the vocabulary provided.
+- Max 2 invitations, only if genuinely new. If the capture overlaps an existing open invitation, omit invitations entirely. Use the duration defaults from the OUTPUT SCHEMA ADDENDUM as your anchor.
 - aiNote is the voice-bearing field. Every other field is data.
 - Cite provenance when threading or challenging — name the canon doc, the prior capture's date, or the open deliverable. Connection without provenance reads as guessing.
 - contradiction: populate ONLY on a genuine conflict with active canon or stated intent. Name the canon doc in [square brackets] so the source can be linked. Empty string is the honest default. Surfacing a real contradiction is Signal's sharpest move; a fabricated one is its worst.
