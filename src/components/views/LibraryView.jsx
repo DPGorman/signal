@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { C, getCat, mono, sans } from "../../lib/constants";
 import Highlight from "../Highlight";
 import ReplyBox from "../ReplyBox";
@@ -40,25 +41,23 @@ export default function LibraryView({
   // 1.3 / F2 — source-cited answers with line-level anchors.
   // Returns { ...doc, anchor } where anchor is the quoted phrase the AI cited
   // (from '[Doc Title] — "phrase"' format), or null for retroactive doc-level hits.
-  const citedCanon = (idea) => {
-    if (!idea) return [];
-    const full = `${idea.ai_note || ""}\n${idea.canon_resonance || ""}\n${idea.canon_tension || ""}`;
+  // Memoised on the active idea + canon list so regexes don't rebuild every render.
+  const cited = useMemo(() => {
+    if (!displayIdea) return [];
+    const full = `${displayIdea.ai_note || ""}\n${displayIdea.canon_resonance || ""}\n${displayIdea.canon_tension || ""}`;
     const hay = full.toLowerCase();
     return (canonDocs || []).flatMap(d => {
       if (!d.is_active || !d.title) return [];
       const t = d.title.toLowerCase();
-      // Extract anchor phrase from '[Title] — "phrase"' pattern (F2 line-level).
       const escaped = d.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const phraseMatch = full.match(new RegExp(`\\[${escaped}\\]\\s*[—–-]+\\s*"([^"]{5,80})"`, "i"));
       const anchor = phraseMatch ? phraseMatch[1] : null;
       if (anchor) return [{ ...d, anchor }];
-      // Fallback: bracketed doc-level citation (retroactive, no phrase).
       if (hay.includes(`[${t}]`)) return [{ ...d, anchor: null }];
-      // Bare title mention — only when specific enough.
       if (t.length >= 4 && hay.includes(t)) return [{ ...d, anchor: null }];
       return [];
     });
-  };
+  }, [displayIdea?.id, canonDocs]);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
       {!displayIdea
@@ -66,7 +65,6 @@ export default function LibraryView({
         : (() => {
             const cat = getCat(displayIdea.category);
             const ideaDels = deliverables.filter(d => d.idea_id === displayIdea.id);
-            const cited = citedCanon(displayIdea);
             return (
               <div style={{ maxWidth: 640 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>

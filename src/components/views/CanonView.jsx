@@ -26,12 +26,17 @@ export default function CanonView({
     // by looking for a span whose full textContent matches the anchor phrase.
     const lower = citationHighlight.toLowerCase();
     const spans = contentRef.current.querySelectorAll("span");
+    let found = false;
     for (const span of spans) {
       if (span.textContent.toLowerCase() === lower) {
         span.scrollIntoView({ behavior: "smooth", block: "center" });
+        found = true;
         break;
       }
     }
+    // Fallback: phrase not found verbatim (AI paraphrased) — scroll to top so
+    // the doc opens at the beginning rather than wherever it was last scrolled.
+    if (!found) contentRef.current.closest("[style*='overflow']")?.scrollTo({ top: 0, behavior: "smooth" });
   }, [citationHighlight, activeDoc?.id]);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
