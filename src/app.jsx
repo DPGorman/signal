@@ -76,6 +76,7 @@ export default function Signal() {
   const [localSearch,   setLocalSearch]   = useState("");
   const [searchHighlight, setSearchHighlight] = useState("");
   const [scrollToId,    setScrollToId]    = useState(null);
+  const [citationHighlight, setCitationHighlight] = useState(null);
   const [actionsView,   setActionsView]   = useState("focus");
   const [justDone,      setJustDone]      = useState(new Set());
   const [leftW,         setLeftW]         = useState(260);
@@ -1958,7 +1959,12 @@ ${openInvites || "None yet."}`,
               onToggleDeliverable={toggleDeliverable}
               onAddReply={addReply}
               onCorrect={createCorrection}
-              onOpenCanon={() => navGo("canon")}
+              onOpenCanon={(docId, phrase) => {
+                const doc = canonDocs.find(d => d.id === docId);
+                if (doc) setActiveDoc(doc);
+                setCitationHighlight(phrase || null);
+                navGo("canon");
+              }}
             />
           )}
           {view === "canon"        && (
@@ -1973,6 +1979,7 @@ ${openInvites || "None yet."}`,
               onUpload={uploadCanon}
               activeDoc={activeDoc}
               searchHighlight={searchHighlight}
+              citationHighlight={citationHighlight}
               onToggleCanon={toggleCanon}
               onDeleteCanon={deleteCanon}
               correctionCount={corrections.filter(c => c.is_active).length}

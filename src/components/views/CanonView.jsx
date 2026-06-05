@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { C, DOC_TYPES, mono, sans, inputBase } from "../../lib/constants";
 import Highlight from "../Highlight";
 
@@ -12,11 +13,26 @@ export default function CanonView({
   onUpload,
   activeDoc,
   searchHighlight,
+  citationHighlight,
   onToggleCanon,
   onDeleteCanon,
   correctionCount = 0,
   onOpenTeachings,
 }) {
+  const contentRef = useRef(null);
+  useEffect(() => {
+    if (!citationHighlight || !contentRef.current) return;
+    // Find the first highlighted span (Highlight component renders matched text as a child span)
+    // by looking for a span whose full textContent matches the anchor phrase.
+    const lower = citationHighlight.toLowerCase();
+    const spans = contentRef.current.querySelectorAll("span");
+    for (const span of spans) {
+      if (span.textContent.toLowerCase() === lower) {
+        span.scrollIntoView({ behavior: "smooth", block: "center" });
+        break;
+      }
+    }
+  }, [citationHighlight, activeDoc?.id]);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "36px 48px" }}>
       {onOpenTeachings && (
@@ -77,7 +93,7 @@ export default function CanonView({
               </div>
             </div>
             <div style={{ fontSize: 12, color: C.textMuted, fontFamily: mono, marginBottom: 32 }}>{activeDoc.content?.length?.toLocaleString()} chars · {activeDoc.is_active ? "active" : "inactive"}</div>
-            <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: sans }}><Highlight text={activeDoc.content} term={searchHighlight} /></div>
+            <div ref={contentRef} style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: sans }}><Highlight text={activeDoc.content} term={citationHighlight || searchHighlight} /></div>
           </div>
         )
       }
