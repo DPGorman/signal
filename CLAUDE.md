@@ -1,7 +1,7 @@
 # Signal — Desktop Web Application
 
 ## Source of truth
-For the latest project-wide state, **read `/Users/dpg/MOTHERSHIP/signal/docs/SIGNAL_HANDOFF_*.md` (highest-versioned file)** first. This CLAUDE.md is the local reference for the desktop sub-project only.
+For the latest project-wide state, **read `/Users/dpg/Claude/Projects/Signal/docs/SIGNAL_HANDOFF_*.md` (highest-versioned file)** first. This CLAUDE.md is the local reference for the desktop sub-project only.
 
 ## Overview
 Signal is a creative ideation and production management platform for screenwriters and other creative professionals (10 V1 craft overlays). Capture raw creative impulses, get AI analysis via Claude, generate actionable next steps, and track production work.
