@@ -134,3 +134,10 @@
 ## [SIGNAL INFO] 2026-05-27T11:12:01Z — new signups
 1 new in last 12 hours (already flagged in noon run at 05:10Z). Emails: dpgorman+1@gmail.com (Daniel alias). Total users: 6.
 ---
+
+## [SIGNAL YELLOW] 2026-07-04T05:09:19Z
+**What's off:** Telegram bot returning 404 Not Found on `/api/pulse` at 00:31 UTC today.
+**Why this severity:** 1 sporadic runtime error in the 6h window (threshold: 1-3 = YELLOW). Telegram notification delivery broken — pulse is running but Telegram messages are failing silently. Does not affect core app; no 5xx from Vercel functions.
+**Recommended action:** Check `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in Vercel env vars for signal-multi. If Telegram integration is being retired (noted as "possibly retiring" in CLAUDE.md), remove the Telegram call from `/api/pulse` to eliminate the noise.
+**Raw data:** `Telegram error: { ok: false, error_code: 404, description: 'Not Found' }`; route=/api/pulse; first=2026-05-06T10:55:33Z last=2026-07-04T00:31:45Z; all other checks GREEN; url.parse() DEP0169 deprecation warnings (benign, ignored).
+---
