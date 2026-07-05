@@ -1,5 +1,12 @@
 # Signal Alerts
 
+## [SIGNAL YELLOW] 2026-07-05T05:08:34Z
+**What's off:** Telegram 404 on /api/pulse at 00:31 UTC — 1 error occurrence in 6h window. error_code 404 "Not Found" from Telegram API.
+**Why this severity:** 1 runtime error in 6h window = YELLOW per threshold. Same recurring pattern as yesterday 5am run (and daily since 2026-05-06).
+**Recommended action:** Low urgency — Telegram bot config stale or chat_id gone. Fix TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID in Vercel env, or accept as known noise if bot is being retired. Also a url.parse() DEP0169 deprecation warning fires simultaneously on the same /api/pulse call.
+**Raw data:** routes=/api/pulse, count=1, first=2026-05-06T10:55:33Z, last=2026-07-05T00:31:45Z, deployment=dpl_CNZ9ABdri6k2rF77fgzDCociN7gd
+---
+
 ## [SIGNAL INFO] 2026-05-12T18:59:08Z — new signups
 1 new user(s) in the last 12 hours. Most recent: 2026-05-12T10:36:31Z. Total users: 4.
 ---
