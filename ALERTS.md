@@ -7,6 +7,13 @@
 **Raw data:** routes=/api/pulse, count=1, first=2026-05-06T10:55:33Z, last=2026-07-05T00:31:45Z, deployment=dpl_CNZ9ABdri6k2rF77fgzDCociN7gd
 ---
 
+## [SIGNAL YELLOW] 2026-07-11T05:10:00Z
+**What's off:** Telegram 404 on /api/pulse at 00:31 UTC — recurring daily error since 2026-05-06, again today.
+**Why this severity:** 1 runtime error in 6h window = YELLOW per threshold. All other checks GREEN. Secondary note: 6-day gap in health log (Jul 5 05:08Z → Jul 11 05:10Z) suggests cron runner was paused; this is a monitoring issue, not a Signal app issue.
+**Recommended action:** Same as prior alerts — fix TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID in Vercel env for signal-multi, or remove the Telegram notify call from /api/pulse if bot is being retired (CLAUDE.md notes "possibly retiring"). Also verify the scheduled health-check cron is active after the 6-day gap.
+**Raw data:** `Telegram error: { ok: false, error_code: 404, description: 'Not Found' }`; route=/api/pulse; last=2026-07-11T00:31:45Z; health=200/ok=true (MISS); multi=200/HIT (etag 561bf64, last-modified Jul 2); navy=200/HIT (same etag); deploy READY 357f5d7 (~35d); main 17b23ea ~14d undeployed (informational, manual-deploy repo).
+---
+
 ## [SIGNAL INFO] 2026-05-12T18:59:08Z — new signups
 1 new user(s) in the last 12 hours. Most recent: 2026-05-12T10:36:31Z. Total users: 4.
 ---
